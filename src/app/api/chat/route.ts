@@ -5,7 +5,14 @@ import {
   generateSalesReply,
   SalesChatMessage,
 } from "../../../lib/salesChat";
-import { isSalesState, SalesState } from "../../../lib/salesState";
+import {
+  businessIdentityKey,
+  createInitialSalesState,
+  isSalesState,
+  isValidConversationId,
+  normalizeSalesState,
+  SalesState,
+} from "../../../lib/salesState";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") {
@@ -57,9 +64,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const business = body.business;
     const messages = body.messages;
-    const previousState: SalesState | null = isSalesState(body.salesState)
-      ? body.salesState
-      : null;
+    const conversationId = body.conversationId;
+
+    if (!isValidConversationId(conversationId)) {
+      return NextResponse.json(
+        { error: "A valid conversationId is required." },
+        { status: 400 }
+      );
+    }
 
     if (!isBusinessProfile(business)) {
       return NextResponse.json(
@@ -75,13 +87,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { reply, salesState } = await generateSalesReply(
+    const businessKey = businessIdentityKey(business);
+
+    let previousState: SalesState | null = isSalesState(body.salesState)
+      ? normalizeSalesState(body.salesState)
+      : null;
+
+    if (
+      previousState?.conversationId &&
+      previousState.conversationId !== conversationId
+    ) {
+      return NextResponse.json(
+        { error: "conversationId does not match sales state." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      previousState?.businessKey &&
+      previousState.businessKey !== businessKey
+    ) {
+      return NextResponse.json(
+        { error: "business identity does not match sales state." },
+        { status: 400 }
+      );
+    }
+
+    if (previousState) {
+      previousState = {
+        ...previousState,
+        conversationId,
+        businessKey: previousState.businessKey || businessKey,
+      };
+    } else {
+      previousState = createInitialSalesState({ conversationId, businessKey });
+    }
+
+    const { reply, salesState: nextState } = await generateSalesReply(
       business,
       messages,
       previousState
     );
 
-    return NextResponse.json({ reply, salesState });
+    const salesState: SalesState = {
+      ...nextState,
+      conversationId,
+      businessKey: nextState.businessKey || businessKey,
+    };
+
+    return NextResponse.json({ reply, salesState, conversationId });
   } catch (error) {
     console.error(error);
 

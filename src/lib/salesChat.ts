@@ -1,6 +1,10 @@
 import OpenAI from "openai";
 import { BusinessProfile } from "../types/business";
 import {
+  applyLeadDeliveryResult,
+  maybeSendLeadHandoff,
+} from "./leadHandoff";
+import {
   buildTurnControlBlock,
   buildValidationCorrection,
   updateSalesStateFromTurn,
@@ -22,7 +26,7 @@ export type SalesChatMessage = {
  * Business knowledge only (WHAT the business sells / knows).
  * Must never be treated as competing sales methodology.
  */
-function formatBusinessKnowledge(business: BusinessProfile): string {
+export function formatBusinessKnowledge(business: BusinessProfile): string {
   const faqs =
     business.faqs.length > 0
       ? business.faqs
@@ -468,11 +472,24 @@ export async function generateSalesReply(
   messages: SalesChatMessage[],
   previousState?: SalesState | null
 ): Promise<{ reply: string; salesState: SalesState }> {
-  const salesState = updateSalesStateFromTurn(
+  let salesState = updateSalesStateFromTurn(
     previousState,
     messages,
     business
   );
+
+  const latestUser = [...messages].reverse().find((m) => m.role === "user");
+
+  // LEAD CAPTURE != LEAD HANDOFF.
+  // Only attempt email on explicit customer closure during chat turns.
+  // Inactivity handoff is handled separately via /api/lead-handoff.
+  const handoff = await maybeSendLeadHandoff(
+    business,
+    salesState,
+    "closure",
+    latestUser?.content
+  );
+  salesState = applyLeadDeliveryResult(salesState, handoff);
 
   const baseInstructions = `${buildMasterSalesCommand(business)}
 
@@ -502,7 +519,7 @@ ${extra}`
   }
 
   let reply = await requestReply();
-  const validation = validateSalesReply(reply, salesState);
+  const validation = validateSalesReply(reply, salesState, business);
 
   if (!validation.ok) {
     reply = await requestReply(

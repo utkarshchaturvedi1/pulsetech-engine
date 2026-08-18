@@ -34,3 +34,14 @@ export function createBusinessProfile(
     ...data,
   };
 }
+
+/** Deep-ish clone so session rebinds don't share mutable FAQ/service arrays. */
+export function cloneBusinessProfile(business: BusinessProfile): BusinessProfile {
+  return {
+    ...business,
+    services: [...(business.services || [])],
+    serviceAreas: [...(business.serviceAreas || [])],
+    leadQuestions: [...(business.leadQuestions || [])],
+    faqs: (business.faqs || []).map((faq) => ({ ...faq })),
+  };
+}

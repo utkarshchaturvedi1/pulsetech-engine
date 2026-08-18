@@ -99,12 +99,12 @@ export default function DemoWorkspace({
           />
         </section>
 
-        <section className="flex h-[min(50%,420px)] min-h-0 w-full flex-col md:h-full md:flex-1">
-          <div className="h-full min-h-0 overflow-hidden">
+        <section className="flex h-[min(50%,420px)] min-h-0 w-full flex-col items-center justify-center md:h-full md:flex-1">
+          <div className="mx-auto flex h-full min-h-0 w-full max-w-[420px] flex-col overflow-hidden sm:max-w-[420px]">
             <CustomerAI
               business={business}
               disabled={false}
-              className="h-full min-h-0"
+              className="h-full min-h-0 max-w-none"
             />
           </div>
         </section>

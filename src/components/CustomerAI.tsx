@@ -4,7 +4,11 @@ import { useEffect, useRef } from "react";
 import ChatWindow from "./Chat/ChatWindow";
 import ChatAgentShell from "./Chat/ChatAgentShell";
 import { BusinessProfile } from "../types/business";
-import { createCustomerChatSession } from "../lib/customerChatClient";
+import {
+  createCustomerChatSession,
+  type CustomerChatSession,
+} from "../lib/customerChatClient";
+import { businessIdentityKey } from "../lib/salesState";
 
 type CustomerAIProps = {
   business: BusinessProfile;
@@ -14,32 +18,53 @@ type CustomerAIProps = {
 
 const INITIAL_MESSAGE = "👋 Hi! How can I help you today?";
 
+function profileContentSignature(business: BusinessProfile): string {
+  return JSON.stringify({
+    businessName: business.businessName,
+    tagline: business.tagline,
+    phone: business.phone,
+    email: business.email,
+    address: business.address,
+    services: business.services,
+    serviceAreas: business.serviceAreas,
+    faqs: business.faqs,
+    leadQuestions: business.leadQuestions,
+    systemPrompt: business.systemPrompt,
+  });
+}
+
 export default function CustomerAI({
   business,
   disabled,
   className = "",
 }: CustomerAIProps) {
-  const sessionRef = useRef<ReturnType<typeof createCustomerChatSession> | null>(
-    null
-  );
-  const businessRef = useRef(business);
+  const sessionRef = useRef<CustomerChatSession | null>(null);
+  const identityKey = businessIdentityKey(business);
+  const contentKey = profileContentSignature(business);
 
   useEffect(() => {
-    businessRef.current = business;
-    if (!sessionRef.current) {
-      sessionRef.current = createCustomerChatSession(
-        () => businessRef.current,
-        INITIAL_MESSAGE
-      );
-    }
-  }, [business]);
+    sessionRef.current?.destroy();
+    sessionRef.current = createCustomerChatSession(business, INITIAL_MESSAGE);
+
+    return () => {
+      sessionRef.current?.destroy();
+      sessionRef.current = null;
+    };
+    // Recreate only when business identity (website) changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- identityKey is the isolation boundary
+  }, [identityKey]);
+
+  // Owner knowledge updates: rebind BusinessProfile, keep conversationId + SalesState.
+  useEffect(() => {
+    if (!sessionRef.current?.isActive()) return;
+    sessionRef.current.updateBusiness(business);
+  }, [contentKey, business]);
 
   async function handleCustomerMessage(message: string): Promise<string> {
-    if (!sessionRef.current) {
-      sessionRef.current = createCustomerChatSession(
-        () => businessRef.current,
-        INITIAL_MESSAGE
-      );
+    if (!sessionRef.current || !sessionRef.current.isActive()) {
+      sessionRef.current = createCustomerChatSession(business, INITIAL_MESSAGE);
+    } else {
+      sessionRef.current.updateBusiness(business);
     }
 
     try {
@@ -54,10 +79,10 @@ export default function CustomerAI({
       name={business.businessName || "AI Sales Employee"}
       role="AI Sales Employee"
       avatar={business.logo || undefined}
-      className={className}
+      className={`mx-auto w-full max-w-[420px] ${className}`.trim()}
     >
       <ChatWindow
-        key={business.website}
+        key={identityKey}
         initialMessage={INITIAL_MESSAGE}
         placeholder={
           disabled

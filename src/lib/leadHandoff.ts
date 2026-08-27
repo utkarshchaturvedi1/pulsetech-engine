@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { BusinessProfile } from "../types/business";
 import { SalesState } from "./salesState";
+import { isReasonableEmail, normalizeNotificationEmail } from "./leadNotificationConfig";
 import {
   isClosureHandoffTrigger,
   isLeadQualified,
@@ -20,55 +21,50 @@ export {
 export type { LeadHandoffReason };
 
 function formatUrgency(state: SalesState): string {
-  if (state.urgency === "IMMEDIATE") return "IMMEDIATE";
-  if (state.urgency === "SOON") return "NORMAL / soon";
-  return "Not specified";
+  if (state.urgency === "IMMEDIATE") return "ASAP / urgent attention requested";
+  if (state.urgency === "SOON") return "Requested soon";
+  return "";
 }
 
 function formatCustomerStatus(state: SalesState): string {
   if (state.customerAgreed) {
-    return "Customer agreed to proceed";
+    return "Ready for follow-up";
   }
   if (state.handoffReady) {
-    return "Customer completed the conversation and is ready for business follow-up";
+    return "Ready for follow-up";
   }
   if (state.appointmentIntent === true) {
-    return "Interested / wants contact or visit";
+    return "Follow-up requested";
   }
-  if (state.intent === "READY_TO_ACT" || state.intent === "HIGH") {
-    return "Interested";
-  }
-  return "No explicit closure";
+  return "Qualified lead";
 }
 
-function buildCustomerContextSection(state: SalesState): string | null {
-  if (!state.customerContext?.length) return null;
-  return state.customerContext.map((c) => `- ${c}`).join("\n");
+function buildCustomerWants(state: SalesState): string[] {
+  const notes = state.customerContext?.map((context) => `• ${context}`) || [];
+  if (state.contactPreference) {
+    notes.push(`• Prefers ${state.contactPreference}`);
+  }
+  for (const objection of state.objections) {
+    notes.push(`• ${objection}`);
+  }
+  const urgency = formatUrgency(state);
+  if (urgency) notes.push(`• ${urgency}`);
+  return notes;
 }
 
-function buildSalesContext(state: SalesState): string | null {
+function buildPricingSalesNotes(state: SalesState): string | null {
   const lines: string[] = [];
   if (state.objections.length) {
-    state.objections.forEach((o) => lines.push(`- ${o}`));
+    state.objections.forEach((objection) => lines.push(`• ${objection}`));
   }
-  if (state.customerAgreed) {
-    lines.push("- Customer clearly agreed to proceed");
-  }
-  if (state.appointmentIntent === true) {
-    lines.push("- Customer indicated interest in a visit / appointment");
-  }
-  if (!lines.length) return null;
-  return lines.join("\n");
+  return lines.length ? lines.join("\n") : null;
 }
 
 function buildNextStep(state: SalesState): string {
-  if (state.customerAgreed) {
-    return "Customer agreed to proceed. Follow up using the captured contact details to confirm timing.";
+  if (state.preferredTiming) {
+    return "Contact the customer to confirm availability for the requested time.";
   }
-  if (state.handoffReady) {
-    return "Lead is ready for follow-up based on the captured request and conversation.";
-  }
-  return "Follow up with the customer using the captured contact details.";
+  return "Contact the customer to discuss the request and next step.";
 }
 
 function buildConversationSummary(state: SalesState): string {
@@ -76,16 +72,15 @@ function buildConversationSummary(state: SalesState): string {
   const need = state.customerNeed || "a service need";
   const parts: string[] = [];
 
-  parts.push(`${name} is interested in: ${need}.`);
+  parts.push(`${name} requested help with ${need}.`);
 
   if (state.customerContext.length) {
     parts.push(state.customerContext.slice(0, 4).join(" "));
   }
 
-  if (state.urgency === "IMMEDIATE") {
-    parts.push("They indicated urgency / need service today or ASAP.");
-  } else if (state.urgency === "SOON") {
-    parts.push("They indicated they want help soon.");
+  const urgency = formatUrgency(state);
+  if (urgency) {
+    parts.push(`Timing priority: ${urgency}.`);
   }
 
   if (state.preferredTiming) {
@@ -96,23 +91,11 @@ function buildConversationSummary(state: SalesState): string {
     parts.push(`Contact preference: ${state.contactPreference}.`);
   }
 
-  if (state.customerAvailable === true) {
-    parts.push("They indicated someone is / will be home.");
-  }
-
   if (state.customerAgreed) {
-    parts.push("They clearly agreed to move forward.");
-  } else if (state.handoffReady) {
-    parts.push(
-      "They completed the conversation and the lead is ready for business follow-up."
-    );
+    parts.push("They agreed to move forward.");
   }
 
-  if (state.objections.length) {
-    parts.push(`Sales context: ${state.objections.join("; ")}.`);
-  }
-
-  return parts.join(" ");
+  return parts.slice(0, 4).join(" ");
 }
 
 export function buildLeadNotificationEmail(
@@ -122,43 +105,34 @@ export function buildLeadNotificationEmail(
   const businessName = business.businessName || "Business";
   const subject = `🔥 New PulseTech Website Lead - ${businessName}`;
 
-  const sections: string[] = [
-    "🔥 NEW WEBSITE LEAD",
-    "",
-    "BUSINESS:",
-    businessName,
-    "",
-    "CUSTOMER",
-    `Name: ${state.lead.name || "Not provided"}`,
-    `Phone: ${state.lead.phone || "Not provided"}`,
-    `Email: ${state.lead.email || "Not provided"}`,
-    `Address: ${state.lead.address || "Not provided"}`,
-    "",
-    "PRIMARY CUSTOMER NEED",
-    state.customerNeed || "Not established",
-  ];
+  const sections: string[] = ["🔥 NEW WEBSITE LEAD"];
 
-  sections.push("", "URGENCY", formatUrgency(state));
+  if (business.businessName) {
+    sections.push("", "BUSINESS", business.businessName);
+  }
+
+  sections.push("", "CUSTOMER", state.lead.name || "Not provided");
+  if (state.lead.phone) sections.push(`Phone: ${state.lead.phone}`);
+  if (state.lead.email) sections.push(`Email: ${state.lead.email}`);
+  if (state.lead.address) sections.push(`Address: ${state.lead.address}`);
+
+  sections.push("", "SERVICE NEEDED", state.customerNeed || "Not established");
+
+  const customerWants = buildCustomerWants(state);
+  if (customerWants.length) {
+    sections.push("", "CUSTOMER WANTS / CONCERNS", ...customerWants);
+  }
 
   if (state.preferredTiming) {
     sections.push("", "PREFERRED TIMING", state.preferredTiming);
   }
 
-  if (state.contactPreference) {
-    sections.push("", "CONTACT PREFERENCE", state.contactPreference);
+  const pricingSalesNotes = buildPricingSalesNotes(state);
+  if (pricingSalesNotes) {
+    sections.push("", "PRICING / SALES NOTES", pricingSalesNotes);
   }
 
-  const context = buildCustomerContextSection(state);
-  if (context) {
-    sections.push("", "CUSTOMER CONTEXT", context);
-  }
-
-  const salesContext = buildSalesContext(state);
-  if (salesContext) {
-    sections.push("", "SALES CONTEXT", salesContext);
-  }
-
-  sections.push("", "CUSTOMER STATUS", formatCustomerStatus(state));
+  sections.push("", "STATUS", formatCustomerStatus(state));
   sections.push("", "NEXT STEP", buildNextStep(state));
   sections.push("", "CONVERSATION SUMMARY", buildConversationSummary(state));
   sections.push("", "Captured by PulseTech AI Sales Employee");
@@ -170,21 +144,50 @@ export type LeadHandoffResult = {
   attempted: boolean;
   status: "NOT_SENT" | "SENT" | "FAILED";
   error?: string;
+  smtpAcceptedCount?: number;
+  smtpMessageId?: string;
+  smtpResponse?: string;
 };
 
-function getSmtpConfig() {
+export type LeadRecipientResolution = {
+  recipient?: string;
+  source: "business" | "development-fallback" | "missing";
+};
+
+/**
+ * Production never falls back to PulseTech's development recipient. That
+ * avoids silently cross-delivering a client's customer data.
+ */
+export function resolveLeadNotificationRecipient(
+  business: BusinessProfile,
+  environment = process.env.NODE_ENV
+): LeadRecipientResolution {
+  if (isReasonableEmail(business.leadNotificationEmail)) {
+    return { recipient: normalizeNotificationEmail(business.leadNotificationEmail), source: "business" };
+  }
+  if (environment !== "production") {
+    const fallback = process.env.LEAD_NOTIFICATION_EMAIL?.trim();
+    if (isReasonableEmail(fallback)) {
+      return { recipient: normalizeNotificationEmail(fallback), source: "development-fallback" };
+    }
+  }
+  return { source: "missing" };
+}
+
+function getSmtpConfig(business: BusinessProfile) {
   const host = process.env.SMTP_HOST?.trim();
   const port = Number(process.env.SMTP_PORT || "465");
   const user = process.env.SMTP_USER?.trim();
   const pass = process.env.SMTP_PASS?.trim();
   const from = process.env.SMTP_FROM?.trim() || user;
-  const to = process.env.LEAD_NOTIFICATION_EMAIL?.trim();
+  const recipient = resolveLeadNotificationRecipient(business);
+  const to = recipient.recipient;
 
-  return { host, port, user, pass, from, to };
+  return { host, port, user, pass, from, to, recipient };
 }
 
-export function isLeadEmailConfigured(): boolean {
-  const { host, user, pass, from, to } = getSmtpConfig();
+export function isLeadEmailConfigured(business: BusinessProfile): boolean {
+  const { host, user, pass, from, to } = getSmtpConfig(business);
   return Boolean(host && user && pass && from && to);
 }
 
@@ -231,6 +234,13 @@ export async function maybeSendLeadHandoff(
   }
 
   const { subject, text } = buildLeadNotificationEmail(business, state);
+  const recipientResolution = resolveLeadNotificationRecipient(business);
+  const smtpReady = Boolean(
+    process.env.SMTP_HOST?.trim() &&
+      process.env.SMTP_USER?.trim() &&
+      process.env.SMTP_PASS?.trim() &&
+      (process.env.SMTP_FROM?.trim() || process.env.SMTP_USER?.trim())
+  );
 
   // Automated tests / explicit dry-run: never touch real SMTP.
   if (isLeadHandoffDryRun()) {
@@ -241,26 +251,29 @@ export async function maybeSendLeadHandoff(
         businessKey: state.businessKey || "(none)",
         businessName: business.businessName,
         reason,
+        recipientSource: recipientResolution.source,
+        recipientConfigured: Boolean(recipientResolution.recipient),
+        smtpConfigured: smtpReady,
         subject,
       }
     );
     return { attempted: true, status: "SENT" };
   }
 
-  if (state.leadDeliveryStatus === "FAILED" && !isLeadEmailConfigured()) {
+  if (state.leadDeliveryStatus === "FAILED" && !isLeadEmailConfigured(business)) {
     return { attempted: false, status: "FAILED" };
   }
 
-  const { host, port, user, pass, from, to } = getSmtpConfig();
+  const { host, port, user, pass, from, to, recipient } = getSmtpConfig(business);
 
   if (!host || !user || !pass || !from || !to) {
     console.error(
-      "[leadHandoff] Email is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, and LEAD_NOTIFICATION_EMAIL."
+      `[leadHandoff] Lead notification recipient is not configured for ${business.businessName || "this business"}. Configure leadNotificationEmail before production handoff.`
     );
     return {
       attempted: true,
       status: "FAILED",
-      error: "SMTP/recipient not configured",
+      error: recipient.source === "missing" ? "Lead notification recipient not configured" : "SMTP not configured",
     };
   }
 
@@ -275,14 +288,34 @@ export async function maybeSendLeadHandoff(
       },
     });
 
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from,
       to,
       subject,
       text,
     });
 
-    return { attempted: true, status: "SENT" };
+    const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
+    console.log("[leadHandoff] SENT", {
+      conversationId: state.conversationId || "(none)",
+      businessKey: state.businessKey || "(none)",
+      businessName: business.businessName,
+      reason,
+      recipientSource: recipient.source,
+      recipientConfigured: true,
+      smtpConfigured: true,
+      smtpAcceptedCount: acceptedCount,
+      smtpResponse: typeof info.response === "string" ? info.response : undefined,
+      smtpMessageId: info.messageId,
+    });
+
+    return {
+      attempted: true,
+      status: "SENT",
+      smtpAcceptedCount: acceptedCount,
+      smtpMessageId: info.messageId,
+      smtpResponse: typeof info.response === "string" ? info.response : undefined,
+    };
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown email delivery error";

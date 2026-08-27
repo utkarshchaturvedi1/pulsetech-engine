@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import ChatInput from "./ChatInput";
 import ChatMessage, { ChatMessageData } from "./ChatMessage";
 
@@ -9,7 +9,7 @@ type ChatWindowProps = {
   assistantMessages?: string[];
   placeholder?: string;
   disabled?: boolean;
-  statusSlot?: React.ReactNode;
+  statusSlot?: ReactNode;
   onUserMessage?: (message: string) => Promise<string> | string;
 };
 
@@ -21,25 +21,28 @@ export default function ChatWindow({
   statusSlot,
   onUserMessage,
 }: ChatWindowProps) {
-  const [messages, setMessages] = useState<ChatMessageData[]>([]);
+  const [messages, setMessages] = useState<ChatMessageData[]>(() =>
+    initialMessage
+      ? [
+          {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: initialMessage,
+          },
+        ]
+      : []
+  );
   const [typing, setTyping] = useState(false);
 
   const listRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const messageRefs = useRef(new Map<string, HTMLDivElement>());
+  const scrollTarget = useRef<{ id: string; role: ChatMessageData["role"] } | null>(null);
   const addedMessages = useRef(0);
-
-  useEffect(() => {
-    if (!initialMessage) return;
-
-    setMessages([
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: initialMessage,
-      },
-    ]);
-
-    addedMessages.current = 0;
-  }, [initialMessage]);
+  const sendInFlight = useRef(false);
+  const restoreFocusAfterReply = useRef(false);
+  const skipFocusRestore = useRef(false);
 
   useEffect(() => {
     if (assistantMessages.length <= addedMessages.current) return;
@@ -54,17 +57,87 @@ export default function ChatWindow({
 
     addedMessages.current = assistantMessages.length;
 
+    if (newMessages.length > 0) {
+      scrollTarget.current = {
+        id: newMessages[0].id,
+        role: "assistant",
+      };
+    }
+
     setMessages((prev) => [...prev, ...newMessages]);
   }, [assistantMessages]);
 
   useEffect(() => {
     const list = listRef.current;
-    if (!list) return;
-    list.scrollTop = list.scrollHeight;
-  }, [messages, typing, statusSlot]);
+    const target = scrollTarget.current;
+    if (!list || !target) return;
+
+    const message = messageRefs.current.get(target.id);
+    if (!message) return;
+
+    if (target.role === "assistant") {
+      list.scrollTo({ top: Math.max(0, message.offsetTop - list.clientHeight * 0.18) });
+    } else {
+      list.scrollTo({ top: list.scrollHeight });
+    }
+
+    scrollTarget.current = null;
+  }, [messages]);
+
+  useEffect(() => {
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (composerRef.current?.contains(target)) return;
+      skipFocusRestore.current = true;
+    }
+
+    function onSelectionChange() {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
+      const node = selection.anchorNode;
+      if (node && listRef.current?.contains(node)) {
+        skipFocusRestore.current = true;
+      }
+    }
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("selectionchange", onSelectionChange);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("selectionchange", onSelectionChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typing || disabled || !restoreFocusAfterReply.current) return;
+    restoreFocusAfterReply.current = false;
+
+    if (skipFocusRestore.current) return;
+
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim()) {
+      return;
+    }
+
+    const active = document.activeElement;
+    if (
+      active &&
+      active !== document.body &&
+      active !== inputRef.current &&
+      !composerRef.current?.contains(active)
+    ) {
+      return;
+    }
+
+    inputRef.current?.focus({ preventScroll: true });
+  }, [typing, disabled]);
 
   async function handleSend(text: string) {
-    if (disabled) return;
+    if (disabled || sendInFlight.current) return;
+    sendInFlight.current = true;
+    skipFocusRestore.current = false;
+    restoreFocusAfterReply.current = true;
 
     const userMessage: ChatMessageData = {
       id: crypto.randomUUID(),
@@ -72,42 +145,52 @@ export default function ChatWindow({
       content: text,
     };
 
+    scrollTarget.current = { id: userMessage.id, role: "user" };
     setMessages((prev) => [...prev, userMessage]);
 
-    setTyping(true);
+    try {
+      setTyping(true);
 
-    let reply =
-      "Thank you. This is a temporary response until OpenAI is connected.";
+      let reply =
+        "Thank you. This is a temporary response until OpenAI is connected.";
 
-    if (onUserMessage) {
-      const result = await onUserMessage(text);
+      if (onUserMessage) {
+        const result = await onUserMessage(text);
 
-      if (result) {
-        reply = result;
+        if (result) {
+          reply = result;
+        }
       }
+
+      const assistantMessage: ChatMessageData = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: reply,
+      };
+
+      scrollTarget.current = { id: assistantMessage.id, role: "assistant" };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } finally {
+      sendInFlight.current = false;
+      setTyping(false);
     }
-
-    setTyping(false);
-
-    const assistantMessage: ChatMessageData = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: reply,
-    };
-
-    setMessages((prev) => [...prev, assistantMessage]);
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F7F8FA]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-slate-50">
       <div
         ref={listRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5"
+        data-chat-transcript
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-slate-50 px-3 py-3 sm:px-4"
       >
         {messages.map((message) => (
           <ChatMessage
             key={message.id}
             message={message}
+            messageRef={(node) => {
+              if (node) messageRefs.current.set(message.id, node);
+              else messageRefs.current.delete(message.id);
+            }}
           />
         ))}
 
@@ -126,10 +209,11 @@ export default function ChatWindow({
         </div>
       ) : null}
 
-      <div className="shrink-0">
+      <div ref={composerRef} data-chat-composer className="shrink-0">
         <ChatInput
+          inputRef={inputRef}
           placeholder={placeholder}
-          disabled={disabled}
+          disabled={disabled || typing}
           onSend={handleSend}
         />
       </div>

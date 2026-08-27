@@ -135,18 +135,16 @@ async function main() {
     business,
     { ...state, leadDeliveryStatus: "SENT" }
   );
-  assert(email.text.includes("PRIMARY CUSTOMER NEED"), "email primary need header");
+  assert(email.text.includes("SERVICE NEEDED"), "email service need header");
   assert(/replace/i.test(email.text) && /sink/i.test(email.text), "email has sink replacement");
   assert(!/before that is there only one type/i.test(email.text), "email not polluted by question as need");
   assert(/5\s*[-–]\s*7/i.test(email.text), "email has timing window");
   assert(/Phone call/i.test(email.text), "email has contact preference");
-  assert(/CUSTOMER CONTEXT/i.test(email.text), "email has context section");
+  assert(/CUSTOMER WANTS/i.test(email.text), "email has context section");
+  assert(!/\bNORMAL\b/.test(email.text), "email must not include NORMAL");
+  assert(!/No explicit final closure/i.test(email.text), "email must not claim missing closure when handoffReady");
   assert(
-    !/No explicit final closure was recorded/i.test(email.text),
-    "email must not claim missing closure when handoffReady"
-  );
-  assert(
-    /ready for business follow-up|agreed to proceed/i.test(email.text),
+    /Ready for follow-up/i.test(email.text),
     "email status truthful"
   );
   assert(!email.text.includes("Services on file"), "no services dump");

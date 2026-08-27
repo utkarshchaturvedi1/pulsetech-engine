@@ -134,6 +134,42 @@ async function main() {
     feeInKnowledge: true,
   });
 
+  // The actual API payload must also use the refreshed profile, not merely the
+  // client's in-memory copy. This protects an already-open customer session.
+  const originalFetch = globalThis.fetch;
+  const chatPayloads: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (_input, init) => {
+    const payload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    chatPayloads.push(payload);
+    return new Response(
+      JSON.stringify({
+        reply: "Test reply",
+        salesState: payload.salesState,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+
+  try {
+    await session.send("I need help with a repair.");
+    await session.send("What does the visit cost?");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert(chatPayloads.length === 2, "A: sent both customer turns");
+  assert(
+    (chatPayloads[1].conversationId as string) === idBefore,
+    "A: transport preserves conversationId after profile update"
+  );
+  const secondBusiness = chatPayloads[1].business as BusinessProfile;
+  assert(
+    /\$\s?20/.test(secondBusiness.systemPrompt) &&
+      secondBusiness.faqs.some((faq) => /\$\s?20/.test(faq.answer)),
+    "A: transport sends refreshed BusinessProfile to Customer AI"
+  );
+  console.log("Test A2 PASS — refreshed profile reaches the chat API");
+
   // -------- Test B — agreement context --------
   const biz = baseProfile({
     systemPrompt:
@@ -265,8 +301,10 @@ async function main() {
     currentObjective: "CLOSE" as const,
   };
   const email = buildLeadNotificationEmail(autreys, rich);
-  assert(email.text.includes("PRIMARY CUSTOMER NEED"), "email primary need");
-  assert(email.text.includes("CUSTOMER CONTEXT"), "email context");
+  assert(email.text.includes("SERVICE NEEDED"), "email service need");
+  assert(email.text.includes("CUSTOMER WANTS"), "email context");
+  assert(email.text.includes("PRICING / SALES NOTES") === false, "email omits empty pricing section");
+  assert(!/NORMAL \/ soon|No explicit closure/i.test(email.text), "email omits internal status language");
   assert(/clogged/i.test(email.text), "email need");
   console.log("Email smoke PASS");
 

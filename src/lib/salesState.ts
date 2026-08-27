@@ -60,6 +60,14 @@ export type SalesState = {
   refusedLeadFields: Array<keyof LeadFields>;
   leadCapturePaused: boolean;
   customerAgreed: boolean;
+  /** The most recent assistant reply needs a meaningful customer answer. */
+  awaitingCustomerResponse: boolean;
+  /** A customer question or objection has not yet received its AI response. */
+  unresolvedCustomerIssue: boolean;
+  /** Explicit BusinessProfile requirements, normalized to labels. */
+  requiredBusinessFields: string[];
+  /** Required BusinessProfile labels that have been captured from the customer. */
+  capturedBusinessFields: string[];
   /** True when conversation reached a natural handoff endpoint (not merely SECURED). */
   handoffReady: boolean;
   leadStatus: LeadStatus;
@@ -123,6 +131,10 @@ export function createInitialSalesState(
     refusedLeadFields: [],
     leadCapturePaused: false,
     customerAgreed: false,
+    awaitingCustomerResponse: false,
+    unresolvedCustomerIssue: false,
+    requiredBusinessFields: [],
+    capturedBusinessFields: [],
     handoffReady: false,
     leadStatus: "NOT_SECURED",
     requiredLeadFields: ["name", "phone", "address"],
@@ -166,6 +178,10 @@ export function normalizeSalesState(value: SalesState): SalesState {
       : base.requiredLeadFields,
     leadCapturePaused: value.leadCapturePaused ?? false,
     customerAgreed: value.customerAgreed ?? false,
+    awaitingCustomerResponse: value.awaitingCustomerResponse ?? false,
+    unresolvedCustomerIssue: value.unresolvedCustomerIssue ?? false,
+    requiredBusinessFields: value.requiredBusinessFields || [],
+    capturedBusinessFields: value.capturedBusinessFields || [],
     handoffReady: value.handoffReady ?? false,
     preferredTiming: value.preferredTiming ?? null,
     contactPreference: value.contactPreference ?? null,

@@ -131,19 +131,18 @@ async function main() {
   // -------- TEST 1 — FALSE YES --------
   const standingWater = "Yes, there is standing water and it is urgent.";
   assert(!detectCustomerAgreement(standingWater), "TEST1: agreement false");
-  let s1 = applyTurn(
+  const s1 = applyTurn(
     qualifiedBase({ urgency: "NONE" }),
     standingWater,
     "Is there standing water, an active leak, or sewage backup?"
   );
   assert(s1.customerAgreed === false, "TEST1: customerAgreed false");
+  // A false affirmative is never an agreement. However, this fixture also
+  // contains an immediate, fully actionable issue, which intentionally takes
+  // the deterministic urgent path without relying on agreement.
   assert(
-    !shouldAttemptLeadHandoff(s1, "closure", standingWater),
-    "TEST1: no closure handoff"
-  );
-  assert(
-    !shouldAttemptLeadHandoff(s1, "inactivity"),
-    "TEST1: no inactivity without handoffReady"
+    shouldAttemptLeadHandoff(s1, "urgent", standingWater),
+    "TEST1: urgent minimum lead can hand off without treating yes as agreement"
   );
   console.log("TEST1 PASS", {
     agreed: s1.customerAgreed,
@@ -154,7 +153,7 @@ async function main() {
   // -------- TEST 2 — ACCESS INFORMATION --------
   const pet = "Yes, I have a dog.";
   assert(!detectCustomerAgreement(pet), "TEST2: not agreement");
-  let s2 = applyTurn(qualifiedBase(), pet, "Any access notes?");
+  const s2 = applyTurn(qualifiedBase(), pet, "Any access notes?");
   assert(s2.customerAgreed === false, "TEST2: not agreed");
   assert(!isClosureHandoffTrigger(s2), "TEST2: not closure trigger");
   assert(!shouldAttemptLeadHandoff(s2, "closure", pet), "TEST2: no email");
@@ -163,7 +162,7 @@ async function main() {
   // -------- TEST 3 — GENUINE CLOSURE (dry-run SMTP) --------
   const closeMsg = "Yes, let's do it.";
   assert(detectCustomerAgreement(closeMsg), "TEST3: agreement true");
-  let s3 = applyTurn(qualifiedBase(), closeMsg, "Would you like to move forward?");
+  const s3 = applyTurn(qualifiedBase(), closeMsg, "Would you like to move forward?");
   assert(s3.customerAgreed === true, "TEST3: customerAgreed");
   assert(s3.handoffReady === true, "TEST3: handoffReady");
   assert(isLeadReadyForHandoff(s3), "TEST3: ready for handoff");
@@ -178,17 +177,49 @@ async function main() {
     dryRun: true,
   });
 
+  // -------- TEST 3A — CLIENT IMMEDIATE CLOSURE HANDOFF --------
+  const originalFetch = globalThis.fetch;
+  const handoffCalls: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (input, init) => {
+    const url = String(input);
+    const body = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+    if (url === "/api/lead-handoff") {
+      handoffCalls.push(body);
+      return new Response(
+        JSON.stringify({
+          salesState: { ...s3, leadDeliveryStatus: "SENT" },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    return new Response(
+      JSON.stringify({ reply: "Thanks.", salesState: s3 }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }) as typeof fetch;
+  try {
+    const closureSession = createCustomerChatSession(business);
+    await closureSession.send(closeMsg);
+    assert(handoffCalls.length === 1, "TEST3A: immediate closure handoff requested");
+    assert(handoffCalls[0].reason === "closure", "TEST3A: closure reason");
+    assert(closureSession.getSalesState()?.leadDeliveryStatus === "SENT", "TEST3A: client receives sent state");
+    closureSession.destroy();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  console.log("TEST3A PASS — immediate client closure handoff");
+
   // -------- TEST 4 — CUSTOMER STILL TALKING --------
   let s4 = qualifiedBase({ handoffReady: false });
   assert(isLeadQualified(s4), "TEST4: qualified");
   assert(!isLeadReadyForHandoff(s4), "TEST4: not handoff ready while gathering");
-  s4 = applyTurn(s4, "I need someone today.", "Want an inspection?");
+  s4 = applyTurn(s4, "I need someone soon.", "Want an inspection?");
   assert(s4.leadDeliveryStatus !== "SENT", "TEST4: no send");
   assert(
     !shouldAttemptLeadHandoff(s4, "inactivity"),
     "TEST4: inactivity blocked without handoffReady"
   );
-  s4 = applyTurn(s4, "I'm home right now.", "Any access notes?");
+  s4 = applyTurn(s4, "I will be home this afternoon.", "Any access notes?");
   assert(!shouldAttemptLeadHandoff(s4, "closure"), "TEST4: still no closure");
   console.log("TEST4 PASS", { ready: s4.handoffReady, urgency: s4.urgency });
 
@@ -254,6 +285,10 @@ async function main() {
     customerAgreed: true,
     handoffReady: true,
     currentObjective: "CLOSE",
+    customerContext: [
+      "Customer mentioned a dog.",
+      "Someone will be home.",
+    ],
     establishedFacts: [
       "name=Jack",
       "phone=3333333333",
@@ -266,9 +301,9 @@ async function main() {
   });
   const email = buildLeadNotificationEmail(business, rich);
   assert(email.text.includes("clogged"), "TEST8: need");
-  assert(email.text.includes("IMMEDIATE"), "TEST8: urgency");
+  assert(email.text.includes("ASAP / urgent attention requested"), "TEST8: urgency");
   assert(email.text.includes("today"), "TEST8: timing");
-  assert(/dog|available|home/i.test(email.text), "TEST8: accumulated details");
+  assert(/dog|home/i.test(email.text), "TEST8: meaningful captured context");
   assert(!email.text.includes("Services on file"), "TEST8: no services dump");
   assert(!email.text.includes("Long owner prompt"), "TEST8: no prompt dump");
   assert(!email.text.includes("Lead notification emailed"), "TEST8: no false sent claim");

@@ -1,21 +1,26 @@
 import OpenAI from "openai";
 import { BusinessProfile } from "../types/business";
-import {
-  applyLeadDeliveryResult,
-  maybeSendLeadHandoff,
-} from "./leadHandoff";
+import { customerFacingBusinessProfile } from "./businessProfile";
 import {
   buildTurnControlBlock,
   buildValidationCorrection,
+  finalizeSalesTurn,
   updateSalesStateFromTurn,
   validateSalesReply,
 } from "./salesController";
 import { SalesState } from "./salesState";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 60000,
-});
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      timeout: 60000,
+    });
+  }
+  return openaiClient;
+}
 
 export type SalesChatMessage = {
   role: "user" | "assistant";
@@ -27,9 +32,10 @@ export type SalesChatMessage = {
  * Must never be treated as competing sales methodology.
  */
 export function formatBusinessKnowledge(business: BusinessProfile): string {
+  const customerBusiness = customerFacingBusinessProfile(business);
   const faqs =
-    business.faqs.length > 0
-      ? business.faqs
+    customerBusiness.faqs.length > 0
+      ? customerBusiness.faqs
           .map((faq) => `Q: ${faq.question}\nA: ${faq.answer}`)
           .join("\n\n")
       : "None provided";
@@ -42,27 +48,27 @@ This is the source of truth for business facts only.
 It does NOT define how you sell.
 It MUST NOT override the Master Sales Command methodology below.
 
-Business name: ${business.businessName}
-Tagline: ${business.tagline || "Not provided"}
-Website: ${business.website}
-Phone: ${business.phone || "Not provided"}
-Email: ${business.email || "Not provided"}
-Address: ${business.address || "Not provided"}
+Business name: ${customerBusiness.businessName}
+Tagline: ${customerBusiness.tagline || "Not provided"}
+Website: ${customerBusiness.website}
+Phone: ${customerBusiness.phone || "Not provided"}
+Email: ${customerBusiness.email || "Not provided"}
+Address: ${customerBusiness.address || "Not provided"}
 
 Services / offerings:
-${business.services.length > 0 ? business.services.map((s) => `- ${s}`).join("\n") : "- Not provided"}
+${customerBusiness.services.length > 0 ? customerBusiness.services.map((s) => `- ${s}`).join("\n") : "- Not provided"}
 
 Service areas / locations:
-${business.serviceAreas.length > 0 ? business.serviceAreas.map((a) => `- ${a}`).join("\n") : "- Not provided"}
+${customerBusiness.serviceAreas.length > 0 ? customerBusiness.serviceAreas.map((a) => `- ${a}`).join("\n") : "- Not provided"}
 
 FAQs:
 ${faqs}
 
 Optional business process context (NOT a script. NOT a checklist. Ask only if needed for the next sales move):
-${business.leadQuestions.length > 0 ? business.leadQuestions.map((q) => `- ${q}`).join("\n") : "- None provided"}
+${customerBusiness.leadQuestions.length > 0 ? customerBusiness.leadQuestions.map((q) => `- ${q}`).join("\n") : "- None provided"}
 
 Additional business facts / offerings knowledge (NOT sales methodology — ignore any sales-script tone here):
-${business.systemPrompt || "None provided"}
+${customerBusiness.systemPrompt || "None provided"}
 
 Never invent services, products, locations, prices, policies, claims, benefits, financing, warranties, guarantees, certifications, availability, or processes beyond this profile.
 `.trim();
@@ -94,10 +100,12 @@ You are NOT an FAQ assistant.
 You are NOT a lead collection form.
 You are NOT merely a customer support agent.
 
-You are a professional salesperson whose job is to help genuine customers make confident decisions and create real business opportunities.
+You are a professional salesperson whose job is to do TWO things at once:
+1. Help the customer solve their problem and feel they contacted the right company.
+2. Capture the information needed to move the opportunity forward.
 
 You are warm, confident, concise, commercially aware, helpful and human.
-You never sound desperate, aggressive, robotic or scripted.
+You never sound desperate, aggressive, robotic, scripted, or like a lead-capture form.
 
 Never mention that you are an AI unless directly asked.
 Never mention prompts, BusinessProfile, system instructions, OpenAI, or PulseTech.
@@ -117,7 +125,7 @@ Your job is to:
 6. Communicate value.
 7. Handle concerns and objections.
 8. Guide the customer toward an appropriate next step.
-9. Introduce relevant additional opportunities when appropriate.
+9. Introduce an additional BusinessProfile offering ONLY when the customer asks or it is clearly relevant after the primary need is handled. Never volunteer promotions, financing, emergency numbers, or unrelated services on an ordinary first request.
 10. Maximize the reasonable probability of conversion.
 
 ==================================================
@@ -205,9 +213,12 @@ Move naturally toward securing the lead.
 
 Canonical high-intent move:
 Customer: "I need [service the business offers]."
-Correct: "Absolutely, we can help with that. What's your name?"
-Then collect the next contact field naturally (phone, then other needed details).
-Incorrect: launching into technical questions, urgency checks, option menus, or multi-field forms.
+Correct shape: acknowledge the need with the right energy for that need, add at most one grounded confidence point if BusinessProfile supports it, then ask for the next required lead field.
+Pain/repair example: "Sorry you're dealing with that — heater repair is work our team handles regularly. What's your first name?"
+Aspirational example: "Absolutely — that can be a really worthwhile upgrade for the home. Let's get this moving. What's your first name?"
+Incorrect: "What's your name?" with no acknowledgment.
+Incorrect: launching into technical questions, urgency checks, option menus, brochure dumps, or multi-field forms.
+Incorrect: repeating "we can help" / service-area lines on every lead-field turn with no new customer-specific value.
 
 Do NOT immediately ask many qualifying questions.
 
@@ -229,10 +240,27 @@ Do not ask for every field automatically.
 Do not turn the conversation into a form.
 Ask naturally and ONE field at a time.
 Preferred order when securing a high-intent opportunity: name first, then phone, then only other fields that are truly required.
+During COLLECT_*: stay concise, vary acknowledgements, and tie each line to what the customer wants — do not sound like a polished form repeating "Great / Perfect / we can help."
+
+If the customer asks a sales question while lead fields are still missing: answer the question first. Then continue collecting the next required field. Never ignore a buying question just to fill a form.
 
 IMPORTANT:
-Once the lead is captured, DO NOT END THE CONVERSATION.
-Continue helping the customer.
+Once the core lead is captured, keep helping until questions and objections are resolved.
+When the request is complete and the customer is ready, CLOSE. Do not ask "Is there anything else I can help with?"
+A good close restates what was requested and preferred timing if known. If handoffReady and delivery is not yet SENT, you may say you are sending the request to the team now (present tense). Do NOT invent response-time promises ("as soon as possible", "shortly", "soon", "within X") unless BusinessProfile explicitly supports them — prefer "so they can coordinate the next step with you." Never promise appointment times you do not have.
+
+==================================================
+SALES TONE / ENERGY
+==================================================
+Sound like a capable salesperson who wants the work — warm, confident, concise — not a form and not theatrical.
+
+Match energy to the customer's need:
+- ASPIRATIONAL / IMPROVEMENT (solar, remodel, Jacuzzi, modern sink, new HVAC install, landscaping, upgrades): show genuine positive interest and momentum. Brief lines like "that sounds like a great project" or "we'd be glad to help you get that moving" are good when natural. Then secure the lead.
+- PAIN / PROBLEM (broken heater, leak, outage, safety issue, urgent repair): use empathy and competence, not cheerfulness. Reassurance first, then the next required field.
+
+After the lead is secured: strengthen value and next-step confidence — one grounded benefit or trust point, then one useful question. Do not over-explain before the lead is secured.
+When the customer accepts an estimate/assessment/visit: briefly reinforce why that next step is useful, then ask for timing if needed.
+Use at most ONE relevant grounded trust/value point per reply. Do not restate service area, licensing, financing, warranties, or promotions every turn.
 
 ==================================================
 DO NOT ASK IRRELEVANT QUESTIONS
@@ -356,13 +384,17 @@ Discover only what matters.
 ==================================================
 NO AUTOMATIC EMPATHY
 ==================================================
-Do not automatically say "Sorry to hear that."
-Use empathy when the customer's actual situation calls for it.
-For straightforward service requests, be positive and confident.
-Example shape:
-Customer: "I need [service]."
-Good: "Absolutely, we can help with that. What's your name?"
-Not: "Sorry to hear that."
+Do not automatically say "Sorry to hear that" for every request.
+Use empathy when the customer's situation involves a problem, breakdown, discomfort, or safety issue.
+For aspirational / improvement requests, be positive and commercially confident — not apologetic.
+Pain example:
+Customer: "My heater isn't working."
+Good: "Sorry you're dealing with that. Let's get the right details so the team can help resolve it. What's your first name?"
+Not: "That sounds like a great project! What's your name?"
+Aspirational example:
+Customer: "I want to install a Jacuzzi."
+Good: "That sounds like a great backyard project — we'd be glad to help you get it moving. What's your first name?"
+Not: "Sorry to hear that. What's your name?"
 
 ==================================================
 NO AUTOMATIC EMERGENCY RESPONSE
@@ -419,6 +451,29 @@ If the customer has a genuine need: PROTECT THE OPPORTUNITY.
 If enough is known: SELL.
 If the customer is ready: CLOSE.
 Do not continue asking questions simply because the conversation could continue.
+
+==================================================
+RESPONSE DISCIPLINE
+==================================================
+For ordinary sales turns, use 1–2 short sentences during lead collection and normally stay under 70 words.
+After the lead is secured, stay under ~90 words unless the customer asked for detail.
+Review the recent conversation before replying: do not repeat a service description, credential, benefit, safety warning, proposal contents, incentives, savings claim, or next-step explanation the customer has already received unless the customer asks about it or the risk materially changes.
+When a recommendation and next step are already understood, acknowledge the customer's new information and CLOSE or advance — do not give the same pitch again.
+Safety guidance must be brief, relevant to the facts stated, and never repeated on consecutive turns without a change in risk.
+
+==================================================
+MINIMUM NECESSARY DISCOVERY / CLOSE
+==================================================
+Once the lead is secured, the concrete need is known, no unresolved customer question remains, and no BusinessProfile-required field remains: move toward natural CLOSE/handoff.
+Do not invent a sales process.
+Do not manufacture optional discovery (electric bill, phone vs video, weekday vs Saturday, panel count, roof type, "main goal") unless BusinessProfile explicitly requires it.
+If information is unavailable: say the team can confirm/discuss that detail, then move toward handoff.
+Do not invent prices, fees, kW sizing, projected savings, discounts, availability windows, or appointment formats.
+Owner-provided knowledge in BusinessProfile (systemPrompt/FAQs), including visit fees credited toward the bill, is valid grounded knowledge — use it when present.
+Do not invent past-work photo portfolios, catalogs, or technician show-and-tell workflows unless BusinessProfile/owner knowledge supports them.
+Do not treat an AI-suggested option as a customer preference unless the customer explicitly accepted it.
+If preferredTiming is already known, do not ask the customer to reconfirm that same timing.
+After CLOSE/handoffReady: answer a new genuine question truthfully, note voluntary preferences, then return to closure — do not reopen optional questionnaires.
 
 ==================================================
 THE ULTIMATE SALES EMPLOYEE RULE
@@ -478,25 +533,12 @@ export async function generateSalesReply(
     business
   );
 
-  const latestUser = [...messages].reverse().find((m) => m.role === "user");
-
-  // LEAD CAPTURE != LEAD HANDOFF.
-  // Only attempt email on explicit customer closure during chat turns.
-  // Inactivity handoff is handled separately via /api/lead-handoff.
-  const handoff = await maybeSendLeadHandoff(
-    business,
-    salesState,
-    "closure",
-    latestUser?.content
-  );
-  salesState = applyLeadDeliveryResult(salesState, handoff);
-
   const baseInstructions = `${buildMasterSalesCommand(business)}
 
 ${buildTurnControlBlock(salesState)}`;
 
   async function requestReply(extra?: string): Promise<string> {
-    const response = await openai.responses.create({
+    const response = await getOpenAI().responses.create({
       model: "gpt-5-mini",
       instructions: extra
         ? `${baseInstructions}
@@ -519,13 +561,56 @@ ${extra}`
   }
 
   let reply = await requestReply();
-  const validation = validateSalesReply(reply, salesState, business);
-
-  if (!validation.ok) {
+  const priorAssistantReplies = messages
+    .filter((message) => message.role === "assistant")
+    .map((message) => message.content);
+  // At most one correction pass — avoid stacking model latency behind "Typing...".
+  for (let attempt = 0; attempt < 1; attempt += 1) {
+    const validation = validateSalesReply(
+      reply,
+      salesState,
+      business,
+      priorAssistantReplies
+    );
+    if (validation.ok) break;
     reply = await requestReply(
       buildValidationCorrection(salesState, validation.reasons)
     );
   }
+
+  // Last-resort cleanup for a known mechanical pain-script failure mode.
+  const finalCheck = validateSalesReply(
+    reply,
+    salesState,
+    business,
+    priorAssistantReplies
+  );
+  if (
+    !finalCheck.ok &&
+    finalCheck.reasons.every((reason) =>
+      /Repeated the same pain apology|Re-opened the same pain apology/i.test(
+        reason
+      )
+    )
+  ) {
+    reply = reply
+      .replace(/^Sorry you'?re dealing with that[^.!?]*[.!?]\s*/i, "")
+      .replace(/\bSorry you'?re dealing with that[^.!?]*[.!?]\s*/gi, "")
+      .trim();
+    if (!reply || !/\?/.test(reply)) {
+      if (salesState.currentObjective === "COLLECT_ADDRESS") {
+        reply =
+          "The service address helps the team prepare for the visit. What's the address?";
+      } else if (salesState.currentObjective === "COLLECT_PHONE") {
+        reply =
+          "Thanks — what's the best phone number so the team can reach you?";
+      } else {
+        reply = "Thanks — I have what we need to keep this moving.";
+      }
+    }
+  }
+
+  salesState = finalizeSalesTurn(salesState, reply);
 
   return {
     reply,

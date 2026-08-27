@@ -93,7 +93,7 @@ export default function AICreationScreen({ onComplete }: Props) {
 
               <br />
 
-              If you'd like anything changed, your PulseTech Assistant will
+              If you&apos;d like anything changed, your PulseTech Assistant will
               update it immediately.
 
             </p>

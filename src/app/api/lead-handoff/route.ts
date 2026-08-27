@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (reason !== "closure" && reason !== "inactivity") {
+    if (reason !== "closure" && reason !== "inactivity" && reason !== "urgent") {
       return NextResponse.json(
         { error: "Invalid handoff reason." },
         { status: 400 }

@@ -10,6 +10,7 @@ import {
   savePendingDemo,
 } from "../lib/demoStore";
 import { BusinessProfile } from "../types/business";
+import { resolveWebsiteIntake } from "../lib/websiteIntake";
 
 type Props = {
   agentName?: string;
@@ -194,38 +195,54 @@ You can reply "retry" to try again.`,
     };
   }, [phase, website, retryToken]);
 
-  async function handleMessage(message: string): Promise<string> {
-    const text = message.trim();
-
-    if (phase === "analyzing") {
-      return "I'm still creating your AI Sales Employee. Please give me a moment.";
-    }
-
-    if (phase === "error") {
-      if (/retry|try again|again/i.test(text)) {
-        setPhase("analyzing");
-        setShowProgress(true);
-        setProgress(0);
-        progressRef.current = 0;
-        setRetryToken((value) => value + 1);
-        return CREATING_MESSAGE;
-      }
-
-      return `Analysis failed. Reply "retry" to try again.`;
-    }
-
-    if (websiteRef.current) {
-      return "I'm already working with the website you shared. Please wait while I create your AI Sales Employee.";
-    }
-
-    websiteRef.current = text;
-    setWebsite(text);
-    setPhase("analyzing");
-    setShowProgress(true);
-    setProgress(0);
+  function resetAnalysisRuntime() {
+    analysisPromiseRef.current = null;
+    completionHandledRef.current = false;
+    analysisKeyRef.current = "";
     progressRef.current = 0;
+    setProgress(0);
+    setShowProgress(true);
+  }
 
-    return CREATING_MESSAGE;
+  function beginNewAnalysis(nextWebsite: string) {
+    websiteRef.current = nextWebsite;
+    setWebsite(nextWebsite);
+    setRetryToken(0);
+    resetAnalysisRuntime();
+    setPhase("analyzing");
+  }
+
+  function retryLastAnalysis() {
+    resetAnalysisRuntime();
+    setRetryToken((value) => value + 1);
+    setPhase("analyzing");
+  }
+
+  async function handleMessage(message: string): Promise<string> {
+    const decision = resolveWebsiteIntake(
+      {
+        phase,
+        lastWebsite: websiteRef.current,
+        retryCount: retryToken,
+      },
+      message
+    );
+
+    if (decision.kind === "wait") {
+      return decision.reply;
+    }
+
+    if (decision.kind === "analyze") {
+      beginNewAnalysis(decision.website);
+      return CREATING_MESSAGE;
+    }
+
+    if (decision.kind === "retry") {
+      retryLastAnalysis();
+      return CREATING_MESSAGE;
+    }
+
+    return decision.reply;
   }
 
   return (
@@ -248,7 +265,7 @@ What's your website?`}
           phase === "analyzing"
             ? "Creating your AI Sales Employee..."
             : phase === "error"
-              ? 'Type "retry" to try again...'
+              ? 'Type "retry" or enter a different website...'
               : "Enter your website..."
         }
         disabled={phase === "analyzing"}

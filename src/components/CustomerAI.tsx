@@ -9,6 +9,8 @@ import {
   type CustomerChatSession,
 } from "../lib/customerChatClient";
 import { businessIdentityKey } from "../lib/salesState";
+import { compactBusinessAvatar } from "../lib/siteIcon";
+import { deriveWidgetTheme, widgetThemeStyle } from "../lib/widgetTheme";
 
 type CustomerAIProps = {
   business: BusinessProfile;
@@ -24,12 +26,17 @@ function profileContentSignature(business: BusinessProfile): string {
     tagline: business.tagline,
     phone: business.phone,
     email: business.email,
+    leadNotificationEmail: business.leadNotificationEmail,
     address: business.address,
     services: business.services,
     serviceAreas: business.serviceAreas,
     faqs: business.faqs,
     leadQuestions: business.leadQuestions,
     systemPrompt: business.systemPrompt,
+    logo: business.logo,
+    siteIcon: business.siteIcon,
+    primaryColor: business.primaryColor,
+    secondaryColor: business.secondaryColor,
   });
 }
 
@@ -74,12 +81,17 @@ export default function CustomerAI({
     }
   }
 
+  const theme = deriveWidgetTheme(business.primaryColor, business.secondaryColor);
+  const compactAvatar = compactBusinessAvatar(business);
+
   return (
     <ChatAgentShell
       name={business.businessName || "AI Sales Employee"}
       role="AI Sales Employee"
-      avatar={business.logo || undefined}
-      className={`mx-auto w-full max-w-[420px] ${className}`.trim()}
+      avatar={compactAvatar || undefined}
+      themeStyle={widgetThemeStyle(theme)}
+      themeSource={theme.source}
+      className={`mx-auto h-full min-h-0 w-full max-w-[420px] ${className}`.trim()}
     >
       <ChatWindow
         key={identityKey}

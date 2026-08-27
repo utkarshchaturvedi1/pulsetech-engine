@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchWebsite } from "../../../lib/fetchWebsite";
 import { cleanHtml } from "../../../lib/cleanHtml";
 import { analyzeBusiness } from "../../../lib/aiAnalyzer";
+import { extractSiteIcon } from "../../../lib/siteIcon";
+import { createBusinessProfile } from "../../../lib/businessProfile";
 
 function normalizeWebsite(website: string): string {
   const trimmed = website.trim();
@@ -46,7 +48,14 @@ export async function POST(request: NextRequest) {
       additionalInfo
     );
 
-    return NextResponse.json(business);
+    const siteIcon = extractSiteIcon(html, website);
+
+    return NextResponse.json(
+      createBusinessProfile({
+        ...business,
+        siteIcon: siteIcon || business.siteIcon,
+      })
+    );
   } catch (error) {
     console.error("POST /api/analyze failed:", error);
 

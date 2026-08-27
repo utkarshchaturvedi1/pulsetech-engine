@@ -6,6 +6,14 @@ import ChatAgentShell from "./Chat/ChatAgentShell";
 import AnalysisProgressIndicator from "./AnalysisProgressIndicator";
 import { analyzeWebsite } from "../lib/websiteAnalyzer";
 import { BusinessProfile } from "../types/business";
+import {
+  handleLeadNotificationOwnerText,
+  isReasonableEmail,
+  leadNotificationEmailExistingInvite,
+  leadNotificationEmailPrompt,
+  leadNotificationEmailReadyInvite,
+} from "../lib/leadNotificationConfig";
+import { createBusinessProfile } from "../lib/businessProfile";
 
 type PulseTechEngineChatProps = {
   website: string;
@@ -31,11 +39,12 @@ const DEFAULT_AGENT_AVATAR =
 const ANALYZING_MESSAGE =
   "Give me a moment... I'm analyzing your website.";
 
-const INVITE_READY_MESSAGE = `Your AI Sales Employee is ready.
-
-I've analyzed your website and built it around your business, your services, and the customers you serve.
-
-Now put it to work. Test it like a real customer, challenge it, and see how it handles the conversation. Find something missing? Tell me. I'll fix it instantly.`;
+function peterOpeningMessage(profile: BusinessProfile | null | undefined): string {
+  if (profile && isReasonableEmail(profile.leadNotificationEmail)) {
+    return leadNotificationEmailExistingInvite(profile.leadNotificationEmail);
+  }
+  return leadNotificationEmailPrompt();
+}
 
 function getProgressLabel(progress: number): string {
   if (progress < 20) return "Connecting to your website...";
@@ -72,6 +81,9 @@ export default function PulseTechEngineChat({
   const [progress, setProgress] = useState(skipAnalysis ? 100 : 0);
   const [showProgress, setShowProgress] = useState(!skipAnalysis);
   const [retryToken, setRetryToken] = useState(0);
+  const [capturedLeadEmail, setCapturedLeadEmail] = useState(false);
+  const leadEmailReady =
+    isReasonableEmail(business?.leadNotificationEmail) || capturedLeadEmail;
 
   const businessRef = useRef<BusinessProfile | null>(business);
   const progressRef = useRef(skipAnalysis ? 100 : 0);
@@ -191,7 +203,7 @@ export default function PulseTechEngineChat({
           setTimeout(() => {
             if (!active) return;
             setShowProgress(false);
-            pushMessage(INVITE_READY_MESSAGE);
+            pushMessage(peterOpeningMessage(profile));
             setPhase("ready");
             onCompleteRef.current?.(profile);
           }, 450)
@@ -247,6 +259,26 @@ You can reply "retry" to try analyzing again.`
       return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";
     }
 
+    const previousEmail = businessRef.current.leadNotificationEmail;
+    const capture = handleLeadNotificationOwnerText(previousEmail, text);
+    if (capture.kind === "ask") {
+      return capture.reply;
+    }
+    if (capture.kind === "saved") {
+      const profile = createBusinessProfile({
+        ...businessRef.current,
+        leadNotificationEmail: capture.email,
+      });
+      businessRef.current = profile;
+      setCapturedLeadEmail(true);
+      onUpdateRef.current?.(profile);
+      // First-time capture: confirm email, then invite testing (email must come first).
+      if (!isReasonableEmail(previousEmail)) {
+        return leadNotificationEmailReadyInvite(capture.email);
+      }
+      return capture.reply;
+    }
+
     try {
       const response = await fetch("/api/update-profile", {
         method: "POST",
@@ -290,12 +322,16 @@ You can reply "retry" to try analyzing again.`
     >
       <ChatWindow
         initialMessage={
-          skipAnalysis ? INVITE_READY_MESSAGE : ANALYZING_MESSAGE
+          skipAnalysis
+            ? peterOpeningMessage(business)
+            : ANALYZING_MESSAGE
         }
         assistantMessages={assistantMessages}
         placeholder={
           phase === "ready"
-            ? "Share updates for your AI Sales Employee..."
+            ? leadEmailReady
+              ? "Share updates for your AI Sales Employee..."
+              : "Enter the Email address for lead notifications..."
             : phase === "error"
               ? 'Type "retry" to try again...'
               : "Analyzing your website..."

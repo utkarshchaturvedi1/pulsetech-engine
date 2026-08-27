@@ -1,8 +1,9 @@
 import { BusinessProfile } from "../types/business";
-import { cloneBusinessProfile } from "./businessProfile";
+import { cloneBusinessProfile, customerFacingBusinessProfile } from "./businessProfile";
 import {
   isLeadReadyForHandoff,
   LEAD_INACTIVITY_MS,
+  shouldAttemptLeadHandoff,
 } from "./leadHandoffShared";
 import {
   businessIdentityKey,
@@ -39,6 +40,7 @@ export function createCustomerChatSession(
   let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
   let inactivityGeneration = 0;
   let sessionActive = true;
+  let sendInFlight = false;
 
   function clearInactivityTimer() {
     if (inactivityTimer !== null) {
@@ -124,6 +126,37 @@ export function createCustomerChatSession(
     }
   }
 
+  async function finalizeClosureHandoff(latestUserMessage: string) {
+    if (!sessionActive || !salesState) return;
+    if (salesState.leadDeliveryStatus === "SENT") return;
+    const reason = salesState.urgency === "IMMEDIATE" ? "urgent" : "closure";
+    if (!shouldAttemptLeadHandoff(salesState, reason, latestUserMessage)) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/lead-handoff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          business: boundBusiness,
+          salesState,
+          reason,
+          latestUserMessage,
+        }),
+      });
+
+      if (!response.ok) return;
+      const data = (await response.json()) as { salesState?: SalesState };
+      if (sessionActive && data.salesState) {
+        salesState = stampConversation(data.salesState);
+      }
+    } catch (error) {
+      console.error("[customerChatClient] closure handoff failed", error);
+    }
+  }
+
   function scheduleInactivityHandoff() {
     clearInactivityTimer();
 
@@ -149,69 +182,80 @@ export function createCustomerChatSession(
     if (!sessionActive) {
       throw new Error("Chat session is no longer active.");
     }
-
-    clearInactivityTimer();
-    inactivityGeneration += 1;
-
-    const nextMessages: CustomerChatMessage[] = [
-      ...history,
-      {
-        role: "user",
-        content: message,
-      },
-    ];
-
-    const outboundState = salesState
-      ? stampConversation(salesState)
-      : createInitialSalesState({ conversationId, businessKey });
-
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        conversationId,
-        business: boundBusiness,
-        messages: nextMessages,
-        salesState: outboundState,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Chat request failed.");
+    if (sendInFlight) {
+      throw new Error("A chat response is already in progress.");
     }
 
-    const data = (await response.json()) as {
-      reply?: string;
-      salesState?: SalesState;
-    };
+    sendInFlight = true;
 
-    if (!data.reply?.trim()) {
-      throw new Error("Empty chat reply.");
-    }
-
-    const reply = data.reply.trim();
-
-    if (data.salesState) {
-      salesState = stampConversation(data.salesState);
-    }
-
-    history = [
-      ...nextMessages,
-      {
-        role: "assistant",
-        content: reply,
-      },
-    ];
-
-    if (salesState?.leadDeliveryStatus !== "SENT") {
-      scheduleInactivityHandoff();
-    } else {
+    try {
       clearInactivityTimer();
-    }
+      inactivityGeneration += 1;
 
-    return reply;
+      const nextMessages: CustomerChatMessage[] = [
+        ...history,
+        {
+          role: "user",
+          content: message,
+        },
+      ];
+
+      const outboundState = salesState
+        ? stampConversation(salesState)
+        : createInitialSalesState({ conversationId, businessKey });
+
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversationId,
+          business: customerFacingBusinessProfile(boundBusiness),
+          messages: nextMessages,
+          salesState: outboundState,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Chat request failed.");
+      }
+
+      const data = (await response.json()) as {
+        reply?: string;
+        salesState?: SalesState;
+      };
+
+      if (!data.reply?.trim()) {
+        throw new Error("Empty chat reply.");
+      }
+
+      const reply = data.reply.trim();
+
+      if (data.salesState) {
+        salesState = stampConversation(data.salesState);
+      }
+
+      history = [
+        ...nextMessages,
+        {
+          role: "assistant",
+          content: reply,
+        },
+      ];
+
+      await finalizeClosureHandoff(message);
+
+      if (salesState?.leadDeliveryStatus !== "SENT") {
+        scheduleInactivityHandoff();
+      } else {
+        clearInactivityTimer();
+      }
+
+      return reply;
+    } finally {
+      sendInFlight = false;
+    }
   }
 
   return {

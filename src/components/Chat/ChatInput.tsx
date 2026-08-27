@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Ref } from "react";
 
 type ChatInputProps = {
   placeholder?: string;
   disabled?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
   onSend: (message: string) => void;
 };
 
 export default function ChatInput({
   placeholder = "Type your message...",
   disabled = false,
+  inputRef,
   onSend,
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
@@ -25,12 +27,21 @@ export default function ChatInput({
   }
 
   return (
-    <div className="border-t border-slate-200/80 bg-white px-3 py-3 sm:px-4">
-      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/80 px-2 py-1.5 shadow-inner transition focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+    <div className="border-t border-slate-200 bg-white px-3 py-3 sm:px-4">
+      <div
+        data-chat-composer-field
+        className="flex items-center gap-2 rounded-xl border-2 bg-white px-2 py-1.5 shadow-sm transition focus-within:ring-4"
+        style={{
+          borderColor: "var(--pt-accent, #2563eb)",
+          boxShadow: "0 0 0 0 var(--pt-accent-soft, #dbeafe)",
+        }}
+      >
         <input
+          ref={inputRef}
           value={message}
           disabled={disabled}
           placeholder={placeholder}
+          aria-label="Message"
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -38,15 +49,24 @@ export default function ChatInput({
               send();
             }
           }}
-          className="min-w-0 flex-1 bg-transparent px-3 py-2 text-[15px] text-slate-800 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-[15px] text-slate-900 outline-none placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
         />
 
         <button
           type="button"
+          data-chat-send
           onClick={send}
           disabled={disabled || !message.trim()}
           aria-label="Send message"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white shadow-sm transition focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:bg-slate-300"
+          style={
+            disabled || !message.trim()
+              ? undefined
+              : {
+                  background: "var(--pt-accent, #2563eb)",
+                  color: "var(--pt-on-accent, #ffffff)",
+                }
+          }
         >
           <svg
             viewBox="0 0 24 24"

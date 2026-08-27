@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BusinessProfile } from "../../../types/business";
+import { handleLeadNotificationOwnerText } from "../../../lib/leadNotificationConfig";
 import { applyOwnerFeedbackToProfile } from "../../../lib/updateBusinessProfile";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
@@ -14,13 +15,6 @@ function isBusinessProfile(value: unknown): value is BusinessProfile {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: "Update service is not configured." },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     const business = body.business;
     const feedback =
@@ -37,6 +31,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Feedback is required." },
         { status: 400 }
+      );
+    }
+
+    const notificationOnly = handleLeadNotificationOwnerText(
+      typeof business.leadNotificationEmail === "string"
+        ? business.leadNotificationEmail
+        : undefined,
+      feedback
+    );
+
+    if (notificationOnly.kind === "passthrough" && !process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: "Update service is not configured." },
+        { status: 500 }
       );
     }
 

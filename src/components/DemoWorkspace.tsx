@@ -75,36 +75,52 @@ export default function DemoWorkspace({
           />
           <div className="min-w-0 sm:text-right">
             <h1 className="truncate text-xl font-bold text-slate-900 md:text-2xl">
-              {business.businessName}&apos;s AI Sales Employee Is Ready.
+              {business.leadNotificationEmail
+                ? `${business.businessName}'s AI Sales Employee Is Ready.`
+                : `${business.businessName}'s AI Sales Employee`}
             </h1>
             <p className="mt-1 text-sm text-slate-600 md:text-base">
-              Test it. Challenge it. Tell me what&apos;s missing. I&apos;ll fix
-              it instantly.
+              {business.leadNotificationEmail ? (
+                <>
+                  Test it. Challenge it. Tell me what&apos;s missing. I&apos;ll
+                  fix it instantly.
+                </>
+              ) : (
+                <>
+                  One more step: tell Peter the{" "}
+                  <strong className="font-bold text-slate-900">
+                    Email address
+                  </strong>{" "}
+                  for new lead notifications before customer testing.
+                </>
+              )}
             </p>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4 p-4 md:flex-row md:gap-6 md:p-6">
-        <section className="flex h-[min(50%,420px)] min-h-0 w-full flex-col md:h-full md:w-5/12">
-          <PulseTechEngineChat
-            website={business.website}
-            agentName="Peter"
-            agentRole="AI Sales Agent"
-            agentAvatar={PETER_AVATAR}
-            business={business}
-            skipAnalysis
-            onProfileUpdate={handleProfileUpdate}
-            className="h-full min-h-0"
-          />
+      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-4 overflow-x-hidden p-3 sm:p-4 lg:flex-row lg:items-stretch lg:gap-5 lg:p-6">
+        <section className="flex min-h-0 w-full flex-1 flex-col items-center lg:h-full">
+          <div className="flex h-[min(48vh,440px)] min-h-0 w-full max-w-[420px] flex-col overflow-hidden lg:h-full">
+            <PulseTechEngineChat
+              website={business.website}
+              agentName="Peter"
+              agentRole="AI Sales Agent"
+              agentAvatar={PETER_AVATAR}
+              business={business}
+              skipAnalysis
+              onProfileUpdate={handleProfileUpdate}
+              className="h-full min-h-0"
+            />
+          </div>
         </section>
 
-        <section className="flex h-[min(50%,420px)] min-h-0 w-full flex-col items-center justify-center md:h-full md:flex-1">
-          <div className="mx-auto flex h-full min-h-0 w-full max-w-[420px] flex-col overflow-hidden sm:max-w-[420px]">
+        <section className="flex min-h-0 w-full flex-1 flex-col items-center lg:h-full">
+          <div className="flex h-[min(48vh,440px)] min-h-0 w-full max-w-[420px] flex-col overflow-hidden lg:h-full">
             <CustomerAI
               business={business}
               disabled={false}
-              className="h-full min-h-0 max-w-none"
+              className="h-full min-h-0"
             />
           </div>
         </section>

@@ -41,6 +41,7 @@ Return this JSON structure exactly:
   "businessName": "",
   "tagline": "",
   "logo": "",
+  "siteIcon": "",
   "primaryColor": "#2563eb",
   "secondaryColor": "#0f172a",
   "phone": "",
@@ -62,7 +63,7 @@ Rules:
 
 - Infer services whenever possible.
 - Infer service areas whenever possible.
-- Extract contact details, logo URL, and brand colours when available.
+- Extract contact details, full logo URL, compact site icon/favicon URL, and brand colours when available.
 - Prefer owner-provided additional information over conflicting website text when they disagree.
 - Populate leadQuestions with natural discovery questions a sales employee would ask to understand customer needs (not an interrogation checklist).
 - Write a detailed professional systemPrompt that:
@@ -107,6 +108,7 @@ Rules:
     businessName?: string;
     tagline?: string;
     logo?: string;
+    siteIcon?: string;
     primaryColor?: string;
     secondaryColor?: string;
     phone?: string;
@@ -133,6 +135,7 @@ Rules:
     tagline: data.tagline ?? "",
 
     logo: data.logo ?? "",
+    siteIcon: data.siteIcon ?? "",
 
     primaryColor: data.primaryColor ?? "#2563eb",
     secondaryColor: data.secondaryColor ?? "#0f172a",

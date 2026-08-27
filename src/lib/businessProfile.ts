@@ -7,12 +7,14 @@ export const emptyBusinessProfile: BusinessProfile = {
   tagline: "",
 
   logo: "",
+  siteIcon: "",
 
   primaryColor: "#2563eb",
   secondaryColor: "#0f172a",
 
   phone: "",
   email: "",
+  leadNotificationEmail: undefined,
   address: "",
 
   services: [],
@@ -44,4 +46,11 @@ export function cloneBusinessProfile(business: BusinessProfile): BusinessProfile
     leadQuestions: [...(business.leadQuestions || [])],
     faqs: (business.faqs || []).map((faq) => ({ ...faq })),
   };
+}
+
+/** Removes internal routing settings before a profile is used as customer-facing knowledge. */
+export function customerFacingBusinessProfile(business: BusinessProfile): Omit<BusinessProfile, "leadNotificationEmail"> {
+  const customerFacing = { ...business };
+  delete customerFacing.leadNotificationEmail;
+  return customerFacing;
 }

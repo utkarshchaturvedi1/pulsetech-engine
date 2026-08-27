@@ -86,6 +86,15 @@ function rajaBase(): SalesState {
   };
 }
 
+function actionableLeadBase(): SalesState {
+  return {
+    ...rajaBase(),
+    appointmentIntent: true,
+    preferredTiming: "tomorrow between 5–7 PM",
+    currentObjective: "PRESENT_SOLUTION",
+  };
+}
+
 async function main() {
   // -------- Raja: nothing more → CLOSE, handoffReady, no more questions --------
   let state = rajaBase();
@@ -168,6 +177,119 @@ async function main() {
   );
   assert(!accessAsk.ok, "proactive access ask rejected");
   console.log("no access information PASS");
+
+  // -------- actionable lead: no proactive operational intake --------
+  const operationalQuestion = validateSalesReply(
+    "Before we proceed, is anyone else at the property we should plan around?",
+    { ...actionableLeadBase(), currentObjective: "PRESENT_SOLUTION" },
+    business
+  );
+  assert(!operationalQuestion.ok, "post-agreement operational question rejected");
+  assert(
+    operationalQuestion.reasons.some((reason) => /unnecessary follow-up/i.test(reason)),
+    "operational question has actionable-lead reason"
+  );
+
+  const requiredBusiness: BusinessProfile = {
+    ...business,
+    leadQuestions: [
+      "A unit number is required before the visit can be requested.",
+    ],
+  };
+  const requiredQuestion = validateSalesReply(
+    "What is the unit number before the visit?",
+    { ...actionableLeadBase(), currentObjective: "PRESENT_SOLUTION" },
+    requiredBusiness
+  );
+  assert(requiredQuestion.ok, "explicit BusinessProfile precondition remains allowed");
+  console.log("post-agreement operational intake PASS");
+
+  // -------- BusinessProfile grounding: no invented customer action/process --------
+  state = actionableLeadBase();
+  const inventedWorkflow = validateSalesReply(
+    "The usual process is an inspection, then a firm estimate. Please submit measurements first for a quick review.",
+    state,
+    business
+  );
+  assert(!inventedWorkflow.ok, "unsupported customer workflow rejected");
+  assert(
+    inventedWorkflow.reasons.some((reason) => /customer action|business process/i.test(reason)),
+    "unsupported workflow has grounding reason"
+  );
+
+  const businessWithSupportedWorkflow: BusinessProfile = {
+    ...business,
+    systemPrompt:
+      "For remote reviews, customers may submit measurements before the consultation.",
+  };
+  const supportedWorkflow = validateSalesReply(
+    "For a remote review, you may submit measurements before the consultation.",
+    state,
+    businessWithSupportedWorkflow
+  );
+  assert(supportedWorkflow.ok, "BusinessProfile-supported customer workflow remains allowed");
+  console.log("BusinessProfile grounding PASS");
+
+  // -------- concise normal sales turns: no repeated brochure/safety pitch --------
+  const repeatedBrochure = [
+    "For your request, we provide a complete solution with expert service, trained professionals, quality materials, and dependable results.",
+    "Our experienced team follows a detailed process, checks every component, and explains every benefit so you can feel confident.",
+    "For safety, stay away from the area and do not touch anything until a professional arrives. For safety, stay away from the area and do not touch anything until a professional arrives.",
+    "We are licensed, insured, and committed to excellent service from start to finish.",
+    "Our experienced team follows a detailed process, checks every component, and explains every benefit so you can feel confident. Our experienced team follows a detailed process, checks every component, and explains every benefit so you can feel confident.",
+  ].join(" ");
+  const longAdvance = validateSalesReply(
+    repeatedBrochure,
+    { ...actionableLeadBase(), currentObjective: "ADVANCE_TO_NEXT_STEP" },
+    business
+  );
+  assert(!longAdvance.ok, "long repeated advance pitch rejected");
+  assert(
+    longAdvance.reasons.some((reason) =>
+      /too long|brochure|concise|pitch|dump|unsupported|not supported by BusinessProfile/i.test(
+        reason
+      )
+    ),
+    `long repeated advance pitch must be rejected for overlength, brochure, or unsupported claims (${longAdvance.reasons.join("; ")})`
+  );
+
+  const longClose = validateSalesReply(
+    repeatedBrochure,
+    { ...actionableLeadBase(), currentObjective: "CLOSE", customerAgreed: true },
+    business
+  );
+  assert(!longClose.ok, "long repeated close pitch rejected");
+  console.log("concise response discipline PASS");
+
+  // -------- actionable lead: close rather than reopening technical intake --------
+  state = apply(
+    actionableLeadBase(),
+    "Tomorrow between 5-7 PM works for me.",
+    "Would you like to move forward with the next step?"
+  );
+  assert(state.currentObjective === "CLOSE", "actionable lead with timing closes instead of reopening discovery");
+
+  const unnecessaryScopeQuestion = validateSalesReply(
+    "Before we proceed, what size, material, and existing configuration do you have?",
+    { ...actionableLeadBase(), currentObjective: "PRESENT_SOLUTION" },
+    business
+  );
+  assert(!unnecessaryScopeQuestion.ok, "proactive technical discovery rejected after actionable lead");
+  assert(
+    unnecessaryScopeQuestion.reasons.some((reason) => /technical or operational discovery/i.test(reason)),
+    "technical discovery rejection reason present"
+  );
+
+  state = apply(
+    actionableLeadBase(),
+    "How much will it cost?",
+    "Thanks — I have your preferred timing."
+  );
+  assert(
+    state.currentObjective === "HANDLE_PRICE_OBJECTION" || state.currentObjective === "ANSWER",
+    "customer questions remain answerable after an actionable lead"
+  );
+  console.log("actionable lead progression PASS");
 
   // -------- new question after apparent closure --------
   state = {

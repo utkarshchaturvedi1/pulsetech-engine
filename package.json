@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:v1": "tsx scripts/test-v1-stabilization.ts && tsx scripts/test-raja-closure.ts && tsx scripts/test-raja-handoff-data.ts && tsx scripts/test-handoff-timing.ts && tsx scripts/test-v1-lead-handoff-e2e.ts && tsx scripts/test-handoff-policy.ts && tsx scripts/test-lead-notification-config.ts && tsx scripts/test-widget-branding.ts && tsx scripts/test-varun-runtime.ts && tsx scripts/test-sales-employee-scenarios.ts && tsx scripts/test-website-intake.ts",
+    "test:browser": "tsx scripts/test-customer-ai-browser.ts",
+    "test:live-sales": "tsx scripts/test-live-sales.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
@@ -19,6 +22,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
@@ -27,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }

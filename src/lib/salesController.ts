@@ -1,4 +1,5 @@
 import { BusinessProfile } from "../types/business";
+import { salesNeedToneFromBrain, isMaterialNeedClarification, resolveOpportunityScope, scopeBlocksLeadCapture } from "./salesBrain";
 import {
   LeadFields,
   SalesIntent,
@@ -92,7 +93,7 @@ function detectIntent(text: string): SalesIntent {
   }
 
   if (
-    /\b(i need|i want|need help|need a|need an|fix this|repair|estimate|quote)\b/.test(
+    /\b(i need|i want|need help|need a|need an|fix this|repair|estimate|quote|i('ve| have) wanted|we('ve| have) wanted|always wanted)\b/.test(
       t
     )
   ) {
@@ -146,6 +147,28 @@ function extractEmail(text: string): string | null {
   return match ? match[0].trim() : null;
 }
 
+const NAME_TOKEN_BLOCK_RE =
+  /^(i|i'm|im|am|at|just|only|still|yes|yeah|yep|no|nah|ok|okay|sure|thanks|thank|please|looking|browsing|interested|trying|having|that's|thats|it's|its|what's|whats|too|very|so|not|wait|actually|tomorrow|today|morning|afternoon|evening|expensive|cheap|pricey|licensed|insured|same|address|phone|number|call|someone|how|much|cost|price|hello|hey|hi|well|but|and|the|a|an|this|that|great|perfect|ready)$/i;
+
+function looksLikePersonNamePhrase(text: string): boolean {
+  const cleaned = text.trim().replace(/^["']|["']$/g, "");
+  if (
+    !/^[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(cleaned)
+  ) {
+    return false;
+  }
+  const tokens = cleaned.split(/\s+/);
+  if (
+    tokens.some((tok) => NAME_TOKEN_BLOCK_RE.test(tok.replace(/['.]/g, "")))
+  ) {
+    return false;
+  }
+  if (/^(that|it|what|who|how|can|do|we|you)'s$/i.test(tokens[0])) {
+    return false;
+  }
+  return true;
+}
+
 function extractName(
   text: string,
   objective: SalesObjective,
@@ -154,12 +177,16 @@ function extractName(
   const labeled = text.match(
     /(?:my name(?:'s| is)|this is|call me)\s+([A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)/i
   )?.[1];
+  const imName = text.match(
+    /\bi(?:['’]m| am)\s+([A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)(?!\s+at\b)/i
+  )?.[1];
 
-  if (labeled) {
-    const cleaned = labeled
+  const named = labeled || imName;
+  if (named) {
+    const cleaned = named
       .replace(/\b(and|my|phone|number|email|address)\b.*$/i, "")
       .trim();
-    if (cleaned && !/^(just|only|still|not|looking|browsing)$/i.test(cleaned)) {
+    if (cleaned && looksLikePersonNamePhrase(cleaned)) {
       return cleaned;
     }
   }
@@ -170,43 +197,61 @@ function extractName(
 
   if (allowBareName) {
     const cleaned = text.trim().replace(/^["']|["']$/g, "");
-    if (
-      /^[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(
-        cleaned
-      ) &&
-      !/^(just|only|still|yes|no|ok|okay|looking|browsing)$/i.test(cleaned)
-    ) {
+    if (looksLikePersonNamePhrase(cleaned)) {
       return cleaned;
+    }
+    const leading = cleaned.match(
+      /^([A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)\s*[,]/
+    )?.[1];
+    if (
+      leading &&
+      looksLikePersonNamePhrase(leading) &&
+      !CONCRETE_PROBLEM_RE.test(leading)
+    ) {
+      return leading;
+    }
+    const beforePhone = cleaned.match(
+      /^([A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)\s+(?=\(?\d)/
+    )?.[1];
+    if (
+      beforePhone &&
+      looksLikePersonNamePhrase(beforePhone) &&
+      !/\bat$/i.test(beforePhone)
+    ) {
+      return beforePhone;
     }
   }
 
   return null;
 }
 
+const ADDRESS_CITY_ZIP_RE =
+  /\b\d{1,6}\s+[A-Za-z0-9.'\- ]+?(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|place|pl)\.?,?\s+[A-Za-z .]+?,?\s+[A-Z]{2}\s+\d{5}(?:-\d{4})?\b/i;
+
 function extractAddress(
   text: string,
-  objective: SalesObjective
+  _objective: SalesObjective
 ): string | null {
   const labeled = text.match(
-    /(?:my address(?: is)?|address is|i('?m| am) at|located at)\s+(.+)/i
+    /(?:my address(?: is)?|address is|i('?m| am) at|located at|i live at)\s+(.+)/i
   )?.[2];
   if (labeled) return labeled.trim().replace(/[.?!]$/, "");
 
-  if (ADDRESS_HINT_RE.test(text)) {
-    return text.trim();
-  }
+  const cityZip = text.match(ADDRESS_CITY_ZIP_RE);
+  if (cityZip) return cityZip[0].trim();
 
-  if (objective === "COLLECT_ADDRESS") {
-    const cleaned = text.trim();
-    if (
-      cleaned.length >= 8 &&
-      /\d/.test(cleaned) &&
-      /[A-Za-z]/.test(cleaned) &&
-      !PHONE_RE.test(cleaned) &&
-      !EMAIL_RE.test(cleaned)
-    ) {
-      return cleaned;
-    }
+  const texasZip = text.match(
+    /\b\d{1,6}\s+[A-Za-z0-9.'\- ]{3,80}?\b(?:TX|Texas)\s+\d{5}(?:-\d{4})?\b/i
+  );
+  if (texasZip) return texasZip[0].trim();
+
+  const hinted = text.match(ADDRESS_HINT_RE);
+  if (hinted) {
+    const fromHint = text.slice(hinted.index ?? 0);
+    const withCity = fromHint.match(
+      /^\d{1,6}\s+[A-Za-z0-9.'\- ]+?(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|place|pl)\.?(?:,?\s+[A-Za-z .]{2,40})?(?:,?\s+[A-Z]{2})?(?:\s+\d{5}(?:-\d{4})?)?/i
+    );
+    return (withCity?.[0] || hinted[0]).trim();
   }
 
   return null;
@@ -214,7 +259,7 @@ function extractAddress(
 
 function extractPreferredTiming(text: string): string | null {
   const match = text.match(
-    /\b((today|tomorrow|this (morning|afternoon|evening)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[^.]{0,40}|between\s+\d{1,2}[^.]{0,24}|\d{1,2}\s*(?::\d{2})?\s*[-–]\s*\d{1,2}\s*(?::\d{2})?\s*(am|pm)?|after\s+\d{1,2}\s*(am|pm)?|before\s+\d{1,2}\s*(am|pm)?)/i
+    /\b((today|tomorrow|this (morning|afternoon|evening)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(morning|afternoon|evening|night))?(?:\s+(after|before)\s+\d{1,2}\s*(am|pm)?)?(?:\s+if possible)?|between\s+\d{1,2}[^.]{0,24}|\d{1,2}\s*(?::\d{2})?\s*[-–]\s*\d{1,2}\s*(?::\d{2})?\s*(am|pm)?|after\s+\d{1,2}\s*(am|pm)?|before\s+\d{1,2}\s*(am|pm)?)\b/i
   );
   return match ? match[0].trim() : null;
 }
@@ -290,22 +335,33 @@ function looksLikeBuyingOrClarifyingQuestion(text: string): boolean {
 
 function inferCustomerNeed(
   text: string,
-  previous: string | null
+  previous: string | null,
+  options?: { awaitingCustomerResponse?: boolean }
 ): string | null {
   const t = text.trim();
   if (t.length < 3) return previous;
 
-  // Once a concrete primary need exists, do not replace it with Q&A.
+  if (looksLikeLeadFieldOnlyReply(t)) return previous;
+
+  const materialClarification = isMaterialNeedClarification(t);
+
+  // Once a concrete primary need exists, do not replace it with Q&A —
+  // unless this turn is a material clarification of the job itself.
   if (
     previous &&
     isCustomerNeedSpecific(previous) &&
-    looksLikeBuyingOrClarifyingQuestion(t)
+    looksLikeBuyingOrClarifyingQuestion(t) &&
+    !materialClarification
   ) {
     return previous;
   }
 
   const looksLikeNeedUpdate =
-    /\b(i need|i want|looking for|interested in|help with|problem with|issue with|i have)\b/i.test(
+    materialClarification ||
+    (Boolean(options?.awaitingCustomerResponse) &&
+      !/\?/.test(t) &&
+      distinctiveJobRestatement(t)) ||
+    /\b(i need|i want|i('ve| have) wanted|we('ve| have) wanted|always wanted|looking for|interested in|help with|problem with|issue with|i have)\b/i.test(
       t
     ) ||
     /\b(repair|install|replace|service|quote|estimate)\b/i.test(t) ||
@@ -319,7 +375,8 @@ function inferCustomerNeed(
     previous &&
     isCustomerNeedSpecific(previous) &&
     detectUrgency(t) &&
-    !CONCRETE_PROBLEM_RE.test(t)
+    !CONCRETE_PROBLEM_RE.test(t) &&
+    !materialClarification
   ) {
     return previous;
   }
@@ -330,22 +387,97 @@ function inferCustomerNeed(
   if (
     previous &&
     isCustomerNeedSpecific(previous) &&
-    !isCustomerNeedSpecific(next)
+    !isCustomerNeedSpecific(next) &&
+    !materialClarification
   ) {
     return previous;
   }
 
-  // Prefer keeping an established concrete need over another concrete-looking sentence
-  // that is still primarily a clarification/options question (belt-and-suspenders).
   if (
     previous &&
     isCustomerNeedSpecific(previous) &&
-    looksLikeBuyingOrClarifyingQuestion(t)
+    looksLikeBuyingOrClarifyingQuestion(t) &&
+    !materialClarification
   ) {
     return previous;
   }
 
   return next;
+}
+
+function distinctiveJobRestatement(text: string): boolean {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2 || words.length > 16) return false;
+  return /\b(rewir|electri|lighting|hvac|heater|furnace|air[\s-]?condition|a\/c|\bac\b|sink|jacuzzi|plumb|solar|panel|duct|thermostat|pool|fountain|landscap)\b/i.test(
+    text
+  );
+}
+
+function applySupportedOpportunityAcceptance(
+  state: SalesState,
+  text: string,
+  priorAssistant: string
+): void {
+  if (state.opportunityAccepted || isLeadSecured(state)) return;
+  if (!state.pendingSupportedOpportunity) return;
+  if (looksLikeLeadFieldOnlyReply(text)) return;
+  if (isMaterialNeedClarification(text) && !leadingYesAcceptance(text, priorAssistant)) {
+    return;
+  }
+  if (
+    /\b(rewir|electrical|lighting)\b/i.test(text) &&
+    !/\b(hvac|ac\b|heater|heating|air condition)\b/i.test(text) &&
+    !leadingYesAcceptance(text, priorAssistant)
+  ) {
+    return;
+  }
+
+  const acceptsLanguage =
+    isContextualAcceptance(text) ||
+    detectCustomerAgreement(text) ||
+    leadingYesAcceptance(text, priorAssistant) ||
+    /\b(just (the )?(hvac|ac|heater|heating)|the (hvac|ac|heating) (part|portion|work)|hvac (is )?fine)\b/i.test(
+      text
+    );
+  if (!acceptsLanguage) return;
+
+  if (isBareAffirmative(text) && !leadingYesAcceptance(text, priorAssistant)) {
+    const offeredSupported =
+      /\b(hvac|ac\b|heater|heating|air condition)\b/i.test(priorAssistant) &&
+      /\b(would you (like|want)|want (help|to (move|proceed|go))|move forward|proceed with|help with (that|the)|that supported)\b/i.test(
+        priorAssistant
+      );
+    const alternativeQuestion =
+      /\bor\b/i.test(priorAssistant) &&
+      /\b(rewir|electrical|lighting)\b/i.test(priorAssistant);
+    if (!offeredSupported || alternativeQuestion) return;
+  }
+
+  if (!state.originalCustomerNeed && state.customerNeed) {
+    state.originalCustomerNeed = state.customerNeed;
+  }
+  state.customerNeed = state.pendingSupportedOpportunity;
+  state.opportunityAccepted = true;
+  state.establishedFacts = addFact(
+    state.establishedFacts,
+    `Customer accepted supported opportunity: ${state.pendingSupportedOpportunity}`
+  );
+}
+
+function assistantAskedToProceed(assistantText: string): boolean {
+  return /\b(would you (like|want)|want (help|to (move|proceed|go))|move forward|proceed with|help with (that|the)|that supported|want me to (proceed|continue)|shall (we|i))\b/i.test(
+    assistantText
+  );
+}
+
+function leadingYesAcceptance(text: string, priorAssistant: string): boolean {
+  if (!assistantAskedToProceed(priorAssistant) && !assistantProposedNextStep(priorAssistant)) {
+    return false;
+  }
+  const t = text.trim();
+  if (!/^(yes|yeah|yep|yup|sure|ok|okay|yes please)\b/i.test(t)) return false;
+  if (/\b(no\b|not really|don'?t want|do not want|never mind)\b/i.test(t)) return false;
+  return true;
 }
 
 /** Industry-agnostic concise buying-context notes from a customer turn. */
@@ -371,6 +503,24 @@ function extractCustomerContextNotes(text: string): string[] {
     /\bnot (yet )?(purchased|bought)\b/.test(t)
   ) {
     notes.push("Customer does not currently own the item.");
+  } else if (
+    /\b(already (bought|purchased|have|got)|have already (bought|purchased|got)|i (bought|purchased) (a |an |the )?new)\b/.test(
+      t
+    )
+  ) {
+    notes.push("Customer already owns / purchased the equipment.");
+  }
+
+  if (
+    /\b(working old|still works|still working|just want (a |to )?(new|upgrade|install a new)|new version)\b/.test(
+      t
+    )
+  ) {
+    notes.push("Customer is replacing equipment that is still working.");
+  }
+
+  if (/\b(renovat|remodel|redoing|new (kitchen|bathroom|bath))\b/.test(t)) {
+    notes.push("Customer is in a renovation / project context.");
   }
 
   // Only store sourcing when the customer explicitly accepts/asks for it.
@@ -414,7 +564,7 @@ function extractCustomerContextNotes(text: string): string[] {
   }
 
   if (
-    /\b(too expensive|pricey|concerned about (the )?(price|cost)|how much will it cost)\b/.test(
+    /\b(too expensive|that'?s expensive|pricey|concerned about (the )?(price|cost)|how much will it cost)\b/.test(
       t
     )
   ) {
@@ -517,27 +667,11 @@ function isLeadSecured(state: SalesState): boolean {
   return state.requiredLeadFields.every((field) => !!state.lead[field]);
 }
 
-/** Pain/repair vs aspirational upgrade — drives sales-tone copy only, not lead rules. */
+/** Pain vs aspirational — inferred from customer language, not service-category lookup. */
 function salesNeedTone(
   state: SalesState
 ): "pain" | "aspirational" | "neutral" {
-  const need = (state.customerNeed || "").toLowerCase();
-  if (!need) return "neutral";
-  if (
-    /\b(not working|isn'?t working|won'?t|broken|leaking|leak|clogged|flooding|outage|emergency|repair|stopped|no (hot )?water|too (hot|cold)|overheating|infestat|infested|pests?|termite|faulty|failed|cracked|damaged|urgent|asap)\b/i.test(
-      need
-    )
-  ) {
-    return "pain";
-  }
-  if (
-    /\b(install|installation|solar|jacuzzi|spa|remodel|modern|upgrade|landscape|landscaping|getting|buying|purchasing|new (kitchen|sink|hvac|system|unit|panel)|want a|interested in getting)\b/i.test(
-      need
-    )
-  ) {
-    return "aspirational";
-  }
-  return "neutral";
+  return salesNeedToneFromBrain(state.customerNeed || "", state);
 }
 
 function businessKnowledgeBlob(business: BusinessProfile): string {
@@ -632,7 +766,7 @@ export function detectCustomerAgreement(text: string): boolean {
 
 /** Bare affirmative to the immediately preceding proposal (visit/estimate/etc.). */
 export function isBareAffirmative(text: string): boolean {
-  return /^(yes|yeah|yep|sure|ok|okay|sounds good|that works)[.!]?$/i.test(
+  return /^(yes|yeah|yep|yup|sure|ok|okay|sounds good|that works|yes please)[.!]?$/i.test(
     text.trim()
   );
 }
@@ -647,6 +781,13 @@ export function isContextualAcceptance(text: string): boolean {
   if (isBareAffirmative(t)) return true;
   if (
     /^(yes|yeah|yep|sure)[,.]?\s+(that works|please|sounds good|go ahead|that'?s fine|perfect)[.!]?$/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (
+    /^(yes|yeah|yep|yup|sure|ok|okay)[,.]?\s*(please|that works|sounds good|go ahead)?[.!]?$/i.test(
       t
     )
   ) {
@@ -801,7 +942,7 @@ function detectSalesObjective(text: string): SalesObjective | null {
   }
 
   if (
-    /\b(too expensive|more than i expected|cost too much|pricey|how much|what(?:'s| is) the (price|cost)|pricing|diagnostic fee|is there a fee)\b/.test(
+    /\b(too expensive|that'?s expensive|more than i expected|cost too much|pricey|how much|what(?:'s| is) the (price|cost)|pricing|diagnostic fee|is there a fee|need to know (the )?(price|cost)|can you (do|go) (it )?cheaper)\b/.test(
       t
     )
   ) {
@@ -890,10 +1031,78 @@ function isOpenSalesQuestion(text: string): boolean {
 function looksLikeLeadFieldOnlyReply(text: string): boolean {
   const t = text.trim();
   if (!t) return true;
+  if (/\?/.test(t)) return false;
+  const interrupt = detectSalesObjective(t);
+  if (
+    interrupt === "HANDLE_PRICE_OBJECTION" ||
+    interrupt === "HANDLE_COMPETITOR_OBJECTION" ||
+    interrupt === "HANDLE_HESITATION" ||
+    interrupt === "EXPLAIN_VALUE"
+  ) {
+    return false;
+  }
   if (extractPhone(t) && t.replace(PHONE_RE, "").trim().length < 8) return true;
   if (extractEmail(t) && t.replace(EMAIL_RE, "").trim().length < 8) return true;
-  if (ADDRESS_HINT_RE.test(t) && t.split(/\s+/).length <= 12) return true;
-  if (/^[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(t)) {
+  if (ADDRESS_HINT_RE.test(t) && t.split(/\s+/).length <= 14) return true;
+  if (ADDRESS_CITY_ZIP_RE.test(t) && t.split(/\s+/).length <= 16) return true;
+  if (looksLikePersonNamePhrase(t)) {
+    return true;
+  }
+  const remainder = remainderAfterLeadFields(t);
+  const extractedSomething =
+    Boolean(extractPhone(t)) ||
+    Boolean(extractEmail(t)) ||
+    ADDRESS_HINT_RE.test(t) ||
+    ADDRESS_CITY_ZIP_RE.test(t);
+  if (extractedSomething && remainder.split(/\s+/).filter(Boolean).length <= 4) {
+    return true;
+  }
+  return false;
+}
+
+function remainderAfterLeadFields(text: string): string {
+  return text
+    .replace(PHONE_RE, " ")
+    .replace(EMAIL_RE, " ")
+    .replace(ADDRESS_CITY_ZIP_RE, " ")
+    .replace(ADDRESS_HINT_RE, " ")
+    .replace(
+      /^[\s,]*[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?[\s,]*/i,
+      " "
+    )
+    .replace(/\b(my (name|number|phone|address) is|btw|also)\b/gi, " ")
+    .replace(/[\s,;]+/g, " ")
+    .trim();
+}
+
+function nextMissingLeadObjective(state: SalesState): SalesObjective | null {
+  const missing = missingLeadFields(state);
+  if (!missing.length) return null;
+  if (missing[0] === "name") return "COLLECT_NAME";
+  if (missing[0] === "phone") return "COLLECT_PHONE";
+  if (missing[0] === "email") return "COLLECT_EMAIL";
+  if (missing[0] === "address") return "COLLECT_ADDRESS";
+  return null;
+}
+
+function shouldAdvanceLeadCapture(
+  state: SalesState,
+  latestUserText: string
+): boolean {
+  if (state.leadCapturePaused && !looksLikeLeadFieldOnlyReply(latestUserText)) {
+    return false;
+  }
+  if (missingLeadFields(state).length === 0) return false;
+  if (state.opportunityAccepted) return true;
+  const hasAnyLead = Boolean(
+    state.lead.name || state.lead.phone || state.lead.address || state.lead.email
+  );
+  if (hasAnyLead) return true;
+  if (state.serviceScope === "SUPPORTED") return true;
+  if (
+    (state.intent === "HIGH" || state.intent === "READY_TO_ACT") &&
+    !scopeBlocksLeadCapture(state)
+  ) {
     return true;
   }
   return false;
@@ -953,14 +1162,17 @@ function selectObjective(
   }
 
   if (state.customerAgreed || detectCustomerAgreement(latestUserText)) {
-    // Still answer genuine new questions after agreement/close — do not ignore them.
-    if (
+    // Agreement is not a close while required lead fields are still missing.
+    if (!isLeadSecured(state)) {
+      // Fall through to interrupt / scope / collect logic.
+    } else if (
       isOpenSalesQuestion(latestUserText) &&
       !detectCustomerFinished(latestUserText)
     ) {
       return "ANSWER";
+    } else {
+      return "CLOSE";
     }
-    return "CLOSE";
   }
 
   // After a natural close path: answer new questions, then return to CLOSE.
@@ -995,6 +1207,13 @@ function selectObjective(
   }
 
   const salesObjective = detectSalesObjective(latestUserText);
+  const fieldOnly = looksLikeLeadFieldOnlyReply(latestUserText);
+  const continueCapture = shouldAdvanceLeadCapture(state, latestUserText);
+  const nextLead = nextMissingLeadObjective(state);
+
+  if (fieldOnly && continueCapture && nextLead) {
+    return nextLead;
+  }
 
   // Lead refusal / price-gated: preserve opportunity over form capture.
   if (state.leadCapturePaused && state.leadStatus !== "SECURED") {
@@ -1014,31 +1233,43 @@ function selectObjective(
   }
 
   if (state.leadStatus !== "SECURED") {
+    // Field-only replies never reopen price/scope/persuasion.
+    if (fieldOnly && continueCapture && nextLead) {
+      return nextLead;
+    }
+
     // Price/objection while still securing: handle it instead of forcing next field.
     if (
-      salesObjective === "HANDLE_PRICE_OBJECTION" ||
-      salesObjective === "HANDLE_COMPETITOR_OBJECTION" ||
-      salesObjective === "HANDLE_HESITATION" ||
-      salesObjective === "PRESENT_SOLUTION" ||
-      salesObjective === "EXPLAIN_VALUE"
+      !fieldOnly &&
+      (salesObjective === "HANDLE_PRICE_OBJECTION" ||
+        salesObjective === "HANDLE_COMPETITOR_OBJECTION" ||
+        salesObjective === "HANDLE_HESITATION" ||
+        salesObjective === "PRESENT_SOLUTION" ||
+        salesObjective === "EXPLAIN_VALUE")
     ) {
       return salesObjective;
     }
 
-    if (isOpenSalesQuestion(latestUserText)) {
+    if (!fieldOnly && isOpenSalesQuestion(latestUserText)) {
       return "ANSWER";
     }
 
-    const missing = missingLeadFields(state);
+    // Material scope / unknown work outranks blind COLLECT_* sequencing.
     if (
-      state.intent === "HIGH" ||
-      state.intent === "READY_TO_ACT" ||
-      state.leadStatus === "SECURING"
+      !fieldOnly &&
+      !continueCapture &&
+      scopeBlocksLeadCapture(state) &&
+      !state.opportunityAccepted &&
+      (isMaterialNeedClarification(latestUserText) ||
+        state.serviceScope === "PARTIALLY_SUPPORTED" ||
+        state.serviceScope === "UNKNOWN" ||
+        state.serviceScope === "UNSUPPORTED")
     ) {
-      if (missing[0] === "name") return "COLLECT_NAME";
-      if (missing[0] === "phone") return "COLLECT_PHONE";
-      if (missing[0] === "email") return "COLLECT_EMAIL";
-      if (missing[0] === "address") return "COLLECT_ADDRESS";
+      return "UNDERSTAND_NEED";
+    }
+
+    if (continueCapture && nextLead) {
+      return nextLead;
     }
 
     if (state.intent === "LOW") {
@@ -1130,6 +1361,10 @@ function buildSummary(state: SalesState): string {
     `leadStatus=${state.leadStatus}`,
     `objective=${state.currentObjective}`,
     state.customerNeed ? `need=${state.customerNeed}` : null,
+    state.originalCustomerNeed && state.originalCustomerNeed !== state.customerNeed
+      ? `originalNeed=${state.originalCustomerNeed}`
+      : null,
+    state.serviceScope ? `scope=${state.serviceScope}` : null,
     `urgency=${state.urgency}`,
     state.preferredTiming ? `timing=${state.preferredTiming}` : null,
     state.leadCapturePaused ? "leadCapture=PAUSED" : null,
@@ -1247,10 +1482,56 @@ export function updateSalesStateFromTurn(
   }
 
   if (
-    /\b(schedule|book|come out|send someone|appointment)\b/i.test(text) &&
+    /\b(schedule|book|come out|come over|send someone|appointment|can you come|come tomorrow|come today)\b/i.test(
+      text
+    ) &&
     state.appointmentIntent !== false
   ) {
     state.appointmentIntent = true;
+  }
+
+  const priorAssistant = lastAssistantMessage(messages);
+  if (
+    timing &&
+    state.appointmentIntent !== false &&
+    (assistantProposedOnSiteNextStep(priorAssistant) ||
+      /\b(can you come|come (out|over|tomorrow|today)|schedule|appointment|visit|estimate)\b/i.test(
+        text
+      ))
+  ) {
+    state.appointmentIntent = true;
+    if (
+      assistantProposedOnSiteNextStep(priorAssistant) ||
+      /\b(on[- ]site|estimate|visit|inspection)\b/i.test(`${priorAssistant} ${text}`)
+    ) {
+      state.establishedFacts = addFact(state.establishedFacts, "nextStepKind=on-site");
+    }
+  }
+
+  const previousNeed = state.customerNeed;
+  state.customerNeed = inferCustomerNeed(text, state.customerNeed, {
+    awaitingCustomerResponse: Boolean(previous?.awaitingCustomerResponse),
+  });
+  if (
+    previousNeed &&
+    state.customerNeed &&
+    state.customerNeed !== previousNeed &&
+    !state.originalCustomerNeed
+  ) {
+    state.originalCustomerNeed = previousNeed;
+  }
+
+  applySupportedOpportunityAcceptance(state, text, priorAssistant);
+
+  const scope = resolveOpportunityScope(
+    state.customerNeed,
+    state.originalCustomerNeed,
+    business,
+    state.opportunityAccepted
+  );
+  state.serviceScope = scope.classification;
+  if (!state.opportunityAccepted) {
+    state.pendingSupportedOpportunity = scope.pendingSupportedOpportunity;
   }
 
   if (detectCustomerAgreement(text)) {
@@ -1259,10 +1540,16 @@ export function updateSalesStateFromTurn(
       state.establishedFacts,
       "Customer agreed to proceed"
     );
-  } else if (isContextualAcceptance(text)) {
+  } else if (
+    isContextualAcceptance(text) &&
+    !(
+      state.pendingSupportedOpportunity &&
+      !state.opportunityAccepted &&
+      !isLeadSecured(state)
+    )
+  ) {
     // Agreeing to the prior proposal (visit/estimate) — not final conversation closure
     // unless timing is already known or on-site timing is not required.
-    const priorAssistant = lastAssistantMessage(messages);
     if (
       assistantProposedNextStep(priorAssistant) &&
       state.appointmentIntent !== false
@@ -1297,8 +1584,6 @@ export function updateSalesStateFromTurn(
   }
 
   // If customer later volunteers a refused field, clear that refusal.
-  state.customerNeed = inferCustomerNeed(text, state.customerNeed);
-
   for (const note of extractCustomerContextNotes(text)) {
     state.customerContext = addFact(state.customerContext, note);
   }
@@ -1472,19 +1757,24 @@ export function buildTurnControlBlock(state: SalesState): string {
 
   return `
 ==================================================
-SALES CONTROLLER — CURRENT TURN (AUTHORITATIVE FOR THIS RESPONSE)
+SALES CONTROLLER — OPERATIONAL REQUIREMENTS (NOT A SCRIPT)
 ==================================================
-The Sales Controller decides WHAT to accomplish this turn.
-You decide HOW to say it naturally.
-Do not invent a different objective.
+The Sales Controller owns HARD operational state: missing lead fields, one question at a time, handoff qualification, urgent/inactivity rules, SENT truthfulness, duplicate prevention.
+It does NOT automatically determine what the salesperson should say first.
+Respond to the customer's current meaning BEFORE advancing the workflow.
+Do not invent a different operational requirement.
 Do not ask about already-established facts unless there is genuine ambiguity.
 
 Current state:
 - intent: ${state.intent}
 - salesStage: ${state.salesStage}
 - leadStatus: ${state.leadStatus}
-- currentObjective: ${state.currentObjective}
-- customerNeed: ${state.customerNeed || "not established"}
+- currentObjective: ${state.currentObjective} (outstanding operational requirement)
+- customerNeed (current): ${state.customerNeed || "not established"}
+- originalCustomerNeed: ${state.originalCustomerNeed || "not set / same as current"}
+- serviceScope: ${state.serviceScope || "not classified"}
+- pendingSupportedOpportunity: ${state.pendingSupportedOpportunity || "none"}
+- opportunityAccepted: ${state.opportunityAccepted}
 - urgency: ${state.urgency}
 - preferredTiming: ${state.preferredTiming || "not established"}
 - customerAvailable: ${state.customerAvailable === null ? "unknown" : state.customerAvailable}
@@ -1529,7 +1819,7 @@ ${
 ${objectiveDirective}
 
 HARD RULES FOR THIS RESPONSE:
-1. Pursue ONLY the currentObjective above.
+1. currentObjective is the outstanding operational requirement, not a script that must be spoken first. Follow the Sales Brain recommendedSalesMove for what to say first. If that move is CLARIFY_SCOPE, ESTABLISH_LIMITATION, ESTABLISH_CAPABILITY, or PRESERVE_PARTIAL_OPPORTUNITY, do it this turn and do not ask for a lead field unless the customer already accepted a supported opportunity.
 2. Ask at most ONE question if a question is needed.
 3. Do not ask for multiple lead fields in one response.
 4. Do not ask for fields already collected.
@@ -1541,7 +1831,7 @@ HARD RULES FOR THIS RESPONSE:
 10. Sales mode is not technician mode — do not give long technical procedure dumps unless needed for the buying decision.
 11. If customerAgreed is true / objective is CLOSE: stop overselling, no questionnaire, no extra questions — deliver the positive final message only. Never use "I can't book / can't complete the booking" language. Do NOT ask "Anything else?", "One quick question...", or "Would you like me to...".
 12. Prefer preserving the opportunity over forcing lead capture.
-13. For COLLECT_* and UNDERSTAND_NEED: 1 short contextual reaction + exactly one lead/useful question. Optional: one NEW grounded confidence point only if it was not already said. Do not sound like a form. Do not dump the brochure. Do not mechanically repeat "we can help", service area, credentials, proposal contents, incentives, or savings claims.
+13. For COLLECT_*: 1 short contextual reaction + exactly one lead question. Optional: one NEW grounded confidence point only if it was not already said. For UNDERSTAND_NEED when serviceScope is not SUPPORTED: do not ask for a lead field; ask one scope/capability question only. Do not sound like a form. Do not dump the brochure. Do not mechanically repeat "we can help", service area, credentials, proposal contents, incentives, or savings claims.
 14. Only claim that a notification was already delivered, or that the office/team will call, if leadDeliveryStatus=SENT. If currentObjective is CLOSE and handoffReady is true, you MAY say you are sending the request to the team now (present tense) so they can coordinate the next step. Do NOT invent response-time promises unless BusinessProfile explicitly supports them.
 15. Do NOT proactively ask for gate codes, pets, parking, doorman, or access instructions — the human team can collect those later unless the customer brings them up.
 16. If preferredTiming is already established, do NOT keep refining appointment windows into smaller slots. Capture the preference and move on.
@@ -1570,16 +1860,17 @@ function objectiveInstruction(state: SalesState): string {
     case "COLLECT_NAME":
       return `YOUR OBJECTIVE: collect the customer's first name while sounding like a knowledgeable sales employee, not a form.
 ${toneHint}
-1. Acknowledge the specific need the customer just stated (1 short reaction — aspirational enthusiasm OR pain reassurance as appropriate).
-2. Optionally add ONE grounded confidence/value point from BusinessProfile that applies to THIS need. Do not dump extra services, promotions, financing, service-area lists, or unrelated credentials.
+1. One short customer-specific value sentence from THEIR situation (already owns equipment → correct install/execution; replacing working equipment → smooth upgrade/compatibility; broken → relief; project → getting it right). Ordinary non-business reasoning is allowed; do not invent business facts.
+2. Optionally add ONE unused grounded proof point only if the customer is skeptical or asked why this business. Do not rotate licensed/experienced/trusted/quality.
 3. Then ask exactly ONE question for their first name.
 Do not ask for last name, phone, email, address, ZIP, city, main goal, availability, pets, parking, or technical details.
+Do not write a long technical explanation.
 IMPORTANT: If this is not the first reply of the conversation, do not restart with the same apology + licensed/insured sentence — acknowledge briefly and ask for the name.`;
     case "COLLECT_PHONE":
       return `YOUR OBJECTIVE: collect the customer's phone number while remaining a sales employee, not a form.
 ${toneHint}
-Use a short, varied acknowledgement tied to progress or their need (e.g. making it easy for the team to reach them). Then ask exactly ONE question for the best phone number.
-Do NOT restate the full service pitch, service area, licensed/insured credentials, or "we can help" as filler.
+If the customer just gave their name (or only a name-like reply): "Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. What's the best phone number to reach you?"
+Do not repeat price limits, licensing, scope, diagnosis, or "would you like to proceed".
 Do NOT repeat "Sorry you're dealing with that" if already used. Do not ask ZIP, city, main goal, or extra fields. No brochure. No DIY.`;
     case "COLLECT_EMAIL":
       return `YOUR OBJECTIVE: collect the customer's email naturally.
@@ -1588,29 +1879,76 @@ One brief relevant sentence + exactly ONE question.`;
     case "COLLECT_ADDRESS":
       return `YOUR OBJECTIVE: collect the service address naturally.
 ${toneHint}
-One brief sentence explaining why the property location helps the next useful step for THEIR need + exactly ONE question for the service address.
+If the customer just gave a phone number or only contact details: "Thanks. What's the service address?"
+Do not repeat price limits, licensing, electrical/mechanical scope, diagnosis, empathy, or "would you like to proceed".
 Do not ask apartment number unless the customer volunteers ambiguity.
-Do NOT restate the brochure, service area, licensed/insured credentials, or the same apology line from prior turns. No DIY. No extra operational questions.`;
-    case "UNDERSTAND_NEED":
+No brochure. No DIY. No extra operational questions.`;
+    case "UNDERSTAND_NEED": {
+      const pending = state.pendingSupportedOpportunity;
+      if (
+        state.serviceScope === "PARTIALLY_SUPPORTED" ||
+        (state.serviceScope === "UNKNOWN" && pending) ||
+        (state.serviceScope === "UNSUPPORTED" && pending)
+      ) {
+        if (state.opportunityAccepted) {
+          return `YOUR OBJECTIVE: the customer already accepted the supported opportunity${pending ? ` (${pending})` : ""}.
+Do NOT ask "would you like to proceed" again.
+Do NOT repeat price, license, or scope explanations.
+If a lead field is still missing, ask only that field. Otherwise advance the real next step.`;
+        }
+        return `YOUR OBJECTIVE: preserve the supported opportunity without inventing the rest.
+${toneHint}
+1. Honestly say the unconfirmed part of the current need is not confirmed by available business information. If serviceScope is UNKNOWN, say you don't have enough information to confirm that service — do NOT say "we don't offer that".
+2. If serviceScope is UNSUPPORTED, you MAY say the profile shows that work is not offered.
+3. Positively establish the supported capability${pending ? ` (${pending})` : ""}.
+4. Ask whether they want help moving forward with that supported part.
+Do NOT collect name, phone, or address this turn.
+Do NOT invent electrical hookups, lighting, panel work, or other bridges.
+Do NOT propose an estimate, appointment, or dispatch for the unconfirmed work.`;
+      }
+      if (state.serviceScope === "UNKNOWN") {
+        return `YOUR OBJECTIVE: be honest about unconfirmed scope.
+${toneHint}
+Say you don't have enough information here to confirm that service. Do not invent that the company does not offer it. Do not invent that they do. Do not collect a lead field this turn. Ask one useful question about what they need that you can confirm from BusinessProfile.`;
+      }
+      if (state.serviceScope === "UNSUPPORTED") {
+        return `YOUR OBJECTIVE: state the explicit limitation, then keep any supported path open.
+${toneHint}
+The profile explicitly does not offer this work. Say so without inventing extra limits. Do not collect a lead for the unsupported work.`;
+      }
       return `YOUR ONLY OBJECTIVE: understand the customer's need with the minimum necessary information.
 ${toneHint}
 Exactly ONE natural question.
 Do not diagnose like a technician.
 Do not ask leakage/timeline/equipment questions unless truly required for the next sales move.
 No brochure. No DIY tutorial.`;
-    case "ANSWER":
-      return `YOUR ONLY OBJECTIVE: answer helpfully using BusinessProfile / owner-provided knowledge only.
+    }
+    case "ANSWER": {
+      const nextLeadField = missingLeadFields(state)[0];
+      const returnToLead =
+        state.leadStatus !== "SECURED" &&
+        (state.intent === "HIGH" ||
+          state.intent === "READY_TO_ACT" ||
+          state.leadStatus === "SECURING") &&
+        nextLeadField &&
+        !scopeBlocksLeadCapture(state);
+      return `YOUR ONLY OBJECTIVE: answer the customer's current question using BusinessProfile / owner-provided knowledge only.
 ${toneHint}
-Do not force lead capture.
-Keep it concise — no huge brochure.
+Answer FIRST. Use at most ONE grounded fact. Keep it concise — no huge brochure.
+${
+  returnToLead
+    ? `Then return to the operational requirement: ask exactly ONE question for ${nextLeadField} (for name: "What's your first name?"). Do not ask ZIP, city, service area, or any other discovery question instead.`
+    : `Do not force lead capture.`
+}
 Do NOT invent catalogs, past-work photo portfolios, technician show-and-tell workflows, sourcing catalogs, or other resources unless BusinessProfile/owner knowledge explicitly supports them.
-If information is unavailable, say so briefly and note any useful preference the customer already stated.
+If information is unavailable: acknowledge the question, say you cannot give a fake number/process, do not start a discovery questionnaire, and move to the real supported next step.
 Do NOT treat an AI-suggested option as the customer's preference unless they explicitly accepted it.
 ${
   state.handoffReady || state.customerAgreed
     ? `After answering: do NOT reopen optional discovery (materials, sizes, colors, pump types, etc.). Capture only voluntary preferences they stated, then return toward natural closure on the next turn.`
     : ""
 }`;
+    }
     case "PRESENT_SOLUTION":
       return `YOUR ONLY OBJECTIVE: connect THIS customer's established need to the single most relevant BusinessProfile-supported solution.
 ${toneHint}
@@ -1625,6 +1963,11 @@ Do NOT introduce a customer task or business workflow unless BusinessProfile exp
 Do NOT proactively ask about gate codes, pets, parking, access instructions, electric bills, weekday vs Saturday preference, phone vs video, roof type, panel count, or "main goal" unless BusinessProfile explicitly requires that field.
 MINIMUM NECESSARY DISCOVERY: if the lead is complete and you can propose the BusinessProfile-supported next step, do that and stop inventing more questions.
 ${
+  state.opportunityAccepted
+    ? `The customer already accepted the supported opportunity. Do NOT ask "Would you like to proceed?" again.`
+    : ""
+}
+${
   state.preferredTiming
     ? `preferredTiming is already known (${state.preferredTiming}). Do NOT ask another timing/refinement question.`
     : "Ask at most ONE question if needed (e.g. whether they want the supported next step, or preferred day/time) — not optional discovery."
@@ -1636,11 +1979,25 @@ ${toneHint}
 Use only BusinessProfile-supported differentiators. Ask at most ONE question if needed.
 Do NOT invent brands, catalogs, prices, or warranties. Do NOT ask access/pet/parking questions.`;
     case "HANDLE_PRICE_OBJECTION":
-      return `YOUR ONLY OBJECTIVE: handle the price/fee concern.
-Acknowledge → answer honestly from BusinessProfile/owner knowledge only.
-Never invent prices.
+      return `YOUR ONLY OBJECTIVE: handle the price/fee concern as a buying moment.
+Acknowledge the concern → answer honestly from BusinessProfile/owner knowledge only → reduce uncertainty → keep purchase momentum.
+Never invent prices, discounts, savings, or fake questionnaires (bill/roof/battery/etc.) just to produce a number.
+If the exact figure is unavailable, explain why guessing would be misleading and that the real next step produces a property-specific number.
 If leadCapturePaused, do NOT ask for refused lead fields.
-Continue selling the value of the next step. Ask at most ONE clarifying question if needed.`;
+${
+  state.appointmentIntent === true ||
+  state.establishedFacts.some(
+    (fact) =>
+      fact === "nextStepKind=on-site" ||
+      /agreed to the proposed next step/i.test(fact)
+  )
+    ? `CRITICAL: the customer ALREADY requested or accepted the on-site estimate/visit${
+        state.preferredTiming ? ` and preferred timing (${state.preferredTiming})` : ""
+      }. Do NOT ask whether they want an estimate, whether to proceed with one, or to reconfirm that agreement. Answer the price concern, reinforce why the already-agreed visit resolves remaining cost uncertainty, preserve their timing, then continue that existing next step or close.`
+    : scopeBlocksLeadCapture(state)
+      ? `serviceScope is ${state.serviceScope}. Do not claim the unconfirmed service. Do not invent electrical hookups. Do not collect name/phone/address this turn. You may ask one clarifying question about the mixed/unknown request.`
+      : `Ask at most ONE clarifying question if needed. If the lead is not yet secured and the need is supported, you may then ask the next required lead field.`
+}`;
     case "HANDLE_COMPETITOR_OBJECTION":
       return `YOUR ONLY OBJECTIVE: handle competitor/price comparison.
 No invented superiority. Use BusinessProfile-supported facts only. Ask at most ONE clarifying question if needed.`;
@@ -2052,6 +2409,53 @@ function replyInventedThirdPartyCoordination(
   return !groundedLimitation;
 }
 
+function replyClaimsUnconfirmedWork(
+  reply: string,
+  state: SalesState,
+  business: BusinessProfile
+): boolean {
+  const knowledge = businessKnowledgeBlob(business);
+  const limitation =
+    /\b(don'?t have enough information|do not have enough information|can(?:not|'t) confirm|not confirmed|not something (we|i) can confirm|available information)\b/i.test(
+      reply
+    );
+  const claimsCapability =
+    /\b(we (can |will )?(handle|do|offer|provide|cover|take care of)|our team (can |will )?(handle|do)|we specialize in|we(?:'re| are) (able to|equipped to)|handle HVAC.{0,50}electrical|electrical (hookups?|work needed to connect))\b/i.test(
+      reply
+    );
+
+  if (!/\belectr/i.test(knowledge)) {
+    const claimedElectrical =
+      /\b(electrical (hookups?|work needed to connect|rewir)|full[- ]house (electrical )?rewir|lighting (install|rewir|work)|panel replacement)\b/i.test(
+        reply
+      ) ||
+      /\bwe (can |will )?(handle|do|offer|provide).{0,60}\b(rewir|electrical|lighting)\b/i.test(
+        reply
+      );
+    if (claimedElectrical && claimsCapability && !limitation) {
+      return true;
+    }
+    if (
+      claimedElectrical &&
+      /\b(we can handle|we (do|offer|provide)|our team handles)\b/i.test(reply) &&
+      !limitation
+    ) {
+      return true;
+    }
+  }
+
+  if (
+    scopeBlocksLeadCapture(state) &&
+    /\b(on[- ]site (estimate|assessment)|appointment|inspection|come out).{0,50}\b(rewir|full[- ]house|electrical)\b/i.test(
+      reply
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 /** Quantified commercial claims that must be grounded in BusinessProfile. */
 function replyInventedUnsupportedClaims(
   reply: string,
@@ -2216,8 +2620,85 @@ export function validateSalesReply(
   const tightTurn =
     collecting || state.currentObjective === "UNDERSTAND_NEED";
 
+  if (
+    collecting &&
+    /\b(would you like (to )?(proceed|move forward)|want to proceed|shall we (proceed|continue)|do you want (me |us )?to (proceed|continue|move forward))\b/i.test(
+      reply
+    )
+  ) {
+    reasons.push("Asked whether to proceed instead of collecting the next required lead field.");
+  }
+
+  if (
+    state.opportunityAccepted &&
+    state.currentObjective !== "UNDERSTAND_NEED" &&
+    /\b(would you like (to )?(proceed|move forward)|want to proceed|shall we (proceed|continue))\b/i.test(
+      reply
+    )
+  ) {
+    reasons.push("Re-asked whether to proceed after the customer already accepted the opportunity.");
+  }
+
+  if (
+    state.currentObjective === "COLLECT_NAME" &&
+    /\?/.test(reply) &&
+    !leadFieldAskPatterns("name").some((re) => re.test(reply)) &&
+    !/\b(first )?name\b/i.test(reply)
+  ) {
+    reasons.push("COLLECT_NAME turn did not ask for the customer's name.");
+  }
+
+  if (
+    state.currentObjective === "COLLECT_PHONE" &&
+    /\?/.test(reply) &&
+    !leadFieldAskPatterns("phone").some((re) => re.test(reply))
+  ) {
+    reasons.push("COLLECT_PHONE turn did not ask for the phone number.");
+  }
+
+  if (
+    collecting &&
+    tightTurn &&
+    priorAssistantReplies &&
+    priorAssistantReplies.length > 0 &&
+    replyRepeatsPriorPitch(reply, priorAssistantReplies, state)
+  ) {
+    // handled below too; extra: even one repeated price/license line during later capture
+  }
+
+  if (
+    (state.currentObjective === "COLLECT_PHONE" ||
+      state.currentObjective === "COLLECT_ADDRESS") &&
+    priorAssistantReplies &&
+    priorAssistantReplies.length > 0
+  ) {
+    const prior = priorAssistantReplies.join("\n");
+    if (
+      /\b(do not publish|don'?t (publish|quote)|pricing (depends|varies)|without seeing)\b/i.test(prior) &&
+      /\b(do not publish|don'?t (publish|quote)|pricing (depends|varies)|without seeing)\b/i.test(reply)
+    ) {
+      reasons.push("Repeated the price limitation during a lead-field reply.");
+    }
+    if (/\blicen[sc]ed\b/i.test(prior) && /\blicen[sc]ed\b/i.test(reply)) {
+      reasons.push("Repeated licensed/insured during a lead-field reply.");
+    }
+  }
+
   if (collecting && leadAsks > 1) {
     reasons.push("Multiple lead-field questions in one response.");
+  }
+
+  if (
+    scopeBlocksLeadCapture(state) &&
+    leadAsks > 0 &&
+    state.currentObjective !== "COLLECT_NAME" &&
+    state.currentObjective !== "COLLECT_PHONE" &&
+    state.currentObjective !== "COLLECT_EMAIL" &&
+    state.currentObjective !== "COLLECT_ADDRESS"
+  ) {
+    reasons.push(
+      "Do not collect a lead field until the current need is a supported (or accepted partial) opportunity."
+    );
   }
 
   if (
@@ -2233,11 +2714,50 @@ export function validateSalesReply(
     );
   }
 
+  const nextMissingLead = missingLeadFields(state)[0];
+  if (
+    state.currentObjective === "ANSWER" &&
+    state.leadStatus !== "SECURED" &&
+    (state.intent === "HIGH" ||
+      state.intent === "READY_TO_ACT" ||
+      state.leadStatus === "SECURING") &&
+    nextMissingLead &&
+    /\?/.test(reply)
+  ) {
+    const askedNextField = leadFieldAskPatterns(nextMissingLead).some((re) =>
+      re.test(reply)
+    );
+    const askedWrongDiscovery =
+      /\b(zip code|\bzip\b|what city|dallas area|service area|where (are you|do you live)|located in)\b/i.test(
+        reply
+      );
+    if (!askedNextField && askedWrongDiscovery) {
+      reasons.push(
+        "After answering, asked service-area/discovery instead of the next required lead field."
+      );
+    }
+    if (!askedNextField && nextMissingLead === "name" && !scopeBlocksLeadCapture(state)) {
+      reasons.push(
+        "After answering the question, return to collecting the customer's name."
+      );
+    }
+    if (!askedNextField && nextMissingLead === "phone" && !scopeBlocksLeadCapture(state)) {
+      reasons.push(
+        "After answering the question, return to collecting the customer's phone."
+      );
+    }
+    if (!askedNextField && nextMissingLead === "address" && !scopeBlocksLeadCapture(state)) {
+      reasons.push(
+        "After answering the question, return to collecting the service address."
+      );
+    }
+  }
+
   if (
     (state.currentObjective === "COLLECT_PHONE" ||
       state.currentObjective === "COLLECT_ADDRESS" ||
       state.currentObjective === "COLLECT_EMAIL") &&
-    /\bsorry you'?re dealing with that\b/i.test(reply)
+    /\bsorry you'?re dealing\b/i.test(reply)
   ) {
     reasons.push(
       "Repeated the same pain apology during later lead-field collection."
@@ -2269,6 +2789,13 @@ export function validateSalesReply(
     )
   ) {
     reasons.push("Used aspirational enthusiasm on a pain/problem request.");
+  }
+
+  if (
+    salesNeedTone(state) === "aspirational" &&
+    /\bsorry you'?re dealing with that\b/i.test(reply)
+  ) {
+    reasons.push("Used pain apology on an aspirational/improvement request.");
   }
 
   if (
@@ -2404,6 +2931,12 @@ export function validateSalesReply(
 
   if (business && replyIntroducesUnsupportedProcess(reply, business)) {
     reasons.push("Introduced a business process not supported by BusinessProfile.");
+  }
+
+  if (business && replyClaimsUnconfirmedWork(reply, state, business)) {
+    reasons.push(
+      "Claimed an unconfirmed/unknown service, invented a service bridge, or offered an estimate for unconfirmed work."
+    );
   }
 
   if (replyInventsUnstatedCustomerPreference(reply, state)) {
@@ -2546,6 +3079,22 @@ export function validateSalesReply(
   }
 
   if (
+    (state.appointmentIntent === true ||
+      state.establishedFacts.some(
+        (fact) =>
+          fact === "nextStepKind=on-site" ||
+          /agreed to the proposed next step/i.test(fact)
+      )) &&
+    /\b(would you like (me to )?(proceed with |schedule )?(an? )?(on[- ]site )?(estimate|assessment|visit)|do you (still )?want (an? )?(on[- ]site )?(estimate|assessment)|shall we (do|schedule) (an? )?(estimate|visit)|want me to (set up|proceed with) (an? )?estimate)\b/i.test(
+      reply
+    )
+  ) {
+    reasons.push(
+      "Re-asked whether they want an estimate/visit after that next step was already accepted."
+    );
+  }
+
+  if (
     state.leadDeliveryStatus !== "SENT" &&
     FALSE_HANDOFF_RE.test(reply)
   ) {
@@ -2570,13 +3119,21 @@ export function buildValidationCorrection(
   const bansPainApology = reasons.some((r) =>
     /pain apology/i.test(r)
   );
+  const bansReaskEstimate = reasons.some((r) =>
+    /Re-asked whether they want an estimate/i.test(r)
+  );
   return `
 CORRECTION — previous draft violated Sales Controller rules:
 ${reasons.map((r) => `- ${r}`).join("\n")}
 
 Rewrite the response.
-Pursue ONLY currentObjective=${state.currentObjective}.
-Ask at most ONE question.
+Respond to the customer's current meaning first.
+Follow the Sales Brain conversational move. currentObjective=${state.currentObjective} is the outstanding operational requirement, not a forced opening script.
+${
+  scopeBlocksLeadCapture(state)
+    ? `serviceScope=${state.serviceScope}. Do NOT collect name/phone/address this turn. Do NOT claim the unconfirmed service. Do NOT invent electrical hookups. UNKNOWN means "I don't have enough information to confirm that service," not "we don't offer that." Ask at most ONE question.`
+    : `Ask at most ONE question.`
+}
 ${
   needsAvailabilityAsk
     ? `REQUIRED: because the customer agreed to an on-site next step and preferredTiming is not established, end with exactly ONE availability question such as "What day or time works best for you?"`
@@ -2585,6 +3142,13 @@ ${
 ${
   bansPainApology
     ? `FORBIDDEN PHRASE: do not use "Sorry you're dealing with that" anywhere in this rewrite. Use a short varied acknowledgement instead.`
+    : ""
+}
+${
+  bansReaskEstimate
+    ? `The estimate/visit is already accepted${
+        state.preferredTiming ? ` (timing: ${state.preferredTiming})` : ""
+      }. Answer the current question honestly. Do NOT ask them to reconfirm the estimate or proceed with it.`
     : ""
 }
 Do not ask for already-collected or refused lead fields.

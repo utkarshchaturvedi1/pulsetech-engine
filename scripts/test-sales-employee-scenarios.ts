@@ -331,10 +331,10 @@ async function main() {
   assert(!falseCall.ok, "must not promise office contact before SENT");
   console.log("Truthful close language PASS");
 
-  // I — Texas Solar archetype: interested-in-getting + generic help → lead-first
+  // I — interested-in-getting + generic help → lead-first when the need is supported
   state = apply(
     seed(),
-    "I'm interested in getting solar panels for my home. Can you help me?"
+    "I'm interested in getting a Jacuzzi for my home. Can you help me?"
   );
   assert(
     state.intent === "HIGH" || state.intent === "READY_TO_ACT",
@@ -433,7 +433,20 @@ async function main() {
     ),
     `I: optional discovery rejection reason missing (${goalAfterSecure.reasons.join("; ")})`
   );
-  console.log("Scenario I PASS — interested-in-getting solar captures lead before discovery");
+  console.log("Scenario I PASS — interested-in-getting supported need captures lead before discovery");
+
+  // I2 — unknown distinct service must not start blind lead capture
+  state = apply(
+    seed(),
+    "I'm interested in getting solar panels for my home. Can you help me?"
+  );
+  assert(
+    state.currentObjective !== "COLLECT_NAME" &&
+      state.currentObjective !== "COLLECT_PHONE" &&
+      state.currentObjective !== "COLLECT_ADDRESS",
+    `I2: solar is not in this profile; got ${state.currentObjective}`
+  );
+  console.log("Scenario I2 PASS — unknown service does not start lead capture");
 
   // J — genuine scope question still interrupts; sink/heater path unchanged
   state = apply(seed(), "I need solar panels. Do you handle the electrical work too?");
@@ -462,14 +475,14 @@ async function main() {
   );
   console.log("Scenario J2 PASS — vague interested-in stays browse");
 
-  // K — Texas Solar aspirational tone (lead-first preserved + sales energy)
+  // K — supported aspirational tone (lead-first preserved + sales energy)
   state = apply(
     seed(),
-    "I'm interested in getting solar panels for my home. Can you help me?"
+    "I'm interested in getting a Jacuzzi for my home. Can you help me?"
   );
   assert(state.currentObjective === "COLLECT_NAME", "K: COLLECT_NAME first");
   const solarNameReply =
-    "Absolutely — solar can be a really worthwhile upgrade for long-term energy costs. Let's get this moving. What's your first name?";
+    "Absolutely — a Jacuzzi can be a really worthwhile upgrade for the backyard. Let's get this moving. What's your first name?";
   const solarName = validateSalesReply(solarNameReply, state, business);
   assert(
     solarName.ok,
@@ -482,7 +495,7 @@ async function main() {
   state = apply(state, "Ramesh", "What's your first name?");
   assert(state.currentObjective === "COLLECT_PHONE", "K: phone after name");
   const mechanicalPhone = validateSalesReply(
-    "Great, Ramesh — we can help with residential solar across the DFW area. What's the best phone number to reach you?",
+    "Great, Ramesh — we can help with Jacuzzi plumbing across the DFW area. What's the best phone number to reach you?",
     state,
     business
   );
@@ -496,7 +509,7 @@ async function main() {
   state = apply(state, "9898989898", "What's the best phone number?");
   assert(state.currentObjective === "COLLECT_ADDRESS", "K: address after phone");
   const goodAddressAsk = validateSalesReply(
-    "Great. The property location helps us understand what kind of system could make sense for your home. What's the service address?",
+    "Great. The property location helps us understand what kind of install could make sense for your home. What's the service address?",
     state,
     business
   );
@@ -511,7 +524,7 @@ async function main() {
   );
   assert(state.leadStatus === "SECURED", "K: lead secured");
   const postSecureReply =
-    "Perfect, Ramesh. Now we can look at what solar could realistically do for your home — the useful next step is sizing a system around the property. Would you like a personalized savings estimate and a no-obligation on-site assessment?";
+    "Perfect, Ramesh. The useful next step is an on-site estimate so the team can see the space and then give you a real number. Would you like to schedule that on-site estimate?";
   const postSecure = validateSalesReply(
     postSecureReply,
     { ...state, currentObjective: "PRESENT_SOLUTION" },
@@ -522,7 +535,7 @@ async function main() {
     `K: post-secure value momentum should pass (${postSecure.reasons.join("; ")})`
   );
   assert(
-    /\b(savings|size|system|home|assessment|estimate)\b/i.test(postSecureReply),
+    /\b(estimate|home|assessment|space|install)\b/i.test(postSecureReply),
     "K: post-secure contains positive/value language"
   );
   const nextStepYes = validateSalesReply(
@@ -550,7 +563,7 @@ async function main() {
     business
   );
   assert(!asapAfterSecure.ok, "K: unsupported ASAP close rejected");
-  console.log("Scenario K PASS — Texas Solar aspirational tone with lead-first intact");
+  console.log("Scenario K PASS — aspirational tone with lead-first intact");
 
   // L — Jacuzzi aspirational
   state = apply(seed(), "I want to install a Jacuzzi in my backyard.");

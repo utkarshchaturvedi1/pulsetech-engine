@@ -37,6 +37,13 @@ export type UrgencyLevel = "NONE" | "SOON" | "IMMEDIATE";
 
 export type LeadDeliveryStatus = "NOT_SENT" | "SENT" | "FAILED";
 
+export type ServiceScope =
+  | "SUPPORTED"
+  | "PARTIALLY_SUPPORTED"
+  | "UNKNOWN"
+  | "UNSUPPORTED"
+  | "";
+
 export type SalesState = {
   /** Immutable conversation identity for this Customer AI session. */
   conversationId: string;
@@ -46,6 +53,14 @@ export type SalesState = {
   salesStage: SalesStage;
   currentObjective: SalesObjective;
   customerNeed: string | null;
+  /** Opening / prior need kept when the customer later clarifies. */
+  originalCustomerNeed: string | null;
+  /** Grounding of the current (and preserved original) need against BusinessProfile. */
+  serviceScope: ServiceScope;
+  /** Supported slice the customer can still buy, if the current need is mixed/unknown. */
+  pendingSupportedOpportunity: string | null;
+  /** Customer accepted the supported slice after a scope/limitation turn. */
+  opportunityAccepted: boolean;
   /** Concise useful buying/sales context notes (not a transcript). */
   customerContext: string[];
   lead: LeadFields;
@@ -114,6 +129,10 @@ export function createInitialSalesState(
     salesStage: "DISCOVERY",
     currentObjective: "UNDERSTAND_NEED",
     customerNeed: null,
+    originalCustomerNeed: null,
+    serviceScope: "",
+    pendingSupportedOpportunity: null,
+    opportunityAccepted: false,
     customerContext: [],
     lead: {
       name: null,
@@ -186,6 +205,10 @@ export function normalizeSalesState(value: SalesState): SalesState {
     preferredTiming: value.preferredTiming ?? null,
     contactPreference: value.contactPreference ?? null,
     leadDeliveryStatus: value.leadDeliveryStatus ?? "NOT_SENT",
+    originalCustomerNeed: value.originalCustomerNeed ?? null,
+    serviceScope: value.serviceScope ?? "",
+    pendingSupportedOpportunity: value.pendingSupportedOpportunity ?? null,
+    opportunityAccepted: value.opportunityAccepted ?? false,
     conversationId: value.conversationId ?? "",
     businessKey: value.businessKey ?? "",
   };

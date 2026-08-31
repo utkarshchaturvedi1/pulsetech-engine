@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:v1": "tsx scripts/test-v1-stabilization.ts && tsx scripts/test-raja-closure.ts && tsx scripts/test-raja-handoff-data.ts && tsx scripts/test-handoff-timing.ts && tsx scripts/test-v1-lead-handoff-e2e.ts && tsx scripts/test-handoff-policy.ts && tsx scripts/test-lead-notification-config.ts && tsx scripts/test-widget-branding.ts && tsx scripts/test-varun-runtime.ts && tsx scripts/test-sales-employee-scenarios.ts && tsx scripts/test-website-intake.ts",
+    "test:v1": "tsx scripts/test-v1-stabilization.ts && tsx scripts/test-raja-closure.ts && tsx scripts/test-raja-handoff-data.ts && tsx scripts/test-handoff-timing.ts && tsx scripts/test-v1-lead-handoff-e2e.ts && tsx scripts/test-handoff-policy.ts && tsx scripts/test-lead-notification-config.ts && tsx scripts/test-widget-branding.ts && tsx scripts/test-varun-runtime.ts && tsx scripts/test-sales-employee-scenarios.ts && tsx scripts/test-website-intake.ts && tsx scripts/test-sales-brain-v2.ts && tsx scripts/test-sales-brain-persuasion.ts",
+    "test:persuasion": "tsx scripts/test-sales-brain-persuasion.ts",
     "test:browser": "tsx scripts/test-customer-ai-browser.ts",
     "test:live-sales": "tsx scripts/test-live-sales.ts"
   },

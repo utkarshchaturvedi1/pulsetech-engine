@@ -2,10 +2,11 @@ import OpenAI from "openai";
 import { BusinessProfile } from "../types/business";
 import { createBusinessProfile } from "./businessProfile";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 120000,
-});
+function openaiClient() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
+  return new OpenAI({ apiKey, timeout: 120000 });
+}
 
 export async function analyzeBusiness(
   website: string,
@@ -41,6 +42,7 @@ Return this JSON structure exactly:
   "businessName": "",
   "tagline": "",
   "logo": "",
+  "siteIcon": "",
   "primaryColor": "#2563eb",
   "secondaryColor": "#0f172a",
   "phone": "",
@@ -62,7 +64,7 @@ Rules:
 
 - Infer services whenever possible.
 - Infer service areas whenever possible.
-- Extract contact details, logo URL, and brand colours when available.
+- Extract contact details, full logo URL, compact site icon/favicon URL, and brand colours when available.
 - Prefer owner-provided additional information over conflicting website text when they disagree.
 - Populate leadQuestions with natural discovery questions a sales employee would ask to understand customer needs (not an interrogation checklist).
 - Write a detailed professional systemPrompt that:
@@ -77,7 +79,7 @@ Rules:
   let response;
 
   try {
-    response = await openai.responses.create({
+    response = await openaiClient().responses.create({
       model: "gpt-5-mini",
       input: prompt,
       text: {
@@ -98,15 +100,16 @@ Rules:
   }
 
   const normalized = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/, "")
+    .replace(/^\`\`\`json\s*/i, "")
+    .replace(/^\`\`\`\s*/i, "")
+    .replace(/\s*\`\`\`$/, "")
     .trim();
 
   let data: {
     businessName?: string;
     tagline?: string;
     logo?: string;
+    siteIcon?: string;
     primaryColor?: string;
     secondaryColor?: string;
     phone?: string;
@@ -128,27 +131,19 @@ Rules:
 
   return createBusinessProfile({
     website,
-
     businessName: data.businessName ?? "",
     tagline: data.tagline ?? "",
-
     logo: data.logo ?? "",
-
+    siteIcon: data.siteIcon ?? "",
     primaryColor: data.primaryColor ?? "#2563eb",
     secondaryColor: data.secondaryColor ?? "#0f172a",
-
     phone: data.phone ?? "",
     email: data.email ?? "",
     address: data.address ?? "",
-
     services: data.services ?? [],
-
     serviceAreas: data.serviceAreas ?? [],
-
     faqs: data.faqs ?? [],
-
     leadQuestions: data.leadQuestions ?? [],
-
     systemPrompt: data.systemPrompt ?? "",
   });
 }

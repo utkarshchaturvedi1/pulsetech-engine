@@ -17,7 +17,8 @@ export async function analyzeBusiness(
     ? `
 Additional information provided by the business owner (treat this as authoritative and merge it into the profile):
 ${additionalInfo}
-`
+siteIcon: data.siteIcon
+
     : `
 Additional information provided by the business owner:
 None

@@ -63,25 +63,10 @@ export default function DemoWorkspace({
           />
           <div className="min-w-0 sm:text-right">
             <h1 className="truncate text-xl font-semibold tracking-tight text-slate-950 md:text-2xl">
-              {business.leadNotificationEmail
-                ? business.businessName + "'s AI Sales Employee Is Ready."
-                : business.businessName + "'s AI Sales Employee"}
+              {business.businessName + "'s AI Sales Employee"}
             </h1>
             <p className="mt-1 text-sm text-slate-600 md:text-base">
-              {business.leadNotificationEmail ? (
-                <>
-                  Test it. Challenge it. Tell me what&apos;s missing. I&apos;ll
-                  fix it instantly.
-                </>
-              ) : (
-                <>
-                  One more step: tell Peter the{" "}
-                  <strong className="font-bold text-slate-900">
-                    Email address
-                  </strong>{" "}
-                  for new lead notifications before customer testing.
-                </>
-              )}
+              Customize it on the left, then test the live sales conversation on the right.
             </p>
           </div>
         </div>

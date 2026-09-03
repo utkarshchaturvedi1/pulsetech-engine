@@ -12,9 +12,9 @@ type DemoWorkspaceProps = {
 };
 
 const PETER_AVATAR =
-  "http://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
+  "https://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
 const PULSETECH_LOGO =
-  "http://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-full-4.png";
+  "https://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-full-4.png";
 
 async function persistDemo(id: string, profile: BusinessProfile) {
   saveDemoLocal({ id, profile, updatedAt: new Date().toISOString() });

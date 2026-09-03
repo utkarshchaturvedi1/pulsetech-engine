@@ -2,8 +2,8 @@
 
 import PulseTechSalesAssistant from "../components/PulseTechSalesAssistant";
 
-const PETER_AVATAR = "http://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
-const PULSETECH_LOGO = "http://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-full-4.png";
+const PETER_AVATAR = "https://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
+const PULSETECH_LOGO = "https://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-full-4.png";
 
 const outcomes = [
   "Responds to every website visitor, 24/7",

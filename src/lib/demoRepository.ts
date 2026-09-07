@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { getBundledTestDemo } from "../data/testBusinessProfiles";
 import { BusinessProfile } from "../types/business";
 import { StoredDemo } from "./demoStore";
 
@@ -39,4 +40,22 @@ export async function loadDemoRecord(id: string): Promise<StoredDemo | null> {
   } catch {
     return null;
   }
+}
+
+/** Shared BusinessProfile lookup for website demo and inbound voice. */
+export async function loadSharedDemoRecord(
+  id: string
+): Promise<StoredDemo | null> {
+  const bundled = getBundledTestDemo(id);
+  const live = await loadDemoRecord(id);
+  if (live) {
+    if (bundled) {
+      return {
+        ...live,
+        profile: { ...live.profile, isTestData: true },
+      };
+    }
+    return live;
+  }
+  return bundled;
 }

@@ -25,4 +25,7 @@ export type BusinessProfile = {
   leadQuestions: string[];
 
   systemPrompt: string;
+
+  /** When true, this profile is PulseTech test/demo data — not a paying client. */
+  isTestData?: boolean;
 };

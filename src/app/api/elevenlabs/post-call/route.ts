@@ -1,42 +1,23 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { verifyElevenLabsSignature } from "../../../../lib/elevenlabsWebhook";
+import {
+  logInboundVoiceResolution,
+  resolvePostCallBusiness,
+} from "../../../../lib/inboundVoice";
+import {
+  buildPhoneLeadEmail,
+  buildPhoneLeadSms,
+  evaluatePhoneLeadAlert,
+  extractPhoneLead,
+  transcriptToText,
+  type PhoneLead,
+} from "../../../../lib/phoneLead";
 
-function verify(raw: string, signature: string | null): boolean {
-  const secret = process.env.ELEVENLABS_WEBHOOK_SECRET?.trim();
-  const stamp = signature?.match(/t=(\d+)/)?.[1];
-  const supplied = signature?.match(/v0=([a-f0-9]+)/i)?.[1];
-  if (!secret || !stamp || !supplied) return false;
-  const age = Math.abs(Date.now() / 1000 - Number(stamp));
-  if (!Number.isFinite(age) || age > 1800) return false;
-  const expected = createHmac("sha256", secret).update(stamp + "." + raw).digest("hex");
-  return supplied.length === expected.length &&
-    timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
-}
-
-function clean(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function field(source: Record<string, unknown>, ...names: string[]): string {
-  for (const name of names) {
-    const value = source[name];
-    const found = clean(value) || clean((value as { value?: unknown })?.value);
-    if (found) return found;
-  }
-  return "";
-}
-
-type Lead = {
-  business: string;
-  name: string;
-  phone: string;
-  email: string;
-  address: string;
-  need: string;
-};
-
-async function sendEmail(lead: Lead): Promise<"SENT" | "SKIPPED" | "FAILED"> {
+async function sendEmail(
+  lead: PhoneLead,
+  alertKind: "lead" | "callback"
+): Promise<"SENT" | "SKIPPED" | "FAILED"> {
   const host = process.env.SMTP_HOST?.trim();
   const port = Number(process.env.SMTP_PORT || "465");
   const user = process.env.SMTP_USER?.trim();
@@ -48,19 +29,11 @@ async function sendEmail(lead: Lead): Promise<"SENT" | "SKIPPED" | "FAILED"> {
     const transport = nodemailer.createTransport({
       host, port, secure: port === 465, auth: { user, pass },
     });
+    const message = buildPhoneLeadEmail(lead, alertKind);
     await transport.sendMail({
       from, to,
-      subject: "New PulseTech Phone Lead - " + lead.business,
-      text: [
-        "NEW PHONE LEAD", "",
-        "Business: " + lead.business,
-        "Customer: " + lead.name,
-        "Phone: " + lead.phone,
-        lead.email ? "Email: " + lead.email : "",
-        "Service address: " + lead.address,
-        "Service needed: " + lead.need, "",
-        "Next step: Contact this customer promptly.",
-      ].filter(Boolean).join("\n"),
+      subject: message.subject,
+      text: message.text,
     });
     return "SENT";
   } catch (error) {
@@ -69,7 +42,10 @@ async function sendEmail(lead: Lead): Promise<"SENT" | "SKIPPED" | "FAILED"> {
   }
 }
 
-async function sendSms(lead: Lead): Promise<"SENT" | "SKIPPED" | "FAILED"> {
+async function sendSms(
+  lead: PhoneLead,
+  alertKind: "lead" | "callback"
+): Promise<"SENT" | "SKIPPED" | "FAILED"> {
   const sid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const token = process.env.TWILIO_AUTH_TOKEN?.trim();
   const from = process.env.TWILIO_FROM_NUMBER?.trim();
@@ -77,11 +53,7 @@ async function sendSms(lead: Lead): Promise<"SENT" | "SKIPPED" | "FAILED"> {
   if (!sid || !token || !from || !to) return "SKIPPED";
   const body = new URLSearchParams({
     From: from, To: to,
-    Body: [
-      "New PulseTech phone lead for " + lead.business,
-      lead.name + " | " + lead.phone,
-      lead.need, lead.address,
-    ].join("\n").slice(0, 1500),
+    Body: buildPhoneLeadSms(lead, alertKind),
   });
   try {
     const response = await fetch(
@@ -109,7 +81,7 @@ async function sendSms(lead: Lead): Promise<"SENT" | "SKIPPED" | "FAILED"> {
 
 export async function POST(request: NextRequest) {
   const raw = await request.text();
-  if (!verify(raw, request.headers.get("elevenlabs-signature"))) {
+  if (!verifyElevenLabsSignature(raw, request.headers.get("elevenlabs-signature"))) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
   let payload: { type?: string; data?: Record<string, unknown> };
@@ -121,22 +93,41 @@ export async function POST(request: NextRequest) {
   if (payload.type !== "post_call_transcription" || !payload.data) {
     return NextResponse.json({ ok: true });
   }
-  const analysis = payload.data.analysis as
+  const data = payload.data;
+  const analysis = data.analysis as
     | { data_collection_results?: Record<string, unknown> }
     | undefined;
   const extracted = analysis?.data_collection_results || {};
-  const lead: Lead = {
-    business: process.env.PHONE_AGENT_BUSINESS_NAME?.trim() ||
-      "Texas Solar Professional",
-    name: field(extracted, "full_name", "name"),
-    phone: field(extracted, "phone_number", "phone"),
-    email: field(extracted, "email"),
-    address: field(extracted, "service_address", "address"),
-    need: field(extracted, "service_needed", "customer_need"),
-  };
-  if (!lead.name || !lead.phone || !lead.address || !lead.need) {
+  const resolution = await resolvePostCallBusiness(data);
+  logInboundVoiceResolution(resolution);
+
+  if (!resolution.ok) {
+    return NextResponse.json({
+      ok: true,
+      qualified: false,
+      fallback: resolution.reason,
+    });
+  }
+
+  const lead = extractPhoneLead(extracted, {
+    businessName: resolution.demo.profile.businessName,
+    demoId: resolution.demoId,
+    isTestData: Boolean(resolution.demo.profile.isTestData),
+    transcriptText: transcriptToText(data.transcript),
+  });
+  const alert = evaluatePhoneLeadAlert(lead);
+  if (!alert.qualified || alert.alertKind === "none") {
     return NextResponse.json({ ok: true, qualified: false });
   }
-  const [email, sms] = await Promise.all([sendEmail(lead), sendSms(lead)]);
-  return NextResponse.json({ ok: true, qualified: true, email, sms });
+  const [email, sms] = await Promise.all([
+    sendEmail(lead, alert.alertKind),
+    sendSms(lead, alert.alertKind),
+  ]);
+  return NextResponse.json({
+    ok: true,
+    qualified: true,
+    alertKind: alert.alertKind,
+    email,
+    sms,
+  });
 }

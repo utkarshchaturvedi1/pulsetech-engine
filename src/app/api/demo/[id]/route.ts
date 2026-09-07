@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BusinessProfile } from "../../../../types/business";
 import {
-  loadDemoRecord,
+  loadSharedDemoRecord,
   saveDemoRecord,
 } from "../../../../lib/demoRepository";
 import { demoIdFromWebsite } from "../../../../lib/demoStore";
@@ -21,7 +21,7 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
-    const demo = await loadDemoRecord(id);
+    const demo = await loadSharedDemoRecord(id);
 
     if (!demo) {
       return NextResponse.json({ error: "Demo not found." }, { status: 404 });

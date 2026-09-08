@@ -19,6 +19,8 @@ type PulseTechEngineChatProps = {
   business?: BusinessProfile | null;
   /** Skip analysis and open directly in ready/feedback mode (invitation path). */
   skipAnalysis?: boolean;
+  /** Shared demo id. Required for owner updates so one client cannot write another profile. */
+  demoId?: string;
 };
 
 type ChatPhase = "analyzing" | "ready" | "error";
@@ -64,6 +66,7 @@ export default function PulseTechEngineChat({
   onProfileUpdate,
   business = null,
   skipAnalysis = false,
+  demoId = "",
 }: PulseTechEngineChatProps) {
   const [phase, setPhase] = useState<ChatPhase>(
     skipAnalysis ? "ready" : "analyzing"
@@ -247,6 +250,10 @@ You can reply "retry" to try analyzing again.`
       return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";
     }
 
+    if (!demoId) {
+      return "I can't update the shared profile without a demo id.";
+    }
+
     try {
       const response = await fetch("/api/update-profile", {
         method: "POST",
@@ -254,6 +261,7 @@ You can reply "retry" to try analyzing again.`
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          demoId,
           business: businessRef.current,
           feedback: text,
         }),
@@ -262,6 +270,7 @@ You can reply "retry" to try analyzing again.`
       const data = (await response.json()) as {
         reply?: string;
         profile?: BusinessProfile;
+        persisted?: boolean;
         error?: string;
       };
 
@@ -272,9 +281,16 @@ You can reply "retry" to try analyzing again.`
       businessRef.current = data.profile;
       onUpdateRef.current?.(data.profile);
 
+      if (data.persisted === false) {
+        return (
+          data.reply ||
+          "I applied that on this demo session. It is not in durable storage yet, so it may not survive a new deployment."
+        );
+      }
+
       return (
         data.reply ||
-        "I've updated your AI Sales Employee with that information. Please test it again on the right."
+        "Updated the shared business profile. The website chat and phone AI now use it."
       );
     } catch {
       return "I couldn't update the Sales Employee just now. Please try again in a moment.";

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:inbound-voice": "npx --yes tsx scripts/test-inbound-voice.ts"
+    "test:inbound-voice": "npx --yes tsx scripts/test-inbound-voice.ts",
+    "test:owner-profile-update": "npx --yes tsx scripts/test-owner-profile-update.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",

@@ -1,6 +1,11 @@
 import OpenAI from "openai";
 import { BusinessProfile } from "../types/business";
-import { createBusinessProfile } from "./businessProfile";
+import {
+  buildOwnerUpdateReply,
+  mergeOwnerProfileUpdate,
+  summarizeOwnerProfileChanges,
+  type OwnerProfilePatch,
+} from "./ownerProfileUpdate";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -10,9 +15,9 @@ const openai = new OpenAI({
 export async function applyOwnerFeedbackToProfile(
   business: BusinessProfile,
   feedback: string
-): Promise<{ profile: BusinessProfile; reply: string }> {
+): Promise<{ profile: BusinessProfile; reply: string; changes: string[] }> {
   const prompt = `
-You are Peter, PulseTech's AI Sales Agent helping a business owner improve their AI Sales Employee.
+You are helping a business owner correct the shared BusinessProfile used by website chat and inbound phone.
 
 Current BusinessProfile JSON:
 ${JSON.stringify(business, null, 2)}
@@ -22,15 +27,19 @@ ${feedback}
 
 Return ONLY valid JSON with this shape:
 {
-  "reply": "short conversational response confirming what you updated",
-  "profile": { ...updated BusinessProfile fields... }
+  "reply": "short confirmation of what changed",
+  "patch": { ...only fields the owner explicitly added or corrected... }
 }
 
 Rules:
-- Merge the owner's feedback into the profile (services, serviceAreas, faqs, leadQuestions, systemPrompt, contact details, etc.).
+- Identify explicit corrections or additions only.
+- Allowed patch fields: businessName, tagline, phone, email, address, services, serviceAreas, faqs, leadQuestions, systemPrompt, agentName, agentIntroduction, businessHours, pricingRules, tone, leadNotificationEmail, leadNotificationPhone.
 - Do not remove existing accurate information unless the owner clearly corrects it.
-- Update systemPrompt so the AI Sales Employee knows the new information.
-- reply should sound like Peter confirming the update and inviting continued testing.
+- Do not invent prices, visit charges, free estimates, or promises. Set pricingRules only if the owner explicitly stated them.
+- Put hours into businessHours, tone into tone, qualifying questions into leadQuestions, lead-alert recipients into leadNotificationEmail / leadNotificationPhone, agent intro/name into agentName / agentIntroduction.
+- Also fold the new facts into systemPrompt so the sales employee knows them.
+- Never change website.
+- reply must be a short confirmation of the actual change.
 - Return JSON only.
 `;
 
@@ -58,18 +67,16 @@ Rules:
 
   const data = JSON.parse(normalized) as {
     reply?: string;
-    profile?: Partial<BusinessProfile>;
+    patch?: OwnerProfilePatch;
+    profile?: OwnerProfilePatch;
   };
 
-  const profile = createBusinessProfile({
-    ...business,
-    ...(data.profile || {}),
-    website: data.profile?.website || business.website,
-  });
-
+  const patch = data.patch || data.profile || {};
+  const profile = mergeOwnerProfileUpdate(business, patch);
+  const changes = summarizeOwnerProfileChanges(business, profile);
   const reply =
     data.reply?.trim() ||
-    "I've updated your AI Sales Employee with that information. Please test it again on the right.";
+    buildOwnerUpdateReply(changes, true);
 
-  return { profile, reply };
+  return { profile, reply, changes };
 }

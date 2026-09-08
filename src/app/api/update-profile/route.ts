@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BusinessProfile } from "../../../types/business";
+import { sanitizeDemoId } from "../../../lib/demoRepository";
+import {
+  buildOwnerUpdateReply,
+  summarizeOwnerProfileChanges,
+} from "../../../lib/ownerProfileUpdate";
+import {
+  commitSharedProfile,
+  loadSharedProfile,
+} from "../../../lib/sharedProfileStore";
 import { applyOwnerFeedbackToProfile } from "../../../lib/updateBusinessProfile";
 
-function isBusinessProfile(value: unknown): value is BusinessProfile {
+function isBusinessProfile(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const profile = value as Record<string, unknown>;
   return (
@@ -22,13 +31,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const business = body.business;
+    const demoId = sanitizeDemoId(
+      typeof body.demoId === "string" ? body.demoId : ""
+    );
     const feedback =
       typeof body.feedback === "string" ? body.feedback.trim() : "";
+    const clientProfile = body.business;
 
-    if (!isBusinessProfile(business)) {
+    if (!demoId) {
       return NextResponse.json(
-        { error: "A valid business profile is required." },
+        { error: "A valid demoId is required." },
         { status: 400 }
       );
     }
@@ -40,9 +52,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await applyOwnerFeedbackToProfile(business, feedback);
+    const stored = await loadSharedProfile(demoId);
+    const base = stored?.profile;
+    if (!base) {
+      if (!isBusinessProfile(clientProfile)) {
+        return NextResponse.json(
+          { error: "A valid business profile is required." },
+          { status: 400 }
+        );
+      }
+    }
 
-    return NextResponse.json(result);
+    const current = base || (clientProfile as BusinessProfile);
+    const result = await applyOwnerFeedbackToProfile(current, feedback);
+    const commit = await commitSharedProfile(demoId, result.profile);
+    const changes = summarizeOwnerProfileChanges(current, commit.demo.profile);
+    const reply = commit.persisted
+      ? result.reply || buildOwnerUpdateReply(changes, true)
+      : buildOwnerUpdateReply(changes, false);
+
+    return NextResponse.json({
+      profile: commit.demo.profile,
+      reply,
+      changes,
+      persisted: commit.persisted,
+      durable: commit.durable,
+      backend: commit.backend,
+      demoId: commit.demo.id,
+    });
   } catch (error) {
     console.error("POST /api/update-profile failed:", error);
 

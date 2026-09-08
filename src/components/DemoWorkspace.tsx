@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import PulseTechEngineChat from "./PulseTechEngineChat";
 import CustomerAI from "./CustomerAI";
 import { BusinessProfile } from "../types/business";
 import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
+import "./landing/landing.css";
 
 type DemoWorkspaceProps = {
   initialProfile: BusinessProfile;
@@ -27,6 +29,34 @@ async function persistDemo(id: string, profile: BusinessProfile) {
   } catch {
     // Local save is enough for the current session.
   }
+}
+
+function BrandLogo() {
+  return <img src={PULSETECH_LOGO} alt="PulseTech Labs" className="pt-logo" />;
+}
+
+export function DemoStatusScreen({
+  message,
+  showHomeLink = false,
+}: {
+  message: string;
+  showHomeLink?: boolean;
+}) {
+  return (
+    <div className="pt-landing pt-demo min-h-screen">
+      <div className="pt-shell min-h-screen">
+        <div className="pt-content flex min-h-screen flex-col items-center justify-center px-6 py-12">
+          <BrandLogo />
+          <p className="mt-8 max-w-md text-center text-lg leading-8 text-slate-600">{message}</p>
+          {showHomeLink ? (
+            <Link href="/" className="pt-btn-primary mt-8 inline-flex">
+              Back to Homepage
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function DemoWorkspace({
@@ -53,59 +83,79 @@ export default function DemoWorkspace({
   }, [initialProfile, resolvedDemoId]);
 
   return (
-    <main className="marketing-shell flex min-h-screen flex-col overflow-x-hidden lg:h-screen lg:overflow-hidden">
-      <header className="shrink-0 border-b border-slate-200/80 bg-white/85 px-4 py-4 backdrop-blur-xl md:px-6">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <img
-            src={PULSETECH_LOGO}
-            alt="PulseTech Labs"
-            className="h-9 w-auto object-contain sm:h-10"
-          />
-          <div className="min-w-0 sm:text-right">
-            <h1 className="truncate text-xl font-semibold tracking-tight text-slate-950 md:text-2xl">
-              {business.businessName + "'s AI Sales Employee"}
-            </h1>
-            <p className="mt-1 text-sm text-slate-600 md:text-base">
-              Customize it on the left, then test the live sales conversation on the right.
-            </p>
+    <div className="pt-landing pt-demo">
+      <div className="pt-shell">
+        <div className="pt-content flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
+          <header className="pt-header shrink-0">
+            <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-4 sm:px-8 sm:py-5 lg:flex-row lg:items-center lg:justify-between">
+              <BrandLogo />
+              <div className="min-w-0 lg:max-w-xl lg:text-right">
+                {business.businessName ? (
+                  <p className="pt-kicker truncate">{business.businessName}</p>
+                ) : null}
+                <h1 className="mt-1 text-2xl font-extrabold tracking-[-0.03em] text-slate-950 sm:text-3xl">
+                  Meet your AI Sales Employee
+                </h1>
+                <p className="mt-1.5 text-sm leading-6 text-slate-600 sm:text-base">
+                  Guide your setup on the left. Test the customer experience on the right.
+                </p>
+              </div>
+            </div>
+          </header>
+
+          <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-5 overflow-x-hidden p-4 sm:p-5 lg:flex-row lg:items-stretch lg:gap-6 lg:p-6">
+            <section className="pt-demo-panel">
+              <div
+                className="pointer-events-none absolute -inset-4 rounded-[36px] bg-gradient-to-br from-sky-200/55 via-blue-100/30 to-violet-200/45 blur-2xl"
+                aria-hidden
+              />
+              <div className="pt-demo-frame">
+                <div className="mb-1.5 flex items-center justify-between gap-3 px-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+                    Guide your setup
+                  </p>
+                  <p className="text-[11px] text-slate-500">PulseTech setup assistant</p>
+                </div>
+                <div className="pt-demo-chat">
+                  <PulseTechEngineChat
+                    website={business.website}
+                    agentName="Peter"
+                    agentRole="AI Sales Agent"
+                    agentAvatar={PETER_AVATAR}
+                    business={business}
+                    demoId={resolvedDemoId}
+                    skipAnalysis
+                    onProfileUpdate={handleProfileUpdate}
+                    className="h-full min-h-0"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="pt-demo-panel">
+              <div
+                className="pointer-events-none absolute -inset-4 rounded-[36px] bg-gradient-to-br from-sky-200/45 via-blue-100/25 to-violet-200/40 blur-2xl"
+                aria-hidden
+              />
+              <div className="pt-demo-frame">
+                <div className="mb-1.5 flex items-center justify-between gap-3 px-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
+                    Customer experience
+                  </p>
+                  <p className="text-[11px] text-slate-500">Live sales conversation</p>
+                </div>
+                <div className="pt-demo-chat">
+                  <CustomerAI
+                    business={business}
+                    disabled={false}
+                    className="h-full min-h-0 max-w-none"
+                  />
+                </div>
+              </div>
+            </section>
           </div>
         </div>
-      </header>
-
-      <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-5 overflow-x-hidden p-4 sm:p-5 lg:flex-row lg:items-stretch lg:gap-6 lg:p-6">
-        <section className="flex min-h-0 w-full flex-1 flex-col lg:h-full">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">1 · Customize</p>
-            <p className="text-xs text-slate-500">PulseTech setup assistant</p>
-          </div>
-          <div className="flex h-[520px] min-h-0 w-full flex-col overflow-hidden lg:h-full">
-            <PulseTechEngineChat
-              website={business.website}
-              agentName="Peter"
-              agentRole="AI Sales Agent"
-              agentAvatar={PETER_AVATAR}
-              business={business}
-              skipAnalysis
-              onProfileUpdate={handleProfileUpdate}
-              className="h-full min-h-0"
-            />
-          </div>
-        </section>
-
-        <section className="flex min-h-0 w-full flex-1 flex-col lg:h-full">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">2 · Test as a customer</p>
-            <p className="text-xs text-slate-500">Live sales conversation</p>
-          </div>
-          <div className="flex h-[520px] min-h-0 w-full flex-col overflow-hidden lg:h-full">
-            <CustomerAI
-              business={business}
-              disabled={false}
-              className="h-full min-h-0"
-            />
-          </div>
-        </section>
       </div>
-    </main>
+    </div>
   );
 }

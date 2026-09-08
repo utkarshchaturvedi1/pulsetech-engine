@@ -30,6 +30,13 @@ function profileContentSignature(business: BusinessProfile): string {
     faqs: business.faqs,
     leadQuestions: business.leadQuestions,
     systemPrompt: business.systemPrompt,
+    agentName: business.agentName,
+    agentIntroduction: business.agentIntroduction,
+    businessHours: business.businessHours,
+    pricingRules: business.pricingRules,
+    tone: business.tone,
+    leadNotificationEmail: business.leadNotificationEmail,
+    leadNotificationPhone: business.leadNotificationPhone,
   });
 }
 
@@ -76,7 +83,7 @@ export default function CustomerAI({
 
   return (
     <ChatAgentShell
-      name={business.businessName || "AI Sales Employee"}
+      name={business.agentName || business.businessName || "AI Sales Employee"}
       role="AI Sales Employee"
       avatar={business.logo || undefined}
       className={`mx-auto w-full max-w-[420px] ${className}`.trim()}

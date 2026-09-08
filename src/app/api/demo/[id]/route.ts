@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BusinessProfile } from "../../../../types/business";
-import {
-  loadSharedDemoRecord,
-  saveDemoRecord,
-} from "../../../../lib/demoRepository";
-import { demoIdFromWebsite } from "../../../../lib/demoStore";
+import { loadSharedProfile, commitSharedProfile } from "../../../../lib/sharedProfileStore";
+import { sanitizeDemoId } from "../../../../lib/demoRepository";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") return false;
@@ -21,7 +18,7 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
-    const demo = await loadSharedDemoRecord(id);
+    const demo = await loadSharedProfile(id);
 
     if (!demo) {
       return NextResponse.json({ error: "Demo not found." }, { status: 404 });
@@ -53,10 +50,15 @@ export async function PUT(
       );
     }
 
-    const demoId = id || demoIdFromWebsite(profile.website);
-    const demo = await saveDemoRecord(demoId, profile);
-
-    return NextResponse.json(demo);
+    const demoId = sanitizeDemoId(id);
+    if (!demoId) {
+      return NextResponse.json(
+        { error: "A valid demo id is required." },
+        { status: 400 }
+      );
+    }
+    const commit = await commitSharedProfile(demoId, profile);
+    return NextResponse.json(commit.demo);
   } catch (error) {
     console.error("PUT /api/demo/[id] failed:", error);
     return NextResponse.json(

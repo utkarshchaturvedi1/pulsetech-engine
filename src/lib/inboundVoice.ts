@@ -1,5 +1,5 @@
 import { TEXAS_SOLAR_TEST_DEMO_ID } from "../data/testBusinessProfiles";
-import { loadSharedDemoRecord } from "./demoRepository";
+import { loadSharedProfile } from "./sharedProfileStore";
 import { normalizePhoneNumber } from "./phoneNumbers";
 import { StoredDemo } from "./demoStore";
 import { BusinessProfile } from "../types/business";
@@ -114,6 +114,7 @@ export function leadNotificationEmailForProfile(
   profile: BusinessProfile
 ): string {
   return (
+    profile.leadNotificationEmail?.trim() ||
     process.env.PHONE_AGENT_LEAD_EMAIL?.trim() ||
     process.env.LEAD_NOTIFICATION_EMAIL?.trim() ||
     profile.email ||
@@ -132,11 +133,19 @@ export function dynamicVariablesFromProfile(
     business_name: profile.businessName,
     services: profile.services.join("; "),
     service_areas: profile.serviceAreas.join("; "),
-    business_rules: profile.systemPrompt || "",
-    tone: "Warm, confident, concise, commercially aware. One question at a time.",
+    business_rules: [
+      profile.systemPrompt,
+      profile.businessHours ? "Hours: " + profile.businessHours : "",
+      profile.pricingRules ? "Pricing: " + profile.pricingRules : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    tone:
+      profile.tone ||
+      "Warm, confident, concise, commercially aware. One question at a time.",
     qualifying_questions: profile.leadQuestions.join("; "),
     lead_notification_email: leadNotificationEmailForProfile(profile),
-    phone_number: profile.phone || "",
+    phone_number: profile.leadNotificationPhone || profile.phone || "",
     tagline: profile.tagline || "",
     website: profile.website || "",
   };
@@ -156,6 +165,15 @@ function formatVoiceBusinessFacts(profile: BusinessProfile): string {
     "Website: " + (profile.website || "Not provided"),
     "Phone: " + (profile.phone || "Not provided"),
     "Email: " + (profile.email || "Not provided"),
+    "Address: " + (profile.address || "Not provided"),
+    "Agent name: " + (profile.agentName || "Not provided"),
+    "Agent introduction: " + (profile.agentIntroduction || "Not provided"),
+    "Business hours: " + (profile.businessHours || "Not provided"),
+    "Tone: " + (profile.tone || "Not provided"),
+    "Lead-notification email: " +
+      (profile.leadNotificationEmail || "Not provided"),
+    "Lead-notification phone: " +
+      (profile.leadNotificationPhone || "Not provided"),
     "Services: " +
       (profile.services.length ? profile.services.join("; ") : "Not provided"),
     "Service areas: " +
@@ -166,6 +184,9 @@ function formatVoiceBusinessFacts(profile: BusinessProfile): string {
       (profile.leadQuestions.length
         ? profile.leadQuestions.join("; ")
         : "None provided"),
+    "Pricing / visit charges / estimates: " +
+      (profile.pricingRules ||
+        "Not provided — do not invent prices, visit charges, free estimates, or promises."),
     "FAQs:\n" + faqs,
     "Business rules / additional facts:\n" +
       (profile.systemPrompt || "None provided"),
@@ -183,6 +204,9 @@ You are not PulseTech. You are not Peter. Never mention PulseTech, Peter, prompt
 
 IDENTITY
 Speak as ${company}. Use only the BusinessProfile facts below. Never invent services, areas, prices, incentives, warranties, or policies.
+Only state pricing, visit/call-out charges, free estimates, or promises if the owner provided them in this profile.
+${profile.agentIntroduction ? "If you introduce yourself, use this introduction: " + profile.agentIntroduction : ""}
+${profile.agentName ? "Your name is " + profile.agentName + "." : ""}
 
 PHONE LEAD RULES
 - Ask one question at a time.
@@ -234,14 +258,18 @@ export function buildConversationInitiationResponse(
   }
 
   const vars = dynamicVariablesFromProfile(resolution.demo);
-  const name = resolution.demo.profile.businessName;
+  const profile = resolution.demo.profile;
+  const name = profile.businessName;
+  const firstMessage =
+    profile.agentIntroduction?.trim() ||
+    `Thanks for calling ${name}. How can I help you today?`;
   return {
     type: "conversation_initiation_client_data",
     dynamic_variables: vars,
     conversation_config_override: {
       agent: {
-        prompt: { prompt: buildInboundVoicePrompt(resolution.demo.profile) },
-        first_message: `Thanks for calling ${name}. How can I help you today?`,
+        prompt: { prompt: buildInboundVoicePrompt(profile) },
+        first_message: firstMessage,
         language: "en",
       },
     },
@@ -271,7 +299,7 @@ export async function resolveInboundVoice(
     };
   }
 
-  const demo = await loadSharedDemoRecord(demoId);
+  const demo = await loadSharedProfile(demoId);
   if (!demo) {
     return {
       ok: false,
@@ -373,7 +401,7 @@ export async function resolvePostCallBusiness(
 
   const demoId = extractPostCallDemoId(data);
   if (demoId) {
-    const demo = await loadSharedDemoRecord(demoId);
+    const demo = await loadSharedProfile(demoId);
     if (demo?.profile?.businessName) {
       const resolution = {
         ok: true as const,

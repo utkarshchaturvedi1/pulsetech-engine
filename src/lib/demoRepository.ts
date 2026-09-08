@@ -1,6 +1,5 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { getBundledTestDemo } from "../data/testBusinessProfiles";
 import { BusinessProfile } from "../types/business";
 import { StoredDemo } from "./demoStore";
 
@@ -10,9 +9,12 @@ async function ensureDataDir() {
   await fs.mkdir(DATA_DIR, { recursive: true });
 }
 
+export function sanitizeDemoId(id: string): string {
+  return id.toLowerCase().replace(/[^a-z0-9-_]/g, "");
+}
+
 function demoPath(id: string) {
-  const safe = id.toLowerCase().replace(/[^a-z0-9-_]/g, "");
-  return path.join(DATA_DIR, `${safe}.json`);
+  return path.join(DATA_DIR, `${sanitizeDemoId(id)}.json`);
 }
 
 export async function saveDemoRecord(
@@ -22,7 +24,7 @@ export async function saveDemoRecord(
   await ensureDataDir();
 
   const record: StoredDemo = {
-    id,
+    id: sanitizeDemoId(id) || id,
     profile,
     updatedAt: new Date().toISOString(),
   };
@@ -40,22 +42,4 @@ export async function loadDemoRecord(id: string): Promise<StoredDemo | null> {
   } catch {
     return null;
   }
-}
-
-/** Shared BusinessProfile lookup for website demo and inbound voice. */
-export async function loadSharedDemoRecord(
-  id: string
-): Promise<StoredDemo | null> {
-  const bundled = getBundledTestDemo(id);
-  const live = await loadDemoRecord(id);
-  if (live) {
-    if (bundled) {
-      return {
-        ...live,
-        profile: { ...live.profile, isTestData: true },
-      };
-    }
-    return live;
-  }
-  return bundled;
 }

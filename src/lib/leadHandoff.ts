@@ -89,7 +89,7 @@ function buildConversationSummary(state: SalesState): string {
   }
 
   if (state.preferredTiming) {
-    parts.push(`Preferred timing: ${state.preferredTiming}.`);
+    parts.push(`Preferred visit time: ${state.preferredTiming}.`);
   }
 
   if (state.contactPreference) {
@@ -141,7 +141,7 @@ export function buildLeadNotificationEmail(
   sections.push("", "URGENCY", formatUrgency(state));
 
   if (state.preferredTiming) {
-    sections.push("", "PREFERRED TIMING", state.preferredTiming);
+    sections.push("", "PREFERRED VISIT TIME", state.preferredTiming);
   }
 
   if (state.contactPreference) {

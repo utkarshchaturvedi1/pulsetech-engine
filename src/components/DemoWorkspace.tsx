@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import PulseTechEngineChat from "./PulseTechEngineChat";
 import CustomerAI from "./CustomerAI";
 import { BusinessProfile } from "../types/business";
 import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
-import "./landing/landing.css";
+import { DEMO_CHAT_LAYOUT } from "../lib/demoChatLayout";
 
 type DemoWorkspaceProps = {
   initialProfile: BusinessProfile;
@@ -83,9 +83,17 @@ export default function DemoWorkspace({
   }, [initialProfile, resolvedDemoId]);
 
   return (
-    <div className="pt-landing pt-demo">
+    <div
+      className="pt-landing pt-demo"
+      style={
+        {
+          "--pt-demo-chat-height": `${DEMO_CHAT_LAYOUT.panelHeightPx}px`,
+          "--pt-demo-customer-width": `${DEMO_CHAT_LAYOUT.customerPanelWidthPx}px`,
+        } as CSSProperties
+      }
+    >
       <div className="pt-shell">
-        <div className="pt-content flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
+        <div className="pt-content flex min-h-screen flex-col overflow-x-hidden">
           <header className="pt-header shrink-0">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-4 sm:px-8 sm:py-5 lg:flex-row lg:items-center lg:justify-between">
               <BrandLogo />
@@ -103,8 +111,8 @@ export default function DemoWorkspace({
             </div>
           </header>
 
-          <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-5 overflow-x-hidden p-4 sm:p-5 lg:flex-row lg:items-stretch lg:gap-6 lg:p-6">
-            <section className="pt-demo-panel">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 overflow-x-hidden p-4 sm:p-5 lg:flex-row lg:items-start lg:gap-6 lg:p-6">
+            <section className="pt-demo-panel pt-demo-panel-owner">
               <div
                 className="pointer-events-none absolute -inset-4 rounded-[36px] bg-gradient-to-br from-sky-200/55 via-blue-100/30 to-violet-200/45 blur-2xl"
                 aria-hidden
@@ -132,7 +140,7 @@ export default function DemoWorkspace({
               </div>
             </section>
 
-            <section className="pt-demo-panel">
+            <section className="pt-demo-panel pt-demo-panel-customer">
               <div
                 className="pointer-events-none absolute -inset-4 rounded-[36px] bg-gradient-to-br from-sky-200/45 via-blue-100/25 to-violet-200/40 blur-2xl"
                 aria-hidden
@@ -148,7 +156,7 @@ export default function DemoWorkspace({
                   <CustomerAI
                     business={business}
                     disabled={false}
-                    className="h-full min-h-0 max-w-none"
+                    className="h-full min-h-0 w-full max-w-none"
                   />
                 </div>
               </div>

@@ -80,7 +80,7 @@ function detectIntent(text: string): SalesIntent {
   }
 
   if (
-    /\b(come (out|over)|send someone|schedule|book|get started|as soon as possible|asap|right away|today|emergency)\b/.test(
+    /\b(come (out|over)|send someone|schedule|book|arrange|get started|as soon as possible|asap|right away|today|emergency)\b/.test(
       t
     )
   ) {
@@ -614,7 +614,7 @@ function detectSalesObjective(text: string): SalesObjective | null {
   }
 
   if (
-    /\b(can you come|are you available|come tomorrow|come today|schedule|appointment)\b/.test(
+    /\b(can you come|are you available|come tomorrow|come today|schedule|appointment|arrange)\b/.test(
       t
     )
   ) {
@@ -634,6 +634,25 @@ function looksLikeLeadFieldOnlyReply(text: string): boolean {
     return true;
   }
   return false;
+}
+
+function detectVisitPreferenceRequest(text: string): boolean {
+  const t = text.toLowerCase();
+  if (
+    /\b(arrange|schedule|appointment|come out|come by|come over|come tomorrow|come today|visit me|send someone)\b/.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(can you|could you|would you)\b/.test(t) &&
+    /\b(tomorrow|today|morning|afternoon|evening|visit|come)\b/.test(t)
+  ) {
+    return true;
+  }
+  return extractPreferredTiming(text) !== null &&
+    /\b(arrange|come|visit|schedule|appointment|morning|afternoon|evening)\b/.test(t);
 }
 
 function selectObjective(state: SalesState, latestUserText: string): SalesObjective {
@@ -658,6 +677,16 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
       return "ANSWER";
     }
     return "ANSWER";
+  }
+
+  const visitPreference = detectVisitPreferenceRequest(latestUserText);
+
+  if (visitPreference) {
+    const missing = missingLeadFields(state);
+    if (missing[0] === "name") return "COLLECT_NAME";
+    if (missing[0] === "phone") return "COLLECT_PHONE";
+    if (missing[0] === "address") return "COLLECT_ADDRESS";
+    return "ADVANCE_TO_NEXT_STEP";
   }
 
   if (state.customerAgreed || detectCustomerAgreement(latestUserText)) {
@@ -728,7 +757,9 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
     if (
       salesObjective === "ADVANCE_TO_NEXT_STEP" &&
       isV1LeadComplete(state) &&
-      !!state.preferredTiming
+      !!state.preferredTiming &&
+      !detectVisitPreferenceRequest(latestUserText) &&
+      !extractPreferredTiming(latestUserText)
     ) {
       return "PRESENT_SOLUTION";
     }
@@ -1140,9 +1171,14 @@ Do not ask any other question. No brochure. No DIY.`;
 Respond with about one short sentence + exactly ONE question.`;
     case "COLLECT_ADDRESS":
       return `YOUR ONLY OBJECTIVE: naturally collect the service address.
-Respond with about one short sentence + exactly ONE question.
+${
+  state.preferredTiming
+    ? `The customer already gave a preferred visit time (${state.preferredTiming}). Acknowledge that first: you cannot confirm a time here, but you will let the team know that is their preferred time. Then ask exactly ONE question for the service address. Do not re-ask name or phone.`
+    : "Respond with about one short sentence + exactly ONE question."
+}
 Do not ask apartment number unless the customer volunteers ambiguity.
-No brochure. No DIY. No solution pitch.`;
+No brochure. No DIY. No solution pitch.
+Never confirm an appointment or availability.`;
     case "UNDERSTAND_NEED":
       return `YOUR ONLY OBJECTIVE: understand the customer's need with the minimum necessary information.
 Exactly ONE natural question.
@@ -1189,9 +1225,13 @@ Do not ambush before the primary need is handled.`;
       return `YOUR ONLY OBJECTIVE: advance toward the business's real next step.
 Do not invent availability windows or claim booking/dispatch.
 Do NOT invent time slots such as 8–10, 10–12, 12–4, etc.
+Never confirm an appointment or availability.
 ${
   state.preferredTiming
-    ? `preferredTiming is already known (${state.preferredTiming}). Acknowledge it and do NOT ask to refine into a smaller window.`
+    ? `preferred_visit_time / preferredTiming is already known (${state.preferredTiming}).
+Do NOT ask for name, phone, or address if they are already captured.
+Reply in this meaning (adapt the preferred time): "I can't confirm a time here, but I'll let the team know ${state.preferredTiming} is your preferred time. They'll contact you to confirm."
+Do NOT ask another timing/refinement question.`
     : "If useful, ask at most ONE open preference question (e.g. preferred day/time) without inventing windows."
 }
 Do NOT ask for gate codes, pets, parking, or access instructions.
@@ -1463,9 +1503,17 @@ export function validateSalesReply(
     state.leadDeliveryStatus !== "SENT" &&
     FALSE_HANDOFF_RE.test(reply)
   ) {
-    reasons.push(
-      "Claimed successful lead handoff/notification when leadDeliveryStatus is not SENT."
-    );
+    const preferredTimeAck =
+      !!state.preferredTiming &&
+      (state.currentObjective === "ADVANCE_TO_NEXT_STEP" ||
+        state.currentObjective === "COLLECT_ADDRESS") &&
+      /\bcan('?t|not) confirm a time\b/i.test(reply) &&
+      /\bpreferred time\b/i.test(reply);
+    if (!preferredTimeAck) {
+      reasons.push(
+        "Claimed successful lead handoff/notification when leadDeliveryStatus is not SENT."
+      );
+    }
   }
 
   return {

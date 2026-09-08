@@ -38,6 +38,35 @@ const TECHNICIAN_DUMP_RE =
 const FALSE_HANDOFF_RE =
   /\b(i('ve| have) (sent|forwarded|handed)|sent (this|your request|your details|it) to (the )?team|the team (has|already has) your (details|request|information)|the team will (call|contact|reach)|our scheduling team has|handed (this|it) off|notification (was |has been )?sent)\b/i;
 
+const PAYMENT_PUSH_RE =
+  /\b(arrange (the |your |a )?(\$\s?\d[\d,]*(?:\.\d{2})?\s+)?payment|pay now|pay (the |this |that )?(fee|charge)|collect(ing)? (the |your )?payment|process(ing)? (your )?payment|i('ll| will) (take|collect|process) (your )?payment)\b/i;
+
+function mentionsSiteVisitFee(text: string): boolean {
+  return (
+    /\bsite[- ]visit fee\b/i.test(text) ||
+    /\bvisit fee\b/i.test(text) ||
+    (/\$\s?\d/.test(text) && /\b(visit|call-?out)\b/i.test(text))
+  );
+}
+
+function customerAskedAboutFee(text: string): boolean {
+  return /\b(how much|what(?:'s| is) the (cost|price|charge|fee)|visit fee|site[- ]visit fee|call-?out fee|do i (need to |have to )?pay|payment)\b/i.test(
+    text
+  );
+}
+
+function extractSiteVisitFeeLabel(business: BusinessProfile): string | null {
+  const blob = [
+    business.pricingRules || "",
+    business.systemPrompt || "",
+  ].join("\n");
+  if (!/\b(visit|call-?out|site)\b/i.test(blob) || !/\b(fee|charge)\b/i.test(blob)) {
+    return null;
+  }
+  const amount = blob.match(/\$\s?\d{1,4}(?:\.\d{2})?/);
+  return amount ? amount[0].replace(/\s+/g, "") : null;
+}
+
 function rankIntent(intent: SalesIntent): number {
   switch (intent) {
     case "LOW":
@@ -799,7 +828,8 @@ function buildSummary(state: SalesState): string {
     state.leadCapturePaused ? "leadCapture=PAUSED" : null,
     state.customerAgreed ? "customerAgreed=true" : null,
     state.handoffReady ? "handoffReady=true" : "handoffReady=false",
-    `leadDelivery=${state.leadDeliveryStatus}`,
+    state.leadDeliveryStatus ? `leadDelivery=${state.leadDeliveryStatus}` : null,
+    state.siteVisitFeeMentioned ? "siteVisitFeeMentioned=true" : null,
     state.refusedLeadFields.length
       ? `refused=${state.refusedLeadFields.join(",")}`
       : null,
@@ -826,11 +856,21 @@ export function updateSalesStateFromTurn(
         objections: [...(previous.objections || [])],
         requiredLeadFields: [...(previous.requiredLeadFields || [])],
         refusedLeadFields: [...(previous.refusedLeadFields || [])],
+        siteVisitFeeMentioned: previous.siteVisitFeeMentioned ?? false,
       })
     : createInitialSalesState();
 
   const latestUser = [...messages].reverse().find((m) => m.role === "user");
   const text = latestUser?.content?.trim() || "";
+
+  state.customerAskedAboutFee = customerAskedAboutFee(text);
+  state.siteVisitFeeLabel = extractSiteVisitFeeLabel(_business);
+  const priorAssistantFee = messages.some(
+    (m) => m.role === "assistant" && mentionsSiteVisitFee(m.content)
+  );
+  if (priorAssistantFee) {
+    state.siteVisitFeeMentioned = true;
+  }
 
   if (!text) {
     state.summary = buildSummary(state);
@@ -1104,6 +1144,9 @@ Current state:
 - customerAgreed: ${state.customerAgreed}
 - handoffReady: ${state.handoffReady}
 - leadDeliveryStatus: ${state.leadDeliveryStatus}
+- siteVisitFeeMentioned: ${state.siteVisitFeeMentioned}
+- customerAskedAboutFee: ${state.customerAskedAboutFee}
+- siteVisitFeeLabel: ${state.siteVisitFeeLabel || "none"}
 - refusedLeadFields: ${refused}
 - requiredLeadFields: ${state.requiredLeadFields.join(", ")}
 
@@ -1152,6 +1195,8 @@ HARD RULES FOR THIS RESPONSE:
 14. Only claim successful lead handoff/email/notification if leadDeliveryStatus=SENT.
 15. Do NOT proactively ask for gate codes, pets, parking, doorman, or access instructions — the human team can collect those later unless the customer brings them up.
 16. If preferredTiming is already established, do NOT keep refining appointment windows into smaller slots. Capture the preference and move on.
+17. Keep the reply concise: normally 1–3 sentences unless the customer explicitly asked for a detailed explanation.
+18. SITE VISIT FEE: mention an owner-provided site-visit fee at most once unless the customer asks about it again. If mentioning it, use a brief neutral line only: "A {fee} site-visit fee applies. The team can explain the details before any visit is confirmed." Never say arrange payment, pay now, or imply the AI collects payment. After a visit-timing question, do not mention the fee at all.
 `.trim();
 }
 
@@ -1230,7 +1275,8 @@ ${
   state.preferredTiming
     ? `preferred_visit_time / preferredTiming is already known (${state.preferredTiming}).
 Do NOT ask for name, phone, or address if they are already captured.
-Reply in this meaning (adapt the preferred time): "I can't confirm a time here, but I'll let the team know ${state.preferredTiming} is your preferred time. They'll contact you to confirm."
+Do NOT mention any site-visit fee, dollar amount, or payment.
+Reply with this meaning (adapt only the preferred time words): "I can't confirm a time here, but I'll note ${state.preferredTiming} as your preferred time. The team will contact you to confirm."
 Do NOT ask another timing/refinement question.`
     : "If useful, ask at most ONE open preference question (e.g. preferred day/time) without inventing windows."
 }
@@ -1305,6 +1351,8 @@ function businessKnowledgeBlob(business: BusinessProfile): string {
     business.businessName,
     business.tagline,
     business.systemPrompt,
+    business.pricingRules || "",
+    business.businessHours || "",
     ...business.services,
     ...business.serviceAreas,
     ...business.faqs.map((f) => `${f.question} ${f.answer}`),
@@ -1516,10 +1564,63 @@ export function validateSalesReply(
     }
   }
 
+  if (PAYMENT_PUSH_RE.test(reply)) {
+    reasons.push("Pushed payment collection / arrange-payment language.");
+  }
+
+  const timingAckTurn =
+    !!state.preferredTiming &&
+    (state.currentObjective === "ADVANCE_TO_NEXT_STEP" ||
+      state.currentObjective === "COLLECT_ADDRESS");
+  if (timingAckTurn && mentionsSiteVisitFee(reply)) {
+    reasons.push("Repeated site-visit fee after the customer asked about visit timing.");
+  }
+
+  if (
+    mentionsSiteVisitFee(reply) &&
+    state.siteVisitFeeMentioned &&
+    !state.customerAskedAboutFee
+  ) {
+    reasons.push("Repeated site-visit fee after it was already mentioned.");
+  }
+
+  if (mentionsSiteVisitFee(reply)) {
+    const allowedContext =
+      state.customerAskedAboutFee ||
+      state.currentObjective === "PRESENT_SOLUTION" ||
+      state.currentObjective === "EXPLAIN_VALUE" ||
+      state.currentObjective === "HANDLE_PRICE_OBJECTION" ||
+      (state.currentObjective === "ADVANCE_TO_NEXT_STEP" && !state.preferredTiming);
+    if (!allowedContext) {
+      reasons.push("Mentioned site-visit fee when it was not relevant.");
+    }
+  }
+
+  const sentenceCount = reply
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean).length;
+  if (
+    sentenceCount > 3 &&
+    (timingAckTurn ||
+      mentionsSiteVisitFee(reply) ||
+      state.currentObjective === "ADVANCE_TO_NEXT_STEP")
+  ) {
+    reasons.push("Reply longer than 1–3 sentences without a request for detail.");
+  }
+
   return {
     ok: reasons.length === 0,
     reasons,
   };
+}
+
+export function recordSiteVisitFeeMention(
+  state: SalesState,
+  reply: string
+): SalesState {
+  if (!mentionsSiteVisitFee(reply)) return state;
+  return { ...state, siteVisitFeeMentioned: true };
 }
 
 export function buildValidationCorrection(
@@ -1535,6 +1636,10 @@ Pursue ONLY currentObjective=${state.currentObjective}.
 Ask at most ONE question.
 Do not ask for already-collected or refused lead fields.
 Do not invent prices, availability, booking, or dispatch.
+Never arrange payment, say pay now, or collect a fee.
+Mention an owner-set site-visit fee at most once unless the customer asks about it again.
+If the customer just asked about visit timing, do not mention the fee; only note the preferred time and that the team will confirm.
+Keep the reply to 1–3 sentences unless they asked for more detail.
 Do not claim lead handoff/notification unless leadDeliveryStatus=SENT.
 Do not give DIY tutorials or technician dumps.
 If objective is CLOSE: give the positive final captured-request message using known name/need/timing only, then STOP. No questions. No access asks. No "anything else?".

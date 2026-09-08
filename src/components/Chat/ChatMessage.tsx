@@ -21,6 +21,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
       }`}
     >
       <div
+        data-chat-message-bubble
         className={`max-w-[82%] min-w-0 overflow-hidden break-words [overflow-wrap:anywhere] whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-6 shadow-sm ${
           isUser
             ? "rounded-[18px] rounded-br-md bg-blue-600 text-white"

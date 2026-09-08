@@ -1,7 +1,5 @@
-/** Demo workspace chat geometry. Keep CSS fallbacks in landing.css in sync. */
+/** Demo workspace chat geometry. CSS in src/app/demo/demo-workspace.css must stay in sync. */
 export const DEMO_CHAT_LAYOUT = {
   panelHeightPx: 560,
   customerPanelWidthPx: 420,
-  customerPanelMinWidthPx: 400,
-  customerPanelMaxWidthPx: 440,
 } as const;

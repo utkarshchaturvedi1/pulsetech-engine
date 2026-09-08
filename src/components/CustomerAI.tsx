@@ -86,7 +86,7 @@ export default function CustomerAI({
       name={business.agentName || business.businessName || "AI Sales Employee"}
       role="AI Sales Employee"
       avatar={business.logo || undefined}
-      className={`mx-auto w-full max-w-[420px] ${className}`.trim()}
+      className={`min-h-0 min-w-0 w-full ${className}`.trim()}
     >
       <ChatWindow
         key={identityKey}

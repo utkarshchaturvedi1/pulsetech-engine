@@ -31,7 +31,7 @@ export default function ChatAgentShell({
     <div
       data-customer-widget-shell
       data-theme-source={themeSource || "fallback"}
-      className={("flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[20px] border border-slate-200/80 bg-[#FBFCFD] shadow-[0_18px_50px_-24px_rgba(15,23,42,0.32)] " + className).trim()}
+      className={("flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-[20px] border border-slate-200/80 bg-[#FBFCFD] shadow-[0_18px_50px_-24px_rgba(15,23,42,0.32)] " + className).trim()}
       style={{
         ...themeStyle,
         borderTopWidth: 3,
@@ -40,7 +40,7 @@ export default function ChatAgentShell({
     >
       <header
         data-chat-header
-        className="flex shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white px-4 py-3.5"
+        className="flex shrink-0 flex-none items-center gap-3 border-b border-slate-200/80 bg-white px-4 py-3.5"
       >
         <div className="relative shrink-0">
           {showImage ? (

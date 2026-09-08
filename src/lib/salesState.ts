@@ -65,6 +65,12 @@ export type SalesState = {
   leadStatus: LeadStatus;
   requiredLeadFields: Array<keyof LeadFields>;
   leadDeliveryStatus: LeadDeliveryStatus;
+  /** True after the AI has already mentioned an owner-provided site-visit fee. */
+  siteVisitFeeMentioned: boolean;
+  /** True when the latest customer turn asked about price/fee/payment. */
+  customerAskedAboutFee: boolean;
+  /** Owner-provided visit fee amount like "$79", or null if none. */
+  siteVisitFeeLabel: string | null;
   summary: string;
 };
 
@@ -127,6 +133,9 @@ export function createInitialSalesState(
     leadStatus: "NOT_SECURED",
     requiredLeadFields: ["name", "phone", "address"],
     leadDeliveryStatus: "NOT_SENT",
+    siteVisitFeeMentioned: false,
+    customerAskedAboutFee: false,
+    siteVisitFeeLabel: null,
     summary: "New conversation. No lead secured yet.",
   };
 }
@@ -170,6 +179,9 @@ export function normalizeSalesState(value: SalesState): SalesState {
     preferredTiming: value.preferredTiming ?? null,
     contactPreference: value.contactPreference ?? null,
     leadDeliveryStatus: value.leadDeliveryStatus ?? "NOT_SENT",
+    siteVisitFeeMentioned: value.siteVisitFeeMentioned ?? false,
+    customerAskedAboutFee: value.customerAskedAboutFee ?? false,
+    siteVisitFeeLabel: value.siteVisitFeeLabel ?? null,
     conversationId: value.conversationId ?? "",
     businessKey: value.businessKey ?? "",
   };

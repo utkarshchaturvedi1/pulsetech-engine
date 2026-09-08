@@ -8,6 +8,7 @@ import {
 import {
   buildTurnControlBlock,
   buildValidationCorrection,
+  recordSiteVisitFeeMention,
   updateSalesStateFromTurn,
   validateSalesReply,
 } from "./salesController";
@@ -483,6 +484,8 @@ ${extra}`
       buildValidationCorrection(salesState, validation.reasons)
     );
   }
+
+  salesState = recordSiteVisitFeeMention(salesState, reply);
 
   return {
     reply,

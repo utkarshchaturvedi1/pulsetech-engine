@@ -93,7 +93,7 @@ export default function DemoWorkspace({
       }
     >
       <div className="pt-shell">
-        <div className="pt-content flex min-h-screen flex-col overflow-x-hidden">
+        <div className="pt-content flex min-h-screen min-w-0 flex-col overflow-x-hidden">
           <header className="pt-header shrink-0">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-4 sm:px-8 sm:py-5 lg:flex-row lg:items-center lg:justify-between">
               <BrandLogo />
@@ -111,14 +111,13 @@ export default function DemoWorkspace({
             </div>
           </header>
 
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 overflow-x-hidden p-4 sm:p-5 lg:flex-row lg:items-start lg:gap-6 lg:p-6">
-            <section className="pt-demo-panel pt-demo-panel-owner">
-              <div
-                className="pointer-events-none absolute -inset-4 rounded-[36px] bg-gradient-to-br from-sky-200/55 via-blue-100/30 to-violet-200/45 blur-2xl"
-                aria-hidden
-              />
+          <div className="pt-demo-workspace">
+            <section
+              className="pt-demo-panel pt-demo-panel-owner"
+              data-demo-owner-panel
+            >
               <div className="pt-demo-frame">
-                <div className="mb-1.5 flex items-center justify-between gap-3 px-2">
+                <div className="pt-demo-caption">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
                     Guide your setup
                   </p>
@@ -134,19 +133,18 @@ export default function DemoWorkspace({
                     demoId={resolvedDemoId}
                     skipAnalysis
                     onProfileUpdate={handleProfileUpdate}
-                    className="h-full min-h-0"
+                    className="h-full min-h-0 min-w-0 w-full"
                   />
                 </div>
               </div>
             </section>
 
-            <section className="pt-demo-panel pt-demo-panel-customer">
-              <div
-                className="pointer-events-none absolute -inset-4 rounded-[36px] bg-gradient-to-br from-sky-200/45 via-blue-100/25 to-violet-200/40 blur-2xl"
-                aria-hidden
-              />
+            <section
+              className="pt-demo-panel pt-demo-panel-customer"
+              data-demo-customer-panel
+            >
               <div className="pt-demo-frame">
-                <div className="mb-1.5 flex items-center justify-between gap-3 px-2">
+                <div className="pt-demo-caption">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
                     Customer experience
                   </p>
@@ -156,7 +154,7 @@ export default function DemoWorkspace({
                   <CustomerAI
                     business={business}
                     disabled={false}
-                    className="h-full min-h-0 w-full max-w-none"
+                    className="h-full min-h-0 min-w-0 w-full"
                   />
                 </div>
               </div>

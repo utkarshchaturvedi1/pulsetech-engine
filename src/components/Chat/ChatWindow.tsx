@@ -99,9 +99,13 @@ export default function ChatWindow({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#F7F8FA]">
+    <div
+      data-chat-window
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-[#F7F8FA]"
+    >
       <div
         ref={listRef}
+        data-chat-messages
         className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 sm:px-5"
       >
         {messages.map((message) => (
@@ -126,7 +130,7 @@ export default function ChatWindow({
         </div>
       ) : null}
 
-      <div className="shrink-0">
+      <div className="shrink-0 flex-none" data-chat-input>
         <ChatInput
           placeholder={placeholder}
           disabled={disabled}

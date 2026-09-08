@@ -33,29 +33,38 @@ export function isEphemeralRuntime(): boolean {
   return process.env.VERCEL === "1";
 }
 
+/** Local filesystem writes. Tests may replace this; production uses saveDemoRecord. */
+export const sharedProfileFilesystem = {
+  save: saveDemoRecord,
+};
+
 async function saveSupabaseRecord(
   record: StoredDemo
 ): Promise<boolean> {
   const config = supabaseConfig();
   if (!config) return false;
-  const response = await fetch(
-    config.url + "/rest/v1/business_profiles?on_conflict=id",
-    {
-      method: "POST",
-      headers: {
-        apikey: config.key,
-        Authorization: "Bearer " + config.key,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify({
-        id: record.id,
-        profile: record.profile,
-        updated_at: record.updatedAt,
-      }),
-    }
-  );
-  return response.ok;
+  try {
+    const response = await fetch(
+      config.url + "/rest/v1/business_profiles?on_conflict=id",
+      {
+        method: "POST",
+        headers: {
+          apikey: config.key,
+          Authorization: "Bearer " + config.key,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify({
+          id: record.id,
+          profile: record.profile,
+          updated_at: record.updatedAt,
+        }),
+      }
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
@@ -99,6 +108,25 @@ function markTestData(id: string, demo: StoredDemo): StoredDemo {
   };
 }
 
+function buildStoredDemo(id: string, profile: BusinessProfile): StoredDemo {
+  return markTestData(id, {
+    id,
+    profile,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+async function saveFilesystemRecord(
+  id: string,
+  profile: BusinessProfile
+): Promise<StoredDemo | null> {
+  try {
+    return markTestData(id, await sharedProfileFilesystem.save(id, profile));
+  } catch {
+    return null;
+  }
+}
+
 /** Shared BusinessProfile lookup for website demo and inbound voice. */
 export async function loadSharedProfile(
   id: string
@@ -124,14 +152,16 @@ export async function commitSharedProfile(
     throw new Error("A valid demo id is required.");
   }
 
-  let demo = await saveDemoRecord(safe, profile);
-  demo = markTestData(safe, demo);
-
+  const demo = buildStoredDemo(safe, profile);
   const durableConfigured = isDurableProfileStoreConfigured();
-  let supabaseOk = false;
+  const ephemeral = isEphemeralRuntime();
+
   if (durableConfigured) {
-    supabaseOk = await saveSupabaseRecord(demo);
+    const supabaseOk = await saveSupabaseRecord(demo);
     if (supabaseOk) {
+      if (!ephemeral) {
+        await saveFilesystemRecord(safe, demo.profile);
+      }
       return {
         demo,
         persisted: true,
@@ -140,18 +170,28 @@ export async function commitSharedProfile(
         reason: "saved to durable business_profiles store",
       };
     }
+    if (ephemeral) {
+      return {
+        demo,
+        persisted: false,
+        durable: false,
+        backend: "supabase",
+        reason: "durable store save failed; Vercel filesystem is ephemeral",
+      };
+    }
   }
 
-  const localOk = Boolean(demo.profile.businessName);
-  const ephemeral = isEphemeralRuntime();
-  if (localOk && !ephemeral) {
-    return {
-      demo,
-      persisted: true,
-      durable: false,
-      backend: "filesystem",
-      reason: "saved to local .data/demos filesystem (not durable on Vercel)",
-    };
+  if (!ephemeral) {
+    const fromDisk = await saveFilesystemRecord(safe, demo.profile);
+    if (fromDisk) {
+      return {
+        demo: fromDisk,
+        persisted: true,
+        durable: false,
+        backend: "filesystem",
+        reason: "saved to local .data/demos filesystem (not durable on Vercel)",
+      };
+    }
   }
 
   return {

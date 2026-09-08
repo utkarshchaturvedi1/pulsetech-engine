@@ -14,6 +14,7 @@ import {
   applyOwnerPatchToSharedProfile,
   commitSharedProfile,
   loadSharedProfile,
+  sharedProfileFilesystem,
 } from "../src/lib/sharedProfileStore";
 import type { BusinessProfile } from "../src/types/business";
 import { promises as fs } from "fs";
@@ -142,6 +143,59 @@ async function main() {
     await fs.rm(path.join(dir, idA + ".json"), { force: true });
     await fs.rm(path.join(dir, idB + ".json"), { force: true });
     process.env.SUPABASE_SERVICE_ROLE_KEY = previousSupabase;
+  }
+
+  await testVercelSupabaseSaveSkipsFilesystem();
+}
+
+async function testVercelSupabaseSaveSkipsFilesystem() {
+  const previous = {
+    vercel: process.env.VERCEL,
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    key: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    fetch: globalThis.fetch,
+    save: sharedProfileFilesystem.save,
+  };
+
+  process.env.VERCEL = "1";
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
+
+  let filesystemCalls = 0;
+  sharedProfileFilesystem.save = async () => {
+    filesystemCalls += 1;
+    throw new Error("filesystem must not be used on Vercel");
+  };
+
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (!url.includes("/rest/v1/business_profiles")) {
+      throw new Error("unexpected fetch: " + url);
+    }
+    return new Response(null, { status: 201 });
+  }) as typeof fetch;
+
+  try {
+    const result = await commitSharedProfile(
+      "vercel-texassolar",
+      fixture("Texas Solar Professional", "https://texassolar.pro")
+    );
+    assert(result.persisted === true, "Vercel + Supabase must persist");
+    assert(result.durable === true, "Vercel + Supabase must be durable");
+    assert(result.backend === "supabase", "backend must be supabase");
+    assert(filesystemCalls === 0, "Vercel must not call filesystem storage");
+    console.log(
+      "PASS — Vercel runtime with Supabase configured saves without filesystem storage"
+    );
+  } finally {
+    if (previous.vercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = previous.vercel;
+    if (previous.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previous.url;
+    if (previous.key === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previous.key;
+    globalThis.fetch = previous.fetch;
+    sharedProfileFilesystem.save = previous.save;
   }
 }
 

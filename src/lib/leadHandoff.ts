@@ -5,6 +5,7 @@ import {
   isClosureHandoffTrigger,
   isLeadQualified,
   isLeadReadyForHandoff,
+  isVisitFollowupAlertTrigger,
   LEAD_INACTIVITY_MS,
   shouldAttemptLeadHandoff,
   type LeadHandoffReason,
@@ -14,6 +15,7 @@ export {
   isClosureHandoffTrigger,
   isLeadQualified,
   isLeadReadyForHandoff,
+  isVisitFollowupAlertTrigger,
   LEAD_INACTIVITY_MS,
   shouldAttemptLeadHandoff,
 };
@@ -62,6 +64,12 @@ function buildSalesContext(state: SalesState): string | null {
 }
 
 function buildNextStep(state: SalesState): string {
+  if (state.urgency === "IMMEDIATE") {
+    return "URGENT: Contact this customer as soon as possible to confirm the earliest available time. Do not send automatic customer SMS.";
+  }
+  if (state.preferredTiming) {
+    return "Contact the customer to confirm availability for their preferred visit time. Do not treat the time as booked.";
+  }
   if (state.customerAgreed) {
     return "Customer agreed to proceed. Follow up using the captured contact details to confirm timing.";
   }
@@ -120,10 +128,13 @@ export function buildLeadNotificationEmail(
   state: SalesState
 ): { subject: string; text: string } {
   const businessName = business.businessName || "Business";
-  const subject = `🔥 New PulseTech Website Lead - ${businessName}`;
+  const urgent = state.urgency === "IMMEDIATE";
+  const subject = urgent
+    ? `URGENT PulseTech Website Lead - ${businessName}`
+    : `🔥 New PulseTech Website Lead - ${businessName}`;
 
   const sections: string[] = [
-    "🔥 NEW WEBSITE LEAD",
+    urgent ? "URGENT WEBSITE LEAD" : "🔥 NEW WEBSITE LEAD",
     "",
     "BUSINESS:",
     businessName,

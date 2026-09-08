@@ -1,10 +1,21 @@
 import { BusinessProfile } from "../types/business";
 import {
+  ASK_PREFERRED_DAY_TIME,
+  INVENTED_SCHEDULE_RANGE_RE,
+  PREFERRED_TIME_TEAM_ALERT_ACK,
+  SAME_DAY_PROMISE_RE,
+  detectSchedulingUrgency,
+  detectVisitPreferenceRequest,
+  extractPreferredVisitTimeFromText,
+  isPreferredTimeTeamAck,
+  knowledgeAllowsSameDay,
+  maxUrgency,
+} from "./schedulingPolicy";
+import {
   LeadFields,
   SalesIntent,
   SalesObjective,
   SalesState,
-  UrgencyLevel,
   createInitialSalesState,
   normalizeSalesState,
 } from "./salesState";
@@ -139,20 +150,6 @@ function detectIntent(text: string): SalesIntent {
   return "LOW";
 }
 
-function detectUrgency(text: string): UrgencyLevel | null {
-  const t = text.toLowerCase();
-  if (
-    /\b(immediate|immediately|asap|emergency|urgent|right now|right away|as soon as possible|need someone today)\b/.test(
-      t
-    )
-  ) {
-    return "IMMEDIATE";
-  }
-  if (/\b(soon|this week|quickly|tomorrow)\b/.test(t)) {
-    return "SOON";
-  }
-  return null;
-}
 
 function extractPhone(text: string): string | null {
   const match = text.match(PHONE_RE);
@@ -226,10 +223,7 @@ function extractAddress(
 }
 
 function extractPreferredTiming(text: string): string | null {
-  const match = text.match(
-    /\b((today|tomorrow|this (morning|afternoon|evening)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[^.]{0,40}|between\s+\d{1,2}[^.]{0,24}|\d{1,2}\s*(?::\d{2})?\s*[-–]\s*\d{1,2}\s*(?::\d{2})?\s*(am|pm)?|after\s+\d{1,2}\s*(am|pm)?|before\s+\d{1,2}\s*(am|pm)?)/i
-  );
-  return match ? match[0].trim() : null;
+  return extractPreferredVisitTimeFromText(text);
 }
 
 const DAY_RE =
@@ -665,24 +659,6 @@ function looksLikeLeadFieldOnlyReply(text: string): boolean {
   return false;
 }
 
-function detectVisitPreferenceRequest(text: string): boolean {
-  const t = text.toLowerCase();
-  if (
-    /\b(arrange|schedule|appointment|come out|come by|come over|come tomorrow|come today|visit me|send someone)\b/.test(
-      t
-    )
-  ) {
-    return true;
-  }
-  if (
-    /\b(can you|could you|would you)\b/.test(t) &&
-    /\b(tomorrow|today|morning|afternoon|evening|visit|come)\b/.test(t)
-  ) {
-    return true;
-  }
-  return extractPreferredTiming(text) !== null &&
-    /\b(arrange|come|visit|schedule|appointment|morning|afternoon|evening)\b/.test(t);
-}
 
 function selectObjective(state: SalesState, latestUserText: string): SalesObjective {
   // After successful handoff, answer new questions — do not reopen lead capture.
@@ -804,9 +780,19 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   }
 
   if (looksLikeLeadFieldOnlyReply(latestUserText)) {
+    if (isV1LeadComplete(state) && !state.preferredTiming) {
+      return "ADVANCE_TO_NEXT_STEP";
+    }
     return isCustomerNeedSpecific(state.customerNeed)
       ? "PRESENT_SOLUTION"
       : "UNDERSTAND_NEED";
+  }
+
+  if (isV1LeadComplete(state) && !state.preferredTiming) {
+    if (/\?/.test(latestUserText) && !detectVisitPreferenceRequest(latestUserText)) {
+      return "ANSWER";
+    }
+    return "ADVANCE_TO_NEXT_STEP";
   }
 
   return "PRESENT_SOLUTION";
@@ -886,12 +872,12 @@ export function updateSalesStateFromTurn(
     state.intent = maxIntent(state.intent, detectedIntent);
   }
 
-  const urgency = detectUrgency(text);
+  const urgency = detectSchedulingUrgency(text);
   if (urgency) {
-    state.urgency = urgency;
+    state.urgency = maxUrgency(state.urgency, urgency);
     state.establishedFacts = addFact(
       state.establishedFacts,
-      `Customer stated urgency: ${urgency}`
+      `Customer stated urgency: ${state.urgency}`
     );
   }
 
@@ -1197,6 +1183,7 @@ HARD RULES FOR THIS RESPONSE:
 16. If preferredTiming is already established, do NOT keep refining appointment windows into smaller slots. Capture the preference and move on.
 17. Keep the reply concise: normally 1–3 sentences unless the customer explicitly asked for a detailed explanation.
 18. SITE VISIT FEE: mention an owner-provided site-visit fee at most once unless the customer asks about it again. If mentioning it, use a brief neutral line only: "A {fee} site-visit fee applies. The team can explain the details before any visit is confirmed." Never say arrange payment, pay now, or imply the AI collects payment. After a visit-timing question, do not mention the fee at all.
+19. Never invent availability, dates, scheduling ranges, or a menu of time windows (no "next week, 2–4 weeks, or later"). Never imply a visit is booked or confirmed. Do not promise same-day service unless BusinessProfile explicitly includes that promise.
 `.trim();
 }
 
@@ -1218,7 +1205,7 @@ Respond with about one short sentence + exactly ONE question.`;
       return `YOUR ONLY OBJECTIVE: naturally collect the service address.
 ${
   state.preferredTiming
-    ? `The customer already gave a preferred visit time (${state.preferredTiming}). Acknowledge that first: you cannot confirm a time here, but you will let the team know that is their preferred time. Then ask exactly ONE question for the service address. Do not re-ask name or phone.`
+    ? `The customer already gave a preferred visit time (${state.preferredTiming}). Acknowledge it briefly without confirming availability and without claiming you already alerted the team. Then ask exactly ONE question for the service address. Do not re-ask name or phone.`
     : "Respond with about one short sentence + exactly ONE question."
 }
 Do not ask apartment number unless the customer volunteers ambiguity.
@@ -1241,10 +1228,11 @@ Explain benefit and a logical next step.
 Do NOT list all services or dump technical procedure details.
 Do NOT invent operational claims, brands, catalogs, prices, warranties, or discounts not in BusinessProfile.
 Do NOT proactively ask about gate codes, pets, parking, or access instructions.
+Do NOT offer invented timing menus such as next week / 2–4 weeks / later.
 ${
   state.preferredTiming
     ? `preferredTiming is already known (${state.preferredTiming}). Do NOT ask another timing/refinement question.`
-    : "Ask at most ONE question if needed (e.g. rough preferred timing) — not operational access details."
+    : "Do not ask for a preferred visit time here unless the Sales Controller objective is ADVANCE_TO_NEXT_STEP."
 }
 If the lead is already complete (name/phone/address/need) and the customer is not raising a new issue, prefer advancing toward natural closure rather than inventing another "quick question".`;
     case "EXPLAIN_VALUE":
@@ -1266,22 +1254,32 @@ Ask at most ONE clarifying question if needed.`;
     case "CROSS_SELL":
       return `YOUR ONLY OBJECTIVE: introduce ONE naturally relevant additional BusinessProfile offering only if useful and timely.
 Do not ambush before the primary need is handled.`;
-    case "ADVANCE_TO_NEXT_STEP":
+    case "ADVANCE_TO_NEXT_STEP": {
+      const leadComplete = isV1LeadComplete(state);
+      const needsTeamAck =
+        leadComplete &&
+        (!!state.preferredTiming || state.urgency === "IMMEDIATE");
       return `YOUR ONLY OBJECTIVE: advance toward the business's real next step.
-Do not invent availability windows or claim booking/dispatch.
+Do not invent availability windows, dates, scheduling ranges, or a menu of time choices.
+Never say "next week, 2–4 weeks, or later" or similar invented options.
 Do NOT invent time slots such as 8–10, 10–12, 12–4, etc.
 Never confirm an appointment or availability.
+Never promise same-day service unless BusinessProfile explicitly includes that promise.
 ${
-  state.preferredTiming
-    ? `preferred_visit_time / preferredTiming is already known (${state.preferredTiming}).
+  needsTeamAck
+    ? `preferred_visit_time / preferredTiming is ${state.preferredTiming || "the earliest available time"}.
 Do NOT ask for name, phone, or address if they are already captured.
 Do NOT mention any site-visit fee, dollar amount, or payment.
-Reply with this meaning (adapt only the preferred time words): "I can't confirm a time here, but I'll note ${state.preferredTiming} as your preferred time. The team will contact you to confirm."
+Reply with this meaning (do not add extra scheduling options): "${PREFERRED_TIME_TEAM_ALERT_ACK}"
 Do NOT ask another timing/refinement question.`
-    : "If useful, ask at most ONE open preference question (e.g. preferred day/time) without inventing windows."
+    : leadComplete
+      ? `Lead is captured. Ask for preferred day/time with this meaning only: "${ASK_PREFERRED_DAY_TIME}"
+Do not offer arbitrary future options.`
+      : "If useful, ask at most ONE open preference question (e.g. preferred day/time) without inventing windows."
 }
 Do NOT ask for gate codes, pets, parking, or access instructions.
 Capture the customer's preference for the team — you do not have live scheduling.`;
+    }
     case "CLOSE":
       return `YOUR ONLY OBJECTIVE: close / hand off cleanly with a positive FINAL message — then STOP.
 Do NOT ask any question (no "Anything else?", no "One quick question...", no "Would you like me to...", no access/timing/confirmation questions).
@@ -1552,11 +1550,9 @@ export function validateSalesReply(
     FALSE_HANDOFF_RE.test(reply)
   ) {
     const preferredTimeAck =
-      !!state.preferredTiming &&
       (state.currentObjective === "ADVANCE_TO_NEXT_STEP" ||
         state.currentObjective === "COLLECT_ADDRESS") &&
-      /\bcan('?t|not) confirm a time\b/i.test(reply) &&
-      /\bpreferred time\b/i.test(reply);
+      isPreferredTimeTeamAck(reply);
     if (!preferredTimeAck) {
       reasons.push(
         "Claimed successful lead handoff/notification when leadDeliveryStatus is not SENT."
@@ -1568,10 +1564,28 @@ export function validateSalesReply(
     reasons.push("Pushed payment collection / arrange-payment language.");
   }
 
+  if (
+    INVENTED_SCHEDULE_RANGE_RE.test(reply) &&
+    !(
+      state.preferredTiming &&
+      reply.toLowerCase().includes(state.preferredTiming.toLowerCase())
+    )
+  ) {
+    reasons.push("Invented future scheduling range or time-window menu.");
+  }
+
+  if (
+    SAME_DAY_PROMISE_RE.test(reply) &&
+    (!business || !knowledgeAllowsSameDay(businessKnowledgeBlob(business)))
+  ) {
+    reasons.push("Promised same-day service that is not configured in BusinessProfile.");
+  }
+
   const timingAckTurn =
-    !!state.preferredTiming &&
-    (state.currentObjective === "ADVANCE_TO_NEXT_STEP" ||
-      state.currentObjective === "COLLECT_ADDRESS");
+    state.currentObjective === "ADVANCE_TO_NEXT_STEP" &&
+    (!!state.preferredTiming || state.urgency === "IMMEDIATE")
+      ? true
+      : state.currentObjective === "COLLECT_ADDRESS" && !!state.preferredTiming;
   if (timingAckTurn && mentionsSiteVisitFee(reply)) {
     reasons.push("Repeated site-visit fee after the customer asked about visit timing.");
   }
@@ -1638,7 +1652,9 @@ Do not ask for already-collected or refused lead fields.
 Do not invent prices, availability, booking, or dispatch.
 Never arrange payment, say pay now, or collect a fee.
 Mention an owner-set site-visit fee at most once unless the customer asks about it again.
-If the customer just asked about visit timing, do not mention the fee; only note the preferred time and that the team will confirm.
+If the customer just asked about visit timing, do not mention the fee.
+Reply with: I'll note that as your preferred time and alert the team now. They'll contact you as soon as possible to confirm the earliest available time.
+Never invent next week / 2–4 weeks / later menus.
 Keep the reply to 1–3 sentences unless they asked for more detail.
 Do not claim lead handoff/notification unless leadDeliveryStatus=SENT.
 Do not give DIY tutorials or technician dumps.

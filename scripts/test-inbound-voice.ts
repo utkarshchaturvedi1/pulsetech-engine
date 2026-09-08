@@ -15,6 +15,7 @@ import {
   evaluatePhoneLeadAlert,
   extractPhoneLead,
 } from "../src/lib/phoneLead";
+import { PREFERRED_TIME_TEAM_ALERT_ACK } from "../src/lib/schedulingPolicy";
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message);
@@ -96,6 +97,12 @@ async function testNumberMapping() {
         "Never claim an appointment is booked"
       ),
       "voice prompt must forbid booking claims"
+    );
+    assert(
+      payload.conversation_config_override.agent.prompt.prompt.includes(
+        PREFERRED_TIME_TEAM_ALERT_ACK
+      ),
+      "voice and website must share no-confirmation immediate-response wording"
     );
   }
 
@@ -199,6 +206,33 @@ function testLeadAlerts() {
     fromTranscript.preferredVisitTime.toLowerCase().includes("tomorrow morning"),
     "visit-time question with a stated slot must capture preferred_visit_time"
   );
+  assert(
+    fromTranscript.urgency === "SOON",
+    `tomorrow should be SOON urgency, got ${fromTranscript.urgency}`
+  );
+
+  const urgentVoice = extractPhoneLead(
+    {
+      full_name: "Maya Chen",
+      phone_number: "5125550198",
+      service_address: "100 Congress Ave, Austin TX",
+      service_needed: "Residential solar panel installation",
+    },
+    {
+      businessName: "Texas Solar Professional",
+      transcriptText: "Can you come today? I need this as soon as possible.",
+    }
+  );
+  assert(urgentVoice.urgency === "IMMEDIATE", "urgent wording must set IMMEDIATE");
+  const urgentEmail = buildPhoneLeadEmail(urgentVoice, "lead");
+  const urgentSms = buildPhoneLeadSms(urgentVoice, "lead");
+  assert(/URGENT PulseTech Phone Lead/.test(urgentEmail.subject), "urgent phone email");
+  assert(/Urgency: IMMEDIATE/.test(urgentEmail.text), "phone email urgency field");
+  assert(/URGENT PulseTech phone lead/.test(urgentSms), "urgent phone sms");
+  assert(
+    !/arrange payment|pay now/i.test(urgentEmail.text),
+    "phone alert must not collect payment"
+  );
 
   const askOnly = extractPhoneLead(
     {
@@ -285,6 +319,19 @@ function testLeadFlowUnchanged() {
       "Do not ask about appointment times, dates, or preferred visit slots until name, phone, and service address"
     ),
     "extra details must wait until after lead capture"
+  );
+  assert(prompt.includes("Never invent availability"), "no invented availability");
+  assert(
+    prompt.includes("next week, 2–4 weeks, or later"),
+    "explicitly forbid invented future ranges"
+  );
+  assert(
+    prompt.includes(PREFERRED_TIME_TEAM_ALERT_ACK),
+    "same immediate-response wording as website chat"
+  );
+  assert(
+    prompt.includes("at most once"),
+    "voice fee mention at most once"
   );
 
   const incomplete = evaluatePhoneLeadAlert(

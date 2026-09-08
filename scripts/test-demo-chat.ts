@@ -4,7 +4,11 @@ import { readFileSync } from "fs";
 import path from "path";
 import DemoWorkspace from "../src/components/DemoWorkspace";
 import { DEMO_CHAT_LAYOUT } from "../src/lib/demoChatLayout";
-import { buildLeadNotificationEmail } from "../src/lib/leadHandoff";
+import { buildLeadNotificationEmail, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
+import {
+  ASK_PREFERRED_DAY_TIME,
+  PREFERRED_TIME_TEAM_ALERT_ACK,
+} from "../src/lib/schedulingPolicy";
 import {
   recordSiteVisitFeeMention,
   updateSalesStateFromTurn,
@@ -214,8 +218,7 @@ function securedLead(overrides: Partial<SalesState> = {}): SalesState {
   };
 }
 
-const TIMING_ACK =
-  "I can't confirm a time here, but I'll note tomorrow morning as your preferred time. The team will contact you to confirm.";
+const TIMING_ACK = PREFERRED_TIME_TEAM_ALERT_ACK;
 
 function testVisitPreferenceNoDuplicateAddress() {
   const after = updateSalesStateFromTurn(
@@ -290,6 +293,64 @@ function testVisitPreferenceNoDuplicateAddress() {
     "website lead handoff must include preferred visit time"
   );
   assert(/tomorrow morning/i.test(email.text), "handoff includes the captured slot");
+  assert(
+    shouldAttemptLeadHandoff(after, "closure", "Can you arrange tomorrow morning?"),
+    "captured visit preference must send/keep the internal alert immediately"
+  );
+
+  const comeTomorrow = updateSalesStateFromTurn(
+    securedLead(),
+    [{ role: "user", content: "Can you come tomorrow?" }],
+    business
+  );
+  assert(
+    /tomorrow/i.test(comeTomorrow.preferredTiming || ""),
+    "Can you come tomorrow? must capture preferred_visit_time"
+  );
+  const tomorrowAck = validateSalesReply(TIMING_ACK, comeTomorrow, business);
+  assert(
+    tomorrowAck.ok,
+    `immediate-response wording must pass: ${tomorrowAck.reasons.join("; ")}`
+  );
+
+  const invented = validateSalesReply(
+    "Would you prefer next week, 2–4 weeks, or later?",
+    after,
+    business
+  );
+  assert(!invented.ok, "must not invent future scheduling ranges");
+  assert(
+    invented.reasons.some((r) => /scheduling range|time-window menu/i.test(r)),
+    invented.reasons.join("; ")
+  );
+
+  const askPreferred = validateSalesReply(
+    ASK_PREFERRED_DAY_TIME,
+    securedLead({ currentObjective: "ADVANCE_TO_NEXT_STEP", preferredTiming: null }),
+    business
+  );
+  assert(
+    askPreferred.ok,
+    `non-urgent preferred-time ask should pass: ${askPreferred.reasons.join("; ")}`
+  );
+
+  const urgentTurn = updateSalesStateFromTurn(
+    securedLead(),
+    [{ role: "user", content: "Can you come today? I need this as soon as possible." }],
+    business
+  );
+  assert(urgentTurn.urgency === "IMMEDIATE", `urgency should be IMMEDIATE, got ${urgentTurn.urgency}`);
+  assert(
+    shouldAttemptLeadHandoff(
+      urgentTurn,
+      "closure",
+      "Can you come today? I need this as soon as possible."
+    ),
+    "urgent visit request must trigger an immediate internal alert"
+  );
+  const urgentEmail = buildLeadNotificationEmail(business, urgentTurn);
+  assert(/URGENT/i.test(urgentEmail.subject), "urgent website alert subject");
+  assert(urgentEmail.text.includes("IMMEDIATE"), "urgent website alert body");
 
   console.log("PASS — no duplicate address question; preferred visit time saved");
 }

@@ -1,4 +1,9 @@
 import { BusinessProfile } from "../types/business";
+import {
+  detectSchedulingUrgency,
+  extractPreferredVisitTimeFromText,
+} from "./schedulingPolicy";
+import type { UrgencyLevel } from "./salesState";
 
 export type PhoneLead = {
   business: string;
@@ -10,6 +15,7 @@ export type PhoneLead = {
   address: string;
   need: string;
   preferredVisitTime: string;
+  urgency: UrgencyLevel;
   callbackRequested: boolean;
   callbackNotes: string;
 };
@@ -52,9 +58,6 @@ function truthyField(source: Record<string, unknown>, ...names: string[]): boole
 const CALLBACK_RE =
   /\b(call me back|give me a call back|please call (me|us) back|can you call me back|want(ed)? a callback|request(ed)? a callback|call back please)\b/i;
 
-const PREFERRED_VISIT_RE =
-  /\b(tomorrow(?:\s+(?:morning|afternoon|evening|night))?|today(?:\s+(?:morning|afternoon|evening))?|this(?:\s+(?:morning|afternoon|evening|weekend))|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:morning|afternoon|evening))?|(?:next\s+week)|(?:between\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:and|to|-)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?)|\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i;
-
 export function extractPreferredVisitTime(
   extracted: Record<string, unknown>,
   transcriptText = ""
@@ -68,15 +71,26 @@ export function extractPreferredVisitTime(
     "visit_time"
   );
   if (fromFields) return fromFields;
+  const fromText = extractPreferredVisitTimeFromText(transcriptText);
   if (
-    !/\b(visit|appoint|come|schedule|available|availability|time slot|morning|afternoon|evening)\b/i.test(
+    fromText &&
+    /\b(visit|appoint|come|schedule|available|availability|time slot|morning|afternoon|evening|asap|today|tomorrow)\b/i.test(
       transcriptText
     )
   ) {
-    return "";
+    return fromText;
   }
-  const match = transcriptText.match(PREFERRED_VISIT_RE);
-  return match?.[0]?.trim() || "";
+  return "";
+}
+
+export function extractLeadUrgency(
+  extracted: Record<string, unknown>,
+  transcriptText = ""
+): UrgencyLevel {
+  const labeled = field(extracted, "urgency", "visit_urgency", "priority").toUpperCase();
+  if (labeled === "IMMEDIATE" || labeled === "URGENT") return "IMMEDIATE";
+  if (labeled === "SOON") return "SOON";
+  return detectSchedulingUrgency(transcriptText) || "NONE";
 }
 
 export function detectCallbackRequest(
@@ -136,6 +150,7 @@ export function extractPhoneLead(
       extracted,
       options.transcriptText || ""
     ),
+    urgency: extractLeadUrgency(extracted, options.transcriptText || ""),
     callbackRequested,
     callbackNotes: field(
       extracted,
@@ -160,11 +175,18 @@ export function buildPhoneLeadEmail(
   lead: PhoneLead,
   alertKind: "lead" | "callback"
 ): { subject: string; text: string } {
-  const urgent = alertKind === "callback";
-  const subject = urgent
+  const urgent = alertKind === "callback" || lead.urgency === "IMMEDIATE";
+  const subject = alertKind === "callback"
     ? "URGENT PulseTech Callback Request - " + lead.business
-    : "New PulseTech Phone Lead - " + lead.business;
-  const heading = urgent ? "URGENT CALLBACK REQUEST" : "NEW PHONE LEAD";
+    : urgent
+      ? "URGENT PulseTech Phone Lead - " + lead.business
+      : "New PulseTech Phone Lead - " + lead.business;
+  const heading =
+    alertKind === "callback"
+      ? "URGENT CALLBACK REQUEST"
+      : urgent
+        ? "URGENT PHONE LEAD"
+        : "NEW PHONE LEAD";
   const text = [
     heading,
     "",
@@ -178,12 +200,13 @@ export function buildPhoneLeadEmail(
     lead.preferredVisitTime
       ? "Preferred visit time: " + lead.preferredVisitTime
       : "",
+    "Urgency: " + lead.urgency,
     "Callback requested: " + (lead.callbackRequested ? "YES" : "No"),
     lead.callbackNotes ? "Callback notes: " + lead.callbackNotes : "",
     "",
     urgent
-      ? "Next step: Call this customer back promptly. Do not rely on automatic customer SMS."
-      : "Next step: Contact this customer promptly.",
+      ? "Next step: Contact this customer as soon as possible to confirm the earliest available time. Do not send automatic customer SMS."
+      : "Next step: Contact this customer promptly. Do not treat any preferred time as booked.",
   ]
     .filter((line) => line !== "")
     .join("\n");
@@ -197,10 +220,13 @@ export function buildPhoneLeadSms(
   const prefix =
     alertKind === "callback"
       ? "URGENT callback request for "
-      : "New PulseTech phone lead for ";
+      : lead.urgency === "IMMEDIATE"
+        ? "URGENT PulseTech phone lead for "
+        : "New PulseTech phone lead for ";
   return [
     prefix + lead.business,
     (lead.name || "Unknown") + " | " + (lead.phone || "no phone"),
+    "Urgency: " + lead.urgency,
     "Callback requested: " + (lead.callbackRequested ? "YES" : "No"),
     lead.preferredVisitTime
       ? "Preferred visit time: " + lead.preferredVisitTime

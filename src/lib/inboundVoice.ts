@@ -3,6 +3,10 @@ import { loadSharedProfile } from "./sharedProfileStore";
 import { normalizePhoneNumber } from "./phoneNumbers";
 import { StoredDemo } from "./demoStore";
 import { BusinessProfile } from "../types/business";
+import {
+  ASK_PREFERRED_DAY_TIME,
+  PREFERRED_TIME_TEAM_ALERT_ACK,
+} from "./schedulingPolicy";
 
 export type InboundVoiceFallbackReason =
   | "missing_called_number"
@@ -218,12 +222,20 @@ PHONE LEAD RULES
 - Never send automatic customer confirmation messages.
 
 APPOINTMENT / VISIT TIME
+- Never invent availability, dates, scheduling ranges, or a menu of time windows. Never say "next week, 2–4 weeks, or later" or similar invented options.
 - Never claim an appointment is booked. Never confirm availability, a visit window, or that someone is scheduled.
-- If the caller asks when the team will visit, whether they can come at a date/time, or about appointment availability, do not repeat only that you cannot confirm the schedule.
-- If they already named a preferred date, time, or slot, capture it as preferred_visit_time and acknowledge it positively, using this meaning:
-  "I can't confirm an appointment time on this call, but I'll let the team know that [preferred time] is your preferred time. They'll contact you to confirm a suitable appointment."
-- If they ask about visit timing but have not given a preference, ask one question for their preferred date or time, capture preferred_visit_time, then give that same acknowledgment. Do not keep restating the limitation.
-- If no preference is given, do not invent one and do not keep asking after they decline to share one.
+- Never promise same-day service unless that exact promise is in the BusinessProfile facts below.
+- Do not ask about appointment times until name, phone, and service address (where relevant) are captured.
+- After the lead is secured:
+  - If the caller says tomorrow morning, today, as soon as possible, or asks when you can come: capture preferred_visit_time when they give one, mark urgency when they sound urgent, and use this meaning only:
+    "${PREFERRED_TIME_TEAM_ALERT_ACK}"
+  - For a standard non-urgent request, ask once: "${ASK_PREFERRED_DAY_TIME}"
+- Capture preferred_visit_time and urgency for the internal business alert. Do not place an outbound call. Do not send the customer a text or SMS.
+
+SITE VISIT FEE
+- Mention an owner-provided site-visit fee at most once unless the caller asks about it again.
+- Never say arrange payment, pay now, or that you collect the fee.
+- After a visit-timing question, do not mention the fee.
 
 BUSINESSPROFILE
 ${formatVoiceBusinessFacts(profile)}

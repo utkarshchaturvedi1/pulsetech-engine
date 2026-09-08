@@ -1,4 +1,5 @@
 import { SalesState } from "./salesState";
+import { isImmediateVisitFollowupLanguage } from "./schedulingPolicy";
 
 export const LEAD_INACTIVITY_MS = 5 * 60 * 1000;
 
@@ -43,9 +44,20 @@ export function isLeadReadyForHandoff(state: SalesState): boolean {
 }
 
 /**
- * Immediate closure handoff on genuine agreement, or natural "I'm done"
- * completion language when handoffReady + CLOSE.
+ * After the lead is captured, a visit-timing / urgency request should notify the
+ * business immediately (website chat and the same policy as inbound voice).
  */
+export function isVisitFollowupAlertTrigger(
+  state: SalesState,
+  latestUserMessage?: string
+): boolean {
+  if (!latestUserMessage) return false;
+  if (state.leadStatus !== "SECURED") return false;
+  if (!state.lead.name || !state.lead.phone || !state.lead.address) return false;
+  if (state.intent !== "HIGH" && state.intent !== "READY_TO_ACT") return false;
+  return isImmediateVisitFollowupLanguage(latestUserMessage);
+}
+
 export function isClosureHandoffTrigger(
   state: SalesState,
   latestUserMessage?: string
@@ -80,7 +92,11 @@ export function shouldAttemptLeadHandoff(
   reason: LeadHandoffReason,
   latestUserMessage?: string
 ): boolean {
-  if (!isLeadReadyForHandoff(state)) return false;
-  if (reason === "inactivity") return true;
+  if (!isLeadQualified(state)) return false;
+  if (reason === "inactivity") return state.handoffReady === true;
+  if (isVisitFollowupAlertTrigger(state, latestUserMessage)) return true;
+  if (!isLeadReadyForHandoff(state) && !isClosureHandoffTrigger(state, latestUserMessage)) {
+    return false;
+  }
   return isClosureHandoffTrigger(state, latestUserMessage);
 }

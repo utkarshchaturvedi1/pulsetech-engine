@@ -267,12 +267,36 @@ async function main() {
   const email = buildLeadNotificationEmail(business, rich);
   assert(email.text.includes("clogged"), "TEST8: need");
   assert(email.text.includes("IMMEDIATE"), "TEST8: urgency");
+  assert(/URGENT PulseTech Website Lead/.test(email.subject), "TEST8: urgent subject");
   assert(email.text.includes("today"), "TEST8: timing");
   assert(/dog|available|home/i.test(email.text), "TEST8: accumulated details");
   assert(!email.text.includes("Services on file"), "TEST8: no services dump");
   assert(!email.text.includes("Long owner prompt"), "TEST8: no prompt dump");
   assert(!email.text.includes("Lead notification emailed"), "TEST8: no false sent claim");
   console.log("TEST8 PASS");
+
+  // Immediate visit-preference alert after lead capture (not inactivity).
+  const visitPref = qualifiedBase({
+    handoffReady: false,
+    currentObjective: "PRESENT_SOLUTION",
+  });
+  assert(
+    shouldAttemptLeadHandoff(visitPref, "closure", "Can you come tomorrow?"),
+    "TEST9: tomorrow visit request alerts immediately"
+  );
+  assert(
+    shouldAttemptLeadHandoff(
+      visitPref,
+      "closure",
+      "Can you come today? I need this as soon as possible."
+    ),
+    "TEST9: urgent wording alerts immediately"
+  );
+  assert(
+    !shouldAttemptLeadHandoff(visitPref, "inactivity"),
+    "TEST9: inactivity still requires handoffReady"
+  );
+  console.log("TEST9 PASS");
 
   // Extra agreement checks
   assert(detectCustomerAgreement("Please proceed."), "extra: please proceed");

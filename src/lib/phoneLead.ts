@@ -9,6 +9,7 @@ export type PhoneLead = {
   email: string;
   address: string;
   need: string;
+  preferredVisitTime: string;
   callbackRequested: boolean;
   callbackNotes: string;
 };
@@ -50,6 +51,33 @@ function truthyField(source: Record<string, unknown>, ...names: string[]): boole
 
 const CALLBACK_RE =
   /\b(call me back|give me a call back|please call (me|us) back|can you call me back|want(ed)? a callback|request(ed)? a callback|call back please)\b/i;
+
+const PREFERRED_VISIT_RE =
+  /\b(tomorrow(?:\s+(?:morning|afternoon|evening|night))?|today(?:\s+(?:morning|afternoon|evening))?|this(?:\s+(?:morning|afternoon|evening|weekend))|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:morning|afternoon|evening))?|(?:next\s+week)|(?:between\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:and|to|-)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm)?)|\d{1,2}(?::\d{2})?\s*(?:am|pm))\b/i;
+
+export function extractPreferredVisitTime(
+  extracted: Record<string, unknown>,
+  transcriptText = ""
+): string {
+  const fromFields = field(
+    extracted,
+    "preferred_visit_time",
+    "preferred_time",
+    "preferred_appointment",
+    "preferred_timing",
+    "visit_time"
+  );
+  if (fromFields) return fromFields;
+  if (
+    !/\b(visit|appoint|come|schedule|available|availability|time slot|morning|afternoon|evening)\b/i.test(
+      transcriptText
+    )
+  ) {
+    return "";
+  }
+  const match = transcriptText.match(PREFERRED_VISIT_RE);
+  return match?.[0]?.trim() || "";
+}
 
 export function detectCallbackRequest(
   extracted: Record<string, unknown>,
@@ -104,6 +132,10 @@ export function extractPhoneLead(
     email: field(extracted, "email"),
     address: field(extracted, "service_address", "address"),
     need: field(extracted, "service_needed", "customer_need"),
+    preferredVisitTime: extractPreferredVisitTime(
+      extracted,
+      options.transcriptText || ""
+    ),
     callbackRequested,
     callbackNotes: field(
       extracted,
@@ -143,6 +175,9 @@ export function buildPhoneLeadEmail(
     lead.email ? "Email: " + lead.email : "",
     "Service address: " + (lead.address || "Not provided"),
     "Service needed: " + (lead.need || "Not provided"),
+    lead.preferredVisitTime
+      ? "Preferred visit time: " + lead.preferredVisitTime
+      : "",
     "Callback requested: " + (lead.callbackRequested ? "YES" : "No"),
     lead.callbackNotes ? "Callback notes: " + lead.callbackNotes : "",
     "",
@@ -167,6 +202,9 @@ export function buildPhoneLeadSms(
     prefix + lead.business,
     (lead.name || "Unknown") + " | " + (lead.phone || "no phone"),
     "Callback requested: " + (lead.callbackRequested ? "YES" : "No"),
+    lead.preferredVisitTime
+      ? "Preferred visit time: " + lead.preferredVisitTime
+      : "",
     lead.need,
     lead.address,
   ]

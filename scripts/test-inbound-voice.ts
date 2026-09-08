@@ -4,11 +4,14 @@ config({ path: ".env.local" });
 import { TEXAS_SOLAR_TEST_DEMO_ID } from "../src/data/testBusinessProfiles";
 import {
   buildConversationInitiationResponse,
+  buildInboundVoicePrompt,
   getInboundVoiceNumberMap,
   lookupDemoIdForCalledNumber,
   resolveInboundVoice,
 } from "../src/lib/inboundVoice";
 import {
+  buildPhoneLeadEmail,
+  buildPhoneLeadSms,
   evaluatePhoneLeadAlert,
   extractPhoneLead,
 } from "../src/lib/phoneLead";
@@ -82,6 +85,18 @@ async function testNumberMapping() {
       ),
       "voice prompt must forbid Peter identity"
     );
+    assert(
+      payload.conversation_config_override.agent.prompt.prompt.includes(
+        "preferred_visit_time"
+      ),
+      "voice prompt must capture preferred visit time"
+    );
+    assert(
+      payload.conversation_config_override.agent.prompt.prompt.includes(
+        "Never claim an appointment is booked"
+      ),
+      "voice prompt must forbid booking claims"
+    );
   }
 
   const unknown = await resolveInboundVoice("+19998887777");
@@ -131,6 +146,76 @@ function testLeadAlerts() {
   assert(securedAlert.qualified === true, "secured lead should qualify");
   assert(securedAlert.alertKind === "lead", "normal lead alert state");
   assert(securedAlert.lead.callbackRequested === false, "not a callback");
+  assert(securedAlert.lead.preferredVisitTime === "", "no preference supplied");
+  const securedEmail = buildPhoneLeadEmail(secured, "lead");
+  const securedSms = buildPhoneLeadSms(secured, "lead");
+  assert(
+    !securedEmail.text.includes("Preferred visit time"),
+    "email without preference must keep existing body"
+  );
+  assert(
+    !securedSms.includes("Preferred visit time"),
+    "sms without preference must keep existing body"
+  );
+
+  const withPreference = extractPhoneLead(
+    {
+      full_name: "Maya Chen",
+      phone_number: "5125550198",
+      service_address: "100 Congress Ave, Austin TX",
+      service_needed: "Residential solar panel installation",
+      preferred_visit_time: "tomorrow morning",
+    },
+    { businessName: "Texas Solar Professional" }
+  );
+  assert(
+    withPreference.preferredVisitTime === "tomorrow morning",
+    "preferred_visit_time data collection field"
+  );
+  const preferenceEmail = buildPhoneLeadEmail(withPreference, "lead");
+  const preferenceSms = buildPhoneLeadSms(withPreference, "lead");
+  assert(
+    preferenceEmail.text.includes("Preferred visit time: tomorrow morning"),
+    "email must include preferred visit time"
+  );
+  assert(
+    preferenceSms.includes("Preferred visit time: tomorrow morning"),
+    "sms must include preferred visit time"
+  );
+
+  const fromTranscript = extractPhoneLead(
+    {
+      full_name: "Maya Chen",
+      phone_number: "5125550198",
+      service_address: "100 Congress Ave, Austin TX",
+      service_needed: "Residential solar panel installation",
+    },
+    {
+      businessName: "Texas Solar Professional",
+      transcriptText: "Can they come tomorrow morning?",
+    }
+  );
+  assert(
+    fromTranscript.preferredVisitTime.toLowerCase().includes("tomorrow morning"),
+    "visit-time question with a stated slot must capture preferred_visit_time"
+  );
+
+  const askOnly = extractPhoneLead(
+    {
+      full_name: "Maya Chen",
+      phone_number: "5125550198",
+      service_address: "100 Congress Ave, Austin TX",
+      service_needed: "Residential solar panel installation",
+    },
+    {
+      businessName: "Texas Solar Professional",
+      transcriptText: "When will they visit?",
+    }
+  );
+  assert(
+    askOnly.preferredVisitTime === "",
+    "availability question without a slot must not invent a preference"
+  );
 
   const callback = extractPhoneLead(
     {
@@ -169,9 +254,105 @@ function testLeadAlerts() {
   console.log("PASS — explicit callback request creates callback alert state");
 }
 
+function testLeadFlowUnchanged() {
+  const prompt = buildInboundVoicePrompt({
+    website: "https://texassolar.pro",
+    businessName: "Texas Solar Professional",
+    tagline: "TEST DATA",
+    logo: "",
+    primaryColor: "",
+    secondaryColor: "",
+    phone: "",
+    email: "",
+    address: "",
+    services: ["Residential solar panel installation"],
+    serviceAreas: ["Austin"],
+    faqs: [],
+    leadQuestions: [],
+    systemPrompt: "",
+    isTestData: true,
+  });
+
+  assert(prompt.includes("Ask one question at a time."), "one question at a time");
+  assert(
+    /need already known,\s*then name,\s*then phone,\s*then service address/i.test(
+      prompt
+    ),
+    "lead-capture order must stay need → name → phone → address"
+  );
+  assert(
+    prompt.includes(
+      "Do not ask about appointment times, dates, or preferred visit slots until name, phone, and service address"
+    ),
+    "extra details must wait until after lead capture"
+  );
+
+  const incomplete = evaluatePhoneLeadAlert(
+    extractPhoneLead(
+      {
+        full_name: "Maya Chen",
+        phone_number: "5125550198",
+        service_needed: "Residential solar panel installation",
+      },
+      { businessName: "Texas Solar Professional" }
+    )
+  );
+  assert(
+    incomplete.qualified === false && incomplete.alertKind === "none",
+    "missing address must not create a lead alert"
+  );
+
+  const withoutExtras = evaluatePhoneLeadAlert(
+    extractPhoneLead(
+      {
+        full_name: "Maya Chen",
+        phone_number: "5125550198",
+        service_address: "100 Congress Ave, Austin TX",
+        service_needed: "Residential solar panel installation",
+      },
+      { businessName: "Texas Solar Professional" }
+    )
+  );
+  assert(
+    withoutExtras.qualified === true && withoutExtras.alertKind === "lead",
+    "need + name + phone + address must still create the internal alert"
+  );
+  assert(
+    withoutExtras.lead.preferredVisitTime === "",
+    "extra details remain optional"
+  );
+
+  const withExtras = evaluatePhoneLeadAlert(
+    extractPhoneLead(
+      {
+        full_name: "Maya Chen",
+        phone_number: "5125550198",
+        service_address: "100 Congress Ave, Austin TX",
+        service_needed: "Residential solar panel installation",
+        preferred_visit_time: "Friday afternoon",
+        extra_details: "steep roof",
+      },
+      { businessName: "Texas Solar Professional" }
+    )
+  );
+  assert(
+    withExtras.qualified === true && withExtras.alertKind === "lead",
+    "extra details after address must not change the internal alert kind"
+  );
+  assert(
+    withExtras.lead.preferredVisitTime === "Friday afternoon",
+    "extra details may be attached without replacing lead fields"
+  );
+
+  console.log(
+    "PASS — lead flow unchanged: need → name → phone → address → extra details → internal alert"
+  );
+}
+
 async function main() {
   await testNumberMapping();
   testLeadAlerts();
+  testLeadFlowUnchanged();
   console.log("All inbound voice tests passed.");
 }
 

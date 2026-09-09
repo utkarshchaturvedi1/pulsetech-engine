@@ -1,12 +1,13 @@
 import { BusinessProfile } from "../types/business";
 import {
-  ASK_PREFERRED_DAY_TIME,
   INVENTED_SCHEDULE_RANGE_RE,
   PREFERRED_TIME_TEAM_ALERT_ACK,
   SAME_DAY_PROMISE_RE,
+  SITE_ASSESSMENT_TEAM_ALERT_ASK,
   detectSchedulingUrgency,
   detectVisitPreferenceRequest,
   extractPreferredVisitTimeFromText,
+  impliesConfirmedSiteAssessment,
   isPreferredTimeTeamAck,
   knowledgeAllowsSameDay,
   maxUrgency,
@@ -1273,7 +1274,8 @@ Do NOT mention any site-visit fee, dollar amount, or payment.
 Reply with this meaning (do not add extra scheduling options): "${PREFERRED_TIME_TEAM_ALERT_ACK}"
 Do NOT ask another timing/refinement question.`
     : leadComplete
-      ? `Lead is captured. Ask for preferred day/time with this meaning only: "${ASK_PREFERRED_DAY_TIME}"
+      ? `Lead is captured. After the customer agrees to a site assessment / next step, reply with this meaning only: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
+Never say "we'll arrange a site assessment" or otherwise imply the appointment is already confirmed or booked.
 Do not offer arbitrary future options.`
       : "If useful, ask at most ONE open preference question (e.g. preferred day/time) without inventing windows."
 }
@@ -1384,6 +1386,12 @@ export function validateSalesReply(
 
   if (FAKE_CAPABILITY_RE.test(reply)) {
     reasons.push("Unsupported scheduling/dispatch/availability claim.");
+  }
+
+  if (impliesConfirmedSiteAssessment(reply)) {
+    reasons.push(
+      "Implied a confirmed site assessment (use team-alert wording, not we'll arrange)."
+    );
   }
 
   // CLOSE may restate the customer's already-captured preferredTiming window.
@@ -1653,7 +1661,9 @@ Do not invent prices, availability, booking, or dispatch.
 Never arrange payment, say pay now, or collect a fee.
 Mention an owner-set site-visit fee at most once unless the customer asks about it again.
 If the customer just asked about visit timing, do not mention the fee.
-Reply with: I'll note that as your preferred time and alert the team now. They'll contact you as soon as possible to confirm the earliest available time.
+If acknowledging a preferred visit time, reply with this meaning: "${PREFERRED_TIME_TEAM_ALERT_ACK}"
+If the customer just said yes to a site assessment and no preferred time is known yet, reply with this meaning: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
+Never say "we'll arrange a site assessment" or imply the appointment is confirmed.
 Never invent next week / 2–4 weeks / later menus.
 Keep the reply to 1–3 sentences unless they asked for more detail.
 Do not claim lead handoff/notification unless leadDeliveryStatus=SENT.

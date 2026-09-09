@@ -8,7 +8,14 @@ import { buildLeadNotificationEmail, shouldAttemptLeadHandoff } from "../src/lib
 import {
   ASK_PREFERRED_DAY_TIME,
   PREFERRED_TIME_TEAM_ALERT_ACK,
+  SITE_ASSESSMENT_TEAM_ALERT_ASK,
 } from "../src/lib/schedulingPolicy";
+import {
+  TEXAS_SOLAR_LOGO_URL,
+  TEXAS_SOLAR_TEST_DEMO_ID,
+  getBundledTestDemo,
+  texasSolarProfessionalTestProfile,
+} from "../src/data/testBusinessProfiles";
 import {
   recordSiteVisitFeeMention,
   updateSalesStateFromTurn,
@@ -267,8 +274,33 @@ function testVisitPreferenceNoDuplicateAddress() {
   );
   assert(!booking.ok, "must not confirm an appointment");
 
+  const arrangeClaim = validateSalesReply(
+    "Great — we'll arrange a site assessment for you.",
+    securedLead({ currentObjective: "ADVANCE_TO_NEXT_STEP", preferredTiming: null }),
+    business
+  );
+  assert(!arrangeClaim.ok, "must not say we'll arrange a site assessment");
+  assert(
+    arrangeClaim.reasons.some((r) => /confirmed site assessment|we'll arrange/i.test(r)),
+    arrangeClaim.reasons.join("; ")
+  );
+
+  const yesAck = validateSalesReply(
+    SITE_ASSESSMENT_TEAM_ALERT_ASK,
+    securedLead({ currentObjective: "ADVANCE_TO_NEXT_STEP", preferredTiming: null }),
+    business
+  );
+  assert(
+    yesAck.ok,
+    `yes → site-assessment team alert should pass: ${yesAck.reasons.join("; ")}`
+  );
+
   const good = validateSalesReply(TIMING_ACK, after, business);
   assert(good.ok, `preferred-time ack should pass: ${good.reasons.join("; ")}`);
+  assert(
+    TIMING_ACK.includes("earliest available appointment"),
+    "preferred-time ack must use appointment confirmation language for the team follow-up"
+  );
 
   const missingAddress = updateSalesStateFromTurn(
     securedLead({
@@ -325,13 +357,17 @@ function testVisitPreferenceNoDuplicateAddress() {
   );
 
   const askPreferred = validateSalesReply(
-    ASK_PREFERRED_DAY_TIME,
+    SITE_ASSESSMENT_TEAM_ALERT_ASK,
     securedLead({ currentObjective: "ADVANCE_TO_NEXT_STEP", preferredTiming: null }),
     business
   );
   assert(
     askPreferred.ok,
-    `non-urgent preferred-time ask should pass: ${askPreferred.reasons.join("; ")}`
+    `non-urgent site-assessment ask should pass: ${askPreferred.reasons.join("; ")}`
+  );
+  assert(
+    ASK_PREFERRED_DAY_TIME.includes("What day or time would you prefer?"),
+    "short preferred-day ask remains available for voice"
   );
 
   const urgentTurn = updateSalesStateFromTurn(
@@ -463,8 +499,31 @@ function testSiteVisitFeeOnce() {
   console.log("PASS — site-visit fee mentioned at most once; never collect payment");
 }
 
+function testTexasSolarLogo() {
+  const bundled = getBundledTestDemo(TEXAS_SOLAR_TEST_DEMO_ID);
+  assert(!!bundled, "texassolar bundled demo must exist");
+  assert(
+    texasSolarProfessionalTestProfile.logo === TEXAS_SOLAR_LOGO_URL,
+    "Texas Solar test profile must use the genuine texassolar.pro logo URL"
+  );
+  assert(
+    /^https:\/\/texassolar\.pro\//i.test(texasSolarProfessionalTestProfile.logo),
+    "logo must be an absolute texassolar.pro URL"
+  );
+  assert(
+    bundled!.profile.logo === TEXAS_SOLAR_LOGO_URL,
+    "bundled texassolar demo must expose the same logo"
+  );
+  assert(
+    !texasSolarProfessionalTestProfile.logo.includes("cropped-web-app-manifest"),
+    "must not use the favicon 'T' icon as the chat logo"
+  );
+  console.log("PASS — Texas Solar test profile stores genuine logo URL");
+}
+
 function main() {
   testLayoutConstraints();
+  testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();
   testSiteVisitFeeOnce();
 }

@@ -1,9 +1,17 @@
 import type { UrgencyLevel } from "./salesState";
 
-/** Shared customer-facing copy for website chat and inbound voice. */
-export const PREFERRED_TIME_TEAM_ALERT_ACK =
-  "I'll note that as your preferred time and alert the team now. They'll contact you as soon as possible to confirm the earliest available time.";
+/**
+ * Website chat: after the customer says yes to a site assessment / next step,
+ * acknowledge team alert + ask preference. Never imply the visit is already arranged.
+ */
+export const SITE_ASSESSMENT_TEAM_ALERT_ASK =
+  "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability.";
 
+/** Shared preferred-time acknowledgement (website chat + inbound voice). */
+export const PREFERRED_TIME_TEAM_ALERT_ACK =
+  "I've noted your preference for tomorrow morning. I'll alert the team now; they'll contact you as soon as possible to confirm the earliest available appointment.";
+
+/** Shorter preferred-day ask used when no site-assessment framing is needed (e.g. voice). */
 export const ASK_PREFERRED_DAY_TIME =
   "What day or time would you prefer? The team will confirm availability.";
 
@@ -24,10 +32,27 @@ export function isImmediateVisitFollowupLanguage(text: string): boolean {
 }
 
 export function isPreferredTimeTeamAck(reply: string): boolean {
+  const notedPreference =
+    /\b(i('ve| have) noted your preference|i('ll| will) note that as your preferred time)\b/i.test(
+      reply
+    );
   return (
-    /\bnote that as your preferred time\b/i.test(reply) &&
+    notedPreference &&
     /\balert the team now\b/i.test(reply) &&
-    /\bearliest available time\b/i.test(reply)
+    /\bearliest available (time|appointment)\b/i.test(reply)
+  );
+}
+
+/** Detects confirming / self-arranging site-assessment language (forbidden). */
+export function impliesConfirmedSiteAssessment(reply: string): boolean {
+  return /\bwe('ll| will) arrange (a |your )?site assessment\b/i.test(reply);
+}
+
+export function isSiteAssessmentTeamAlertAsk(reply: string): boolean {
+  return (
+    /\bi('ll| will) alert the team to arrange a site assessment\b/i.test(reply) &&
+    /\bwhat day or time would you prefer\b/i.test(reply) &&
+    /\bteam will confirm availability\b/i.test(reply)
   );
 }
 

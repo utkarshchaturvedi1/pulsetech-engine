@@ -101,10 +101,15 @@ async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
 }
 
 function markTestData(id: string, demo: StoredDemo): StoredDemo {
-  if (!getBundledTestDemo(id)) return demo;
+  const bundled = getBundledTestDemo(id);
+  if (!bundled) return demo;
+  const logo =
+    typeof demo.profile.logo === "string" && demo.profile.logo.trim()
+      ? demo.profile.logo.trim()
+      : bundled.profile.logo;
   return {
     ...demo,
-    profile: { ...demo.profile, isTestData: true },
+    profile: { ...demo.profile, logo, isTestData: true },
   };
 }
 

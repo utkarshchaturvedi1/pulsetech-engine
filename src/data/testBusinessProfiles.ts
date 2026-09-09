@@ -9,11 +9,15 @@ import { StoredDemo } from "../lib/demoStore";
  */
 export const TEXAS_SOLAR_TEST_DEMO_ID = "texassolar";
 
+/** Genuine logo from texassolar.pro (header/brand asset). Not the site favicon "T" icon. */
+export const TEXAS_SOLAR_LOGO_URL =
+  "https://texassolar.pro/wp-content/uploads/2025/06/2-3-1.png";
+
 export const texasSolarProfessionalTestProfile: BusinessProfile = {
   website: "https://texassolar.pro",
   businessName: "Texas Solar Professional",
   tagline: "TEST DATA — PulseTech demo / inbound voice profile",
-  logo: "",
+  logo: TEXAS_SOLAR_LOGO_URL,
   primaryColor: "#2563eb",
   secondaryColor: "#0f172a",
   phone: "",

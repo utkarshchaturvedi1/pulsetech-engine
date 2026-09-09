@@ -103,10 +103,16 @@ async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
 function markTestData(id: string, demo: StoredDemo): StoredDemo {
   const bundled = getBundledTestDemo(id);
   if (!bundled) return demo;
+
+  // Texas Solar: prefer the bundled favicon when the saved logo is missing or the
+  // unusable wide white wordmark (invisible on the white chat header).
+  const WORDMARK =
+    "https://texassolar.pro/wp-content/uploads/2025/06/2-3-1.png";
+  const savedLogo =
+    typeof demo.profile.logo === "string" ? demo.profile.logo.trim() : "";
   const logo =
-    typeof demo.profile.logo === "string" && demo.profile.logo.trim()
-      ? demo.profile.logo.trim()
-      : bundled.profile.logo;
+    !savedLogo || savedLogo === WORDMARK ? bundled.profile.logo : savedLogo;
+
   return {
     ...demo,
     profile: { ...demo.profile, logo, isTestData: true },

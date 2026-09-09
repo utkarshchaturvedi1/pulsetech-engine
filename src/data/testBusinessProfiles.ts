@@ -9,9 +9,12 @@ import { StoredDemo } from "../lib/demoStore";
  */
 export const TEXAS_SOLAR_TEST_DEMO_ID = "texassolar";
 
-/** Genuine logo from texassolar.pro (header/brand asset). Not the site favicon "T" icon. */
+/**
+ * Favicon / site icon from texassolar.pro `<link rel="icon" sizes="192x192">`.
+ * White "T" on black — readable in the small chat avatar (unlike the wide wordmark).
+ */
 export const TEXAS_SOLAR_LOGO_URL =
-  "https://texassolar.pro/wp-content/uploads/2025/06/2-3-1.png";
+  "https://texassolar.pro/wp-content/uploads/2025/09/cropped-web-app-manifest-512x512-1-192x192.png";
 
 export const texasSolarProfessionalTestProfile: BusinessProfile = {
   website: "https://texassolar.pro",

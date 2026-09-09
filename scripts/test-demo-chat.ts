@@ -504,21 +504,23 @@ function testTexasSolarLogo() {
   assert(!!bundled, "texassolar bundled demo must exist");
   assert(
     texasSolarProfessionalTestProfile.logo === TEXAS_SOLAR_LOGO_URL,
-    "Texas Solar test profile must use the genuine texassolar.pro logo URL"
+    "Texas Solar test profile must use the texassolar.pro favicon/site-icon URL"
   );
   assert(
-    /^https:\/\/texassolar\.pro\//i.test(texasSolarProfessionalTestProfile.logo),
-    "logo must be an absolute texassolar.pro URL"
+    /^https:\/\/texassolar\.pro\/wp-content\/uploads\/.+cropped-web-app-manifest.+\.png$/i.test(
+      texasSolarProfessionalTestProfile.logo
+    ),
+    "logo must be the absolute cropped web-app-manifest favicon URL"
   );
   assert(
     bundled!.profile.logo === TEXAS_SOLAR_LOGO_URL,
-    "bundled texassolar demo must expose the same logo"
+    "bundled texassolar demo must expose the same favicon"
   );
   assert(
-    !texasSolarProfessionalTestProfile.logo.includes("cropped-web-app-manifest"),
-    "must not use the favicon 'T' icon as the chat logo"
+    !texasSolarProfessionalTestProfile.logo.includes("/2025/06/2-3-1.png"),
+    "must not use the wide white wordmark as the chat avatar"
   );
-  console.log("PASS — Texas Solar test profile stores genuine logo URL");
+  console.log("PASS — Texas Solar test profile stores favicon/site-icon URL");
 }
 
 function main() {

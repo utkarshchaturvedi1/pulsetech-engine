@@ -7,6 +7,8 @@ import {
   ASK_PREFERRED_DAY_TIME,
   PREFERRED_TIME_TEAM_ALERT_ACK,
 } from "./schedulingPolicy";
+import { isVoiceDemoPublicNumber } from "./voiceDemoNumbers";
+import { lookupVoiceDemoCallBinding } from "./voiceDemoSession";
 
 export type InboundVoiceFallbackReason =
   | "missing_called_number"
@@ -42,6 +44,9 @@ export type InboundVoiceDynamicVariables = {
   phone_number: string;
   tagline: string;
   website: string;
+  /** Prospect voice-demo session only; never used for paying-client live numbers. */
+  voice_demo_session_id?: string;
+  voice_demo?: boolean;
 };
 
 export type ConversationInitiationResponse = {
@@ -111,6 +116,8 @@ export function emptyDynamicVariables(): InboundVoiceDynamicVariables {
     phone_number: "",
     tagline: "",
     website: "",
+    voice_demo_session_id: "",
+    voice_demo: false,
   };
 }
 
@@ -301,6 +308,17 @@ export async function resolveInboundVoice(
     };
   }
 
+  // Shared public demo numbers are never permanently assigned to one business.
+  // They require an access-code binding (Twilio Gather → session) before identity.
+  if (isVoiceDemoPublicNumber(calledNumber)) {
+    return {
+      ok: false,
+      calledNumber,
+      demoId: "",
+      reason: "unknown_number",
+    };
+  }
+
   const demoId = lookupDemoIdForCalledNumber(calledNumber);
   if (!demoId) {
     return {
@@ -331,6 +349,53 @@ export async function resolveInboundVoice(
   }
 
   return { ok: true, calledNumber, demoId, demo };
+}
+
+/**
+ * Resolve initiation for a validated voice-demo CallSid binding.
+ * Does not mutate any global ElevenLabs agent — returns per-call overrides only.
+ */
+export async function resolveVoiceDemoBoundCall(params: {
+  callSid?: string;
+  calledNumberRaw?: string;
+  demoIdHint?: string;
+}): Promise<InboundVoiceResolution> {
+  const calledNumber = normalizePhoneNumber(params.calledNumberRaw || "");
+  const binding = params.callSid
+    ? await lookupVoiceDemoCallBinding(params.callSid)
+    : null;
+
+  const demoId = (binding?.demoId || params.demoIdHint || "").trim().toLowerCase();
+  if (!demoId) {
+    return {
+      ok: false,
+      calledNumber,
+      demoId: "",
+      reason: "unknown_number",
+    };
+  }
+
+  // Isolation: never allow a binding/hint to load a different business than requested.
+  if (params.demoIdHint && params.demoIdHint.trim().toLowerCase() !== demoId) {
+    return {
+      ok: false,
+      calledNumber,
+      demoId: "",
+      reason: "invalid_profile",
+    };
+  }
+
+  const demo = await loadSharedProfile(demoId);
+  if (!demo?.profile?.businessName) {
+    return {
+      ok: false,
+      calledNumber,
+      demoId,
+      reason: "profile_not_found",
+    };
+  }
+
+  return { ok: true, calledNumber, demoId: demo.id, demo };
 }
 
 export function logInboundVoiceResolution(resolution: InboundVoiceResolution) {

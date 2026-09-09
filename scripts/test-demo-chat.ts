@@ -74,6 +74,16 @@ function testLayoutConstraints() {
   assert(DEMO_CHAT_LAYOUT.panelHeightPx === 560, "panel height constant");
   assert(DEMO_CHAT_LAYOUT.customerPanelWidthPx === 420, "customer width constant");
 
+  const workspace = readSrc("src/components/DemoWorkspace.tsx");
+  assert(
+    workspace.includes("VoiceDemoCard"),
+    "personalized demo page must include voice demo card"
+  );
+  assert(
+    workspace.includes("pt-voice-demo-wrap"),
+    "voice demo card must sit outside the two chat panels"
+  );
+
   const layout = readSrc("src/app/demo/layout.tsx");
   assert(
     layout.includes('import "./demo-workspace.css"'),
@@ -167,7 +177,6 @@ function testLayoutConstraints() {
   assert(css.includes("overflow-wrap: anywhere"), "long messages wrap anywhere");
   assert(css.includes("min-width: 0"), "parents shrink instead of overflowing");
 
-  const workspace = readSrc("src/components/DemoWorkspace.tsx");
   assert(!workspace.includes("lg:h-screen"), "must not lock nested full-screen scroll");
   assert(!workspace.includes("-inset-4"), "glow inset must not overflow the page");
   assert(workspace.includes("data-demo-owner-panel"), "owner panel marker");

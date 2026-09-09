@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import PulseTechEngineChat from "./PulseTechEngineChat";
 import CustomerAI from "./CustomerAI";
+import VoiceDemoCard from "./VoiceDemoCard";
 import { BusinessProfile } from "../types/business";
 import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
 import { DEMO_CHAT_LAYOUT } from "../lib/demoChatLayout";
@@ -159,6 +160,10 @@ export default function DemoWorkspace({
                 </div>
               </div>
             </section>
+          </div>
+
+          <div className="pt-voice-demo-wrap">
+            <VoiceDemoCard demoId={resolvedDemoId} />
           </div>
         </div>
       </div>

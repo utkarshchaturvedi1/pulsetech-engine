@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:inbound-voice": "npx --yes tsx scripts/test-inbound-voice.ts",
     "test:owner-profile-update": "npx --yes tsx scripts/test-owner-profile-update.ts",
-    "test:demo-chat": "npx --yes tsx scripts/test-demo-chat.ts"
+    "test:demo-chat": "npx --yes tsx scripts/test-demo-chat.ts",
+    "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",

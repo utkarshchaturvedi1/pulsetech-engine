@@ -1,242 +1,551 @@
-import type { ReactNode } from "react";
+"use client";
 
-export function ChatMark() {
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+
+export const LANDING_SAMPLE_VIDEO_SRC: string | null = null;
+export const LANDING_SAMPLE_VIDEO_POSTER: string | undefined = undefined;
+
+export function Reveal({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      el.classList.add("is-inview");
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add("is-inview");
+          io.disconnect();
+        }
+      },
+      { threshold: 0.14, rootMargin: "0px 0px -8% 0px" }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   return (
-    <svg viewBox="0 0 64 64" className="h-12 w-12" aria-hidden>
-      <rect x="6" y="10" width="52" height="34" rx="10" fill="#eff6ff" stroke="#93c5fd" strokeWidth="1.6" />
-      <path d="M18 52 24 44h16" stroke="#60a5fa" strokeWidth="1.8" strokeLinejoin="round" fill="none" />
-      <path d="M18 22h28M18 30h18" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" />
-    </svg>
+    <div
+      ref={ref}
+      className={`pt-reveal ${className}`.trim()}
+      style={delay ? ({ "--pt-reveal-delay": `${delay}ms` } as CSSProperties) : undefined}
+    >
+      {children}
+    </div>
   );
 }
 
-export function PhoneIllustration() {
+export function HeroLeadVisual({ children }: { children: ReactNode }) {
   return (
-    <svg viewBox="0 0 220 160" className="h-auto w-full" aria-hidden>
-      <defs>
-        <linearGradient id="ptPhoneGlow" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#93c5fd" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#c4b5fd" stopOpacity="0.7" />
-        </linearGradient>
-      </defs>
-      <circle cx="110" cy="80" r="54" fill="url(#ptPhoneGlow)" opacity="0.28" />
-      <circle cx="110" cy="80" r="40" fill="none" stroke="#93c5fd" strokeWidth="1.4" opacity="0.7" />
-      <circle cx="110" cy="80" r="28" fill="none" stroke="#c4b5fd" strokeWidth="1.2" opacity="0.55" />
-      <rect x="86" y="28" width="48" height="104" rx="12" fill="#0f172a" />
-      <rect x="91" y="36" width="38" height="78" rx="6" fill="#e0f2fe" />
-      <circle cx="110" cy="122" r="4" fill="#93c5fd" />
-      <path d="M146 52c10 8 10 48 0 56" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M158 42c16 14 16 62 0 76" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" opacity="0.7" />
-      <circle cx="158" cy="38" r="11" fill="#2563eb" />
-      <path d="M154 38h8M158 34v8" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function LeadMark() {
-  return (
-    <svg viewBox="0 0 64 64" className="h-12 w-12" aria-hidden>
-      <rect x="12" y="8" width="40" height="48" rx="8" fill="#eef2ff" stroke="#c4b5fd" strokeWidth="1.6" />
-      <path d="M22 22h20M22 32h20M22 42h12" stroke="#4f46e5" strokeWidth="2.2" strokeLinecap="round" />
-      <circle cx="46" cy="46" r="10" fill="#2563eb" />
-      <path d="M42 46.2 45 49l6-7" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function WelcomeIcon() {
-  return (
-    <svg viewBox="0 0 40 40" className="h-10 w-10" aria-hidden>
-      <rect width="40" height="40" rx="12" fill="#eff6ff" />
-      <path d="M10 26c4-8 16-8 20 0" fill="none" stroke="#2563eb" strokeWidth="2" />
-      <circle cx="20" cy="16" r="5" fill="#93c5fd" stroke="#2563eb" strokeWidth="1.5" />
-    </svg>
-  );
-}
-
-export function AreaIcon() {
-  return (
-    <svg viewBox="0 0 40 40" className="h-10 w-10" aria-hidden>
-      <rect width="40" height="40" rx="12" fill="#eef2ff" />
-      <path d="M20 10c6 0 10 5 10 11 0 8-10 15-10 15S10 29 10 21c0-6 4-11 10-11Z" fill="#c4b5fd" />
-      <circle cx="20" cy="20" r="3.4" fill="#fff" />
-    </svg>
-  );
-}
-
-export function HoursIcon() {
-  return (
-    <svg viewBox="0 0 40 40" className="h-10 w-10" aria-hidden>
-      <rect width="40" height="40" rx="12" fill="#ecfeff" />
-      <circle cx="20" cy="20" r="10" fill="#fff" stroke="#0891b2" strokeWidth="1.8" />
-      <path d="M20 14v7l5 3" fill="none" stroke="#0e7490" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function RulesIcon() {
-  return (
-    <svg viewBox="0 0 40 40" className="h-10 w-10" aria-hidden>
-      <rect width="40" height="40" rx="12" fill="#f5f3ff" />
-      <rect x="11" y="12" width="18" height="16" rx="3" fill="#fff" stroke="#7c3aed" strokeWidth="1.6" />
-      <path d="M15 18h10M15 23h7" stroke="#6d28d9" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-export function CustomerIcon() {
-  return (
-    <svg viewBox="0 0 40 40" className="h-10 w-10" aria-hidden>
-      <rect width="40" height="40" rx="12" fill="#eff6ff" />
-      <circle cx="15" cy="18" r="4" fill="#93c5fd" />
-      <circle cx="25" cy="18" r="4" fill="#c4b5fd" />
-      <path d="M9 28c2-4 6-6 11-6s9 2 11 6" fill="none" stroke="#2563eb" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-export function ToneIcon() {
-  return (
-    <svg viewBox="0 0 40 40" className="h-10 w-10" aria-hidden>
-      <rect width="40" height="40" rx="12" fill="#e0e7ff" />
-      <path d="M12 24c2-8 14-8 16 0" fill="none" stroke="#4338ca" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="16" cy="16" r="1.6" fill="#4338ca" />
-      <circle cx="24" cy="16" r="1.6" fill="#4338ca" />
-    </svg>
-  );
-}
-
-const JOURNEY = [
-  { title: "Visitor inquiry", caption: "Website or inbound call" },
-  { title: "AI conversation", caption: "Answers immediately" },
-  { title: "Lead secured", caption: "Name, phone, address, need" },
-  { title: "Email/SMS alert", caption: "Internal team notice" },
-  { title: "Business follows up", caption: "While interest is high" },
-];
-
-export function JourneyFlow() {
-  return (
-    <ol className="grid gap-3 sm:grid-cols-5">
-      {JOURNEY.map((step, index) => (
-        <li key={step.title} className="pt-card relative rounded-3xl p-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-violet-100 text-sm font-extrabold text-blue-700">
-            {String(index + 1).padStart(2, "0")}
-          </div>
-          <p className="mt-4 text-sm font-semibold text-slate-900">{step.title}</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{step.caption}</p>
-          {index < JOURNEY.length - 1 ? (
-            <span className="absolute -right-2 top-10 hidden h-0.5 w-4 bg-gradient-to-r from-blue-400 to-violet-300 sm:block" />
-          ) : null}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-export function EmailAlertCard() {
-  return (
-    <article className="pt-card overflow-hidden rounded-3xl">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-sky-50 to-white px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-              <rect x="3.2" y="5.2" width="17.6" height="13.6" rx="2" stroke="currentColor" strokeWidth="1.6" />
-              <path d="m5 7.5 7 6 7-6" stroke="currentColor" strokeWidth="1.6" />
-            </svg>
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Email alert</p>
-            <p className="text-[11px] text-slate-500">Internal · dispatch</p>
-          </div>
+    <div className="pt-hero-stage">
+      <div className="pt-hero-aurora" aria-hidden />
+      <div className="pt-hero-grid-lines" aria-hidden />
+      <svg className="pt-hero-trails" viewBox="0 0 640 720" aria-hidden>
+        <defs>
+          <linearGradient id="ptTrail" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#7146E8" />
+            <stop offset="45%" stopColor="#2F63F5" />
+            <stop offset="100%" stopColor="#20D8F3" />
+          </linearGradient>
+        </defs>
+        <path
+          className="pt-trail-path"
+          d="M90 86 C 180 86, 210 160, 320 210 C 430 260, 470 320, 540 132"
+          fill="none"
+          stroke="url(#ptTrail)"
+          strokeWidth="1.6"
+        />
+        <path
+          className="pt-trail-path pt-trail-path-delay"
+          d="M90 620 C 200 560, 250 480, 320 430 C 410 370, 500 430, 540 610"
+          fill="none"
+          stroke="url(#ptTrail)"
+          strokeWidth="1.6"
+        />
+      </svg>
+      <article className="pt-flow-chip pt-flow-chip-inquiry">
+        <span className="pt-chip-dot pt-chip-dot-aqua" />
+        <div>
+          <p className="pt-chip-kicker">Customer inquiry</p>
+          <p className="pt-chip-title">Same-day AC repair</p>
+          <p className="pt-chip-meta">Website chat · Austin, TX</p>
         </div>
-        <span className="text-[11px] font-semibold text-blue-600">Now</span>
-      </div>
-      <div className="px-4 py-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Subject</p>
-        <p className="mt-1 text-sm font-semibold text-slate-900">New lead secured — Jordan Blake</p>
-        <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-600">
-          (512) 555-0147 · 8914 Willow Creek Ln, Austin, TX · same-day AC repair.
-        </p>
-      </div>
-    </article>
-  );
-}
+      </article>
 
-export function SmsAlertCard() {
-  return (
-    <article className="pt-card overflow-hidden rounded-3xl">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-violet-50 to-white px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-600 text-white">
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-              <path
-                d="M4.5 6.2h15A1.8 1.8 0 0 1 21.3 8v7.2a1.8 1.8 0 0 1-1.8 1.8H9L4.5 20.2V8a1.8 1.8 0 0 1 1.8-1.8Z"
-                stroke="currentColor"
-                strokeWidth="1.6"
-              />
-            </svg>
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">SMS alert</p>
-            <p className="text-[11px] text-slate-500">Internal · on-call manager</p>
-          </div>
+      <article className="pt-flow-chip pt-flow-chip-lead">
+        <span className="pt-chip-dot pt-chip-dot-gold" />
+        <div>
+          <p className="pt-chip-kicker">Secured lead</p>
+          <p className="pt-chip-title">Jordan Blake</p>
+          <p className="pt-chip-meta">(512) 555-0147 · 8914 Willow Creek Ln</p>
         </div>
-        <span className="text-[11px] font-semibold text-violet-600">Now</span>
-      </div>
-      <div className="px-4 py-4">
-        <div className="ml-auto max-w-[92%] rounded-2xl rounded-br-md bg-violet-600 px-3 py-2.5 text-sm leading-6 text-white">
-          PulseTech: lead ready. Jordan Blake asked for same-day AC repair in Austin.
+      </article>
+
+      <article className="pt-flow-chip pt-flow-chip-alert">
+        <span className="pt-chip-dot pt-chip-dot-coral" />
+        <div>
+          <p className="pt-chip-kicker">Business alert</p>
+          <p className="pt-chip-title">Sent to your team now</p>
+          <p className="pt-chip-meta">Email + SMS · internal only</p>
         </div>
-        <p className="mt-3 text-[11px] text-slate-500">Sent to your team — not to the customer.</p>
-      </div>
-    </article>
-  );
-}
+      </article>
 
-const TEST_STEPS = [
-  { title: "Test", copy: "Talk through real visitor questions." },
-  { title: "Adjust", copy: "Change rules, tone, and lead flow." },
-  { title: "Approve", copy: "Confirm the experience feels like your team." },
-  { title: "Go live", copy: "Put it on your website when ready." },
-];
-
-export function TestingWorkflow() {
-  return (
-    <div className="pt-card relative overflow-hidden rounded-[28px] p-5 sm:p-7">
-      <div
-        className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-sky-200/50 blur-2xl"
-        aria-hidden
-      />
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">Before go-live</p>
-      <div className="relative mt-5 grid gap-3 sm:grid-cols-4">
-        {TEST_STEPS.map((step, index) => (
-          <div key={step.title} className="relative rounded-2xl border border-slate-100 bg-white p-4">
-            <span className="text-xs font-extrabold text-blue-600">{String(index + 1).padStart(2, "0")}</span>
-            <p className="mt-2 text-sm font-semibold text-slate-900">{step.title}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{step.copy}</p>
-          </div>
-        ))}
+      <div className="pt-hero-chat-slot">
+        <p className="pt-hero-slot-label">AI Sales Employee</p>
+        {children}
       </div>
     </div>
   );
 }
 
-export function FloatingOpsCard({
-  kicker,
-  title,
-  children,
-  className = "",
-}: {
-  kicker: string;
-  title: string;
-  children: ReactNode;
-  className?: string;
-}) {
+export function ProblemContrast() {
   return (
-    <div className={`pt-card rounded-2xl p-3 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.45)] ${className}`.trim()}>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-600">{kicker}</p>
-      <p className="mt-0.5 text-sm font-semibold text-slate-900">{title}</p>
-      <div className="mt-2 text-xs leading-5 text-slate-600">{children}</div>
+    <div className="pt-problem-grid">
+      <Reveal>
+        <article className="pt-problem-card pt-problem-lost">
+          <div className="pt-problem-label">Without a fast response</div>
+          <h3>A ready customer reaches out. Nobody answers in time.</h3>
+          <ol className="pt-problem-steps">
+            <li>Visitor or caller asks for service while they are ready to hire.</li>
+            <li>The message sits, or the call goes unanswered.</li>
+            <li>They contact the next company that picks up.</li>
+          </ol>
+          <p className="pt-problem-result pt-problem-result-lost">Opportunity lost</p>
+        </article>
+      </Reveal>
+      <Reveal delay={90}>
+        <article className="pt-problem-card pt-problem-won">
+          <div className="pt-problem-label">With PulseTech</div>
+          <h3>The AI Sales Employee responds while interest is still high.</h3>
+          <ol className="pt-problem-steps">
+            <li>Website chat or inbound call is answered immediately.</li>
+            <li>Name, phone, service address, and request are captured in the conversation.</li>
+            <li>Your team gets an immediate internal alert and can follow up.</li>
+          </ol>
+          <p className="pt-problem-result pt-problem-result-won">Lead ready for your team</p>
+        </article>
+      </Reveal>
+    </div>
+  );
+}
+
+function ChatMock() {
+  return (
+    <div className="pt-device pt-device-chat">
+      <div className="pt-device-bar">
+        <span className="pt-device-pips" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+        <p>Website chat</p>
+      </div>
+      <div className="pt-device-body">
+        <div className="pt-bubble pt-bubble-in">
+          Can you send someone for AC repair today? 8914 Willow Creek Ln.
+        </div>
+        <div className="pt-bubble pt-bubble-out">
+          I can help with that. What’s the best number to reach you, and your name?
+        </div>
+        <div className="pt-bubble pt-bubble-in">
+          Jordan Blake, (512) 555-0147. Late afternoon if possible.
+        </div>
+        <div className="pt-bubble pt-bubble-out">
+          Thanks, Jordan. I’ve captured your name, phone, address, and request. I’ll note late afternoon as your preferred time — the team confirms availability.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VoiceMock() {
+  return (
+    <div className="pt-device pt-device-voice">
+      <div className="pt-device-bar">
+        <span className="pt-live-dot" />
+        <p>Inbound call</p>
+        <span>0:42</span>
+      </div>
+      <div className="pt-device-voice-hero">
+        <div className="pt-voice-avatar">
+          <img src="/branding/pulsetech-icon-white.png" alt="" />
+        </div>
+        <div className="pt-wave" aria-hidden>
+          {Array.from({ length: 18 }, (_, i) => (
+            <span key={i} style={{ "--pt-wave-i": i } as CSSProperties} />
+          ))}
+        </div>
+      </div>
+      <div className="pt-device-body">
+        <p className="pt-voice-line">
+          “Hi, this is the AI Sales Employee for Apex Heating. I can take the details and have the team follow up.”
+        </p>
+        <ul className="pt-capture-list">
+          <li>Name and phone</li>
+          <li>Service address</li>
+          <li>Customer request</li>
+          <li>Preferred visit time</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+export function DualExperience() {
+  return (
+    <div className="pt-dual">
+      <Reveal className="pt-dual-card">
+        <div className="pt-dual-copy">
+          <p className="pt-kicker">Website chat</p>
+          <h3>Answers the visitor who is already on your site.</h3>
+          <p>
+            The AI Sales Employee handles the conversation in the moment, then captures the same
+            lead details your team needs to follow up.
+          </p>
+        </div>
+        <ChatMock />
+      </Reveal>
+      <Reveal className="pt-dual-card" delay={80}>
+        <div className="pt-dual-copy">
+          <p className="pt-kicker">Inbound phone</p>
+          <h3>Answers the caller when your line would otherwise wait.</h3>
+          <p>
+            One product, two customer experiences. Chat and voice collect the same important
+            information — and the business confirms availability.
+          </p>
+        </div>
+        <VoiceMock />
+      </Reveal>
+      <Reveal className="pt-dual-note" delay={120}>
+        <p>
+          Both conversations capture name, phone number, service address, and the customer request.
+          The AI can also capture a preferred visit time. Your team confirms whether that time is
+          available.
+        </p>
+      </Reveal>
+    </div>
+  );
+}
+
+const JOURNEY = [
+  {
+    title: "Visitor or caller",
+    copy: "A customer reaches out on your website or inbound line.",
+  },
+  {
+    title: "Immediate response",
+    copy: "The AI Sales Employee answers while they are still interested.",
+  },
+  {
+    title: "Details captured",
+    copy: "Name, phone, service address, and request — secured in the conversation.",
+  },
+  {
+    title: "Business alert",
+    copy: "Your team is notified immediately, on the contacts you choose.",
+  },
+  {
+    title: "Team follows up",
+    copy: "You call back with the context needed to continue the job.",
+  },
+];
+
+export function HowItWorksJourney() {
+  return (
+    <Reveal className="pt-journey">
+      <div className="pt-journey-rail" aria-hidden>
+        <span className="pt-journey-line" />
+        <span className="pt-journey-pulse" />
+      </div>
+      <ol className="pt-journey-track">
+        {JOURNEY.map((step, index) => (
+          <li key={step.title} className="pt-journey-step">
+            <span className="pt-journey-index">{String(index + 1).padStart(2, "0")}</span>
+            <h3>{step.title}</h3>
+            <p>{step.copy}</p>
+          </li>
+        ))}
+      </ol>
+    </Reveal>
+  );
+}
+
+function MiniField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="pt-mini-field">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+const CONTROL_CARDS = [
+  {
+    title: "Business name and welcome message",
+    copy: "How the AI Sales Employee introduces your company at the start of a conversation.",
+    preview: (
+      <>
+        <MiniField label="Business" value="Apex Heating & Air" />
+        <MiniField label="Welcome" value="Thanks for reaching Apex. How can we help today?" />
+      </>
+    ),
+  },
+  {
+    title: "Services offered",
+    copy: "Conversations stay inside the work you actually do.",
+    preview: (
+      <>
+        <MiniField label="Services" value="AC repair · Maintenance · Installs" />
+        <MiniField label="Out of scope" value="Redirected, not invented" />
+      </>
+    ),
+  },
+  {
+    title: "Service areas",
+    copy: "Leads are qualified against the places you serve.",
+    preview: (
+      <>
+        <MiniField label="Areas" value="Austin · Round Rock · Cedar Park" />
+        <MiniField label="Outside area" value="Captured, then flagged for the team" />
+      </>
+    ),
+  },
+  {
+    title: "Business information and FAQs",
+    copy: "Hours, policies, and common questions stay consistent across chat and phone.",
+    preview: (
+      <>
+        <MiniField label="Hours" value="Mon–Sat, 7am–7pm" />
+        <MiniField label="FAQ" value="After-hours calls are still answered" />
+      </>
+    ),
+  },
+  {
+    title: "Conversation tone",
+    copy: "Professional, direct, or warm — trained to sound like your company.",
+    preview: (
+      <>
+        <MiniField label="Tone" value="Clear, calm, no-pressure" />
+        <MiniField label="Style" value="Home-service, not a script dump" />
+      </>
+    ),
+  },
+  {
+    title: "Pricing and fee rules",
+    copy: "Share only the pricing and fee guidance you approve — never invented rates.",
+    preview: (
+      <>
+        <MiniField label="Fees" value="Use your stated visit / diagnostic rules" />
+        <MiniField label="Quotes" value="Team confirms job pricing" />
+      </>
+    ),
+  },
+  {
+    title: "Lead-alert email and phone contacts",
+    copy: "New-lead alerts go to the people on your team who can respond.",
+    preview: (
+      <>
+        <MiniField label="Email" value="dispatch@yourcompany.com" />
+        <MiniField label="SMS" value="On-call manager number" />
+      </>
+    ),
+  },
+];
+
+export function ControlGrid() {
+  return (
+    <div className="pt-control-grid">
+      {CONTROL_CARDS.map((card, index) => (
+        <Reveal key={card.title} delay={index * 45}>
+          <article className="pt-ui-card">
+            <div className="pt-ui-card-head">
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <h3>{card.title}</h3>
+            </div>
+            <p className="pt-ui-card-copy">{card.copy}</p>
+            <div className="pt-ui-card-preview">{card.preview}</div>
+          </article>
+        </Reveal>
+      ))}
+    </div>
+  );
+}
+
+export function VideoPreview() {
+  if (LANDING_SAMPLE_VIDEO_SRC) {
+    return (
+      <div className="pt-video-frame">
+        <video
+          className="pt-video"
+          controls
+          playsInline
+          preload="metadata"
+          poster={LANDING_SAMPLE_VIDEO_POSTER}
+        >
+          <source src={LANDING_SAMPLE_VIDEO_SRC} type="video/mp4" />
+        </video>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="pt-video-frame pt-video-preview"
+      role="img"
+      aria-label="Watch a sample customer conversation. This is a preview frame until a video is added."
+    >
+      <div className="pt-video-glow" aria-hidden />
+      <div className="pt-video-scene" aria-hidden>
+        <div className="pt-video-scene-chat">
+          <span>Need AC repair today at 8914 Willow Creek.</span>
+          <span>I can help — what’s the best number to reach you?</span>
+          <span>Jordan Blake · (512) 555-0147</span>
+        </div>
+        <div className="pt-video-scene-phone">
+          <strong>Inbound call</strong>
+          <p>Lead alert sent to dispatch</p>
+        </div>
+      </div>
+      <div className="pt-video-overlay">
+        <span className="pt-play" aria-hidden>
+          <svg viewBox="0 0 24 24">
+            <path d="M8.4 5.6v12.8L19 12 8.4 5.6Z" />
+          </svg>
+        </span>
+        <p>Watch a sample customer conversation</p>
+        <span className="pt-video-caption">Preview · sample walkthrough coming soon</span>
+      </div>
+    </div>
+  );
+}
+
+const INDUSTRIES = [
+  {
+    name: "HVAC",
+    copy: "Repair, maintenance, and install inquiries answered as they come in.",
+    icon: (
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <rect x="10" y="18" width="44" height="28" rx="6" fill="#111633" stroke="#20D8F3" strokeWidth="1.6" />
+        <circle cx="32" cy="32" r="8" fill="none" stroke="#7146E8" strokeWidth="1.8" />
+        <path d="M32 20v4M32 40v4M20 32h4M40 32h4" stroke="#FFBD59" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    name: "Plumbing",
+    copy: "Emergency and scheduled work captured before the next plumber is called.",
+    icon: (
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <path d="M18 14h12v10H18z" fill="#111633" stroke="#2F63F5" strokeWidth="1.6" />
+        <path d="M24 24v8c0 8 16 8 16 0V22" fill="none" stroke="#16C7B7" strokeWidth="2.2" strokeLinecap="round" />
+        <circle cx="40" cy="20" r="5" fill="#7146E8" />
+      </svg>
+    ),
+  },
+  {
+    name: "Electrical",
+    copy: "Panel, wiring, and outage requests handled while the caller is still on the line.",
+    icon: (
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <rect x="18" y="12" width="28" height="40" rx="4" fill="#111633" stroke="#7146E8" strokeWidth="1.6" />
+        <path d="M34 20 26 34h8l-4 12 14-18h-8l6-8Z" fill="#FFBD59" />
+      </svg>
+    ),
+  },
+  {
+    name: "Roofing",
+    copy: "Storm damage and replacement leads collected with address and request intact.",
+    icon: (
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <path d="M10 30 32 12l22 18" fill="none" stroke="#2F63F5" strokeWidth="2.2" strokeLinejoin="round" />
+        <path d="M16 28v24h32V28" fill="#111633" stroke="#16C7B7" strokeWidth="1.6" />
+        <rect x="28" y="36" width="8" height="16" fill="#7146E8" />
+      </svg>
+    ),
+  },
+  {
+    name: "Solar",
+    copy: "Site-visit interest captured with the details your estimators need.",
+    icon: (
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <circle cx="20" cy="20" r="7" fill="#FFBD59" />
+        <rect x="24" y="28" width="28" height="20" rx="3" transform="rotate(-18 38 38)" fill="#111633" stroke="#20D8F3" strokeWidth="1.6" />
+        <path d="M30 30l22 8M28 38l22 8M36 26l8 22" stroke="#7146E8" strokeWidth="1.2" />
+      </svg>
+    ),
+  },
+  {
+    name: "Landscaping",
+    copy: "Design, maintenance, and seasonal work inquiries answered immediately.",
+    icon: (
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <path d="M32 50V28" stroke="#16C7B7" strokeWidth="2.2" strokeLinecap="round" />
+        <path d="M32 34c-10-2-16-12-14-20 10 2 16 12 14 20Z" fill="#111633" stroke="#2F63F5" strokeWidth="1.5" />
+        <path d="M32 30c10-2 16-12 14-20-10 2-16 12-14 20Z" fill="#111633" stroke="#7146E8" strokeWidth="1.5" />
+      </svg>
+    ),
+  },
+  {
+    name: "Pest Control",
+    copy: "Inspection and treatment requests secured before the homeowner moves on.",
+    icon: (
+      <svg viewBox="0 0 64 64" aria-hidden>
+        <path d="M32 12 48 20v14c0 12-10 20-16 22-6-2-16-10-16-22V20Z" fill="#111633" stroke="#16C7B7" strokeWidth="1.6" />
+        <path d="M24 34h16M32 26v16" stroke="#FFBD59" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
+
+export function IndustriesGrid() {
+  return (
+    <div className="pt-industry-grid">
+      {INDUSTRIES.map((item, index) => (
+        <Reveal key={item.name} delay={index * 40}>
+          <article className="pt-industry-card">
+            <div className="pt-industry-icon">{item.icon}</div>
+            <h3>{item.name}</h3>
+            <p>{item.copy}</p>
+          </article>
+        </Reveal>
+      ))}
+    </div>
+  );
+}
+
+export function TestStoryVisual() {
+  return (
+    <div className="pt-test-story" aria-hidden>
+      <div className="pt-test-orb pt-test-orb-a" />
+      <div className="pt-test-orb pt-test-orb-b" />
+      <div className="pt-test-orb pt-test-orb-c" />
+      <div className="pt-test-path">
+        <span>Your website</span>
+        <span>Personalized chat</span>
+        <span>Voice experience</span>
+        <span>Go live when ready</span>
+      </div>
     </div>
   );
 }

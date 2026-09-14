@@ -333,14 +333,17 @@ body:has(.pt-demo) {
 }
 
 .pt-voice-demo-wrap {
+  display: block;
   width: 100%;
-  max-width: 80rem;
+  max-width: 1120px;
+  min-width: 0;
   margin: 0 auto;
-  padding: 0 1rem 1.5rem;
+  padding: 0.25rem 1rem 2.25rem;
 }
 
 @media (min-width: 1024px) {
   .pt-voice-demo-wrap {
+    max-width: 80rem;
     padding: 0 1.5rem 2rem;
   }
 }
@@ -348,14 +351,23 @@ body:has(.pt-demo) {
 .pt-voice-demo {
   border-radius: 26px;
   border: 1px solid rgba(148, 163, 184, 0.22);
-  background: linear-gradient(180deg, #ffffff 0%, #f4fafc 100%);
+  background: #ffffff;
   box-shadow: 0 24px 50px -36px rgba(2, 48, 71, 0.35);
+}
+
+/* On the dark demo canvas, keep the phone-test card clearly separate. */
+.pt-demo .pt-voice-demo {
+  border: 1px solid rgba(32, 158, 187, 0.55);
+  box-shadow:
+    0 18px 36px -14px rgba(2, 48, 71, 0.55),
+    0 0 0 1px rgba(11, 114, 133, 0.28);
 }
 
 .pt-voice-demo-inner {
   display: grid;
   gap: 1.25rem;
   padding: 1.25rem 1.35rem 1.4rem;
+  min-width: 0;
 }
 
 @media (min-width: 900px) {
@@ -365,6 +377,28 @@ body:has(.pt-demo) {
     gap: 1.75rem;
     padding: 1.5rem 1.75rem;
   }
+}
+
+.pt-voice-demo-kicker-mobile,
+.pt-voice-demo-support-mobile {
+  display: block;
+}
+
+.pt-voice-demo-kicker-desktop,
+.pt-voice-demo-title-desktop {
+  display: none;
+}
+
+.pt-voice-demo-kicker-mobile {
+  margin: 0;
+  color: #0b7285;
+}
+
+.pt-voice-demo-support-mobile {
+  margin: 0.55rem 0 0;
+  color: rgba(2, 48, 71, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.55;
 }
 
 .pt-voice-demo-title {
@@ -382,6 +416,46 @@ body:has(.pt-demo) {
   font-size: 0.95rem;
   line-height: 1.55;
   color: #475569;
+}
+
+@media (max-width: 1023.98px) {
+  .pt-demo .pt-voice-demo-disclaimer {
+    margin-top: 0.55rem;
+    font-size: 0.85rem;
+  }
+
+  .pt-demo .pt-voice-demo-phone {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #023047;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .pt-demo .pt-voice-demo-code {
+    font-size: 1.65rem;
+  }
+
+  .pt-demo .pt-voice-demo-controls {
+    min-width: 0;
+  }
+
+  .pt-demo .pt-voice-demo-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pt-voice-demo-kicker-mobile,
+  .pt-voice-demo-support-mobile {
+    display: none;
+  }
+
+  .pt-voice-demo-kicker-desktop,
+  .pt-voice-demo-title-desktop {
+    display: block;
+  }
 }
 
 .pt-voice-demo-controls {

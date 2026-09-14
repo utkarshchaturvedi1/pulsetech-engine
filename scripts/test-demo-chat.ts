@@ -86,6 +86,12 @@ function testLayoutConstraints() {
     workspace.includes("pt-voice-demo-wrap"),
     "voice demo card must sit outside the two chat panels"
   );
+  const wrapIndex = workspace.indexOf("pt-voice-demo-wrap");
+  const customerIndex = workspace.indexOf("data-demo-customer-panel");
+  assert(
+    customerIndex >= 0 && wrapIndex > customerIndex,
+    "voice demo wrap must render after the customer chat panel"
+  );
 
   const layout = readSrc("src/app/demo/layout.tsx");
   assert(
@@ -223,6 +229,14 @@ function testLayoutConstraints() {
   );
   assert(html.includes("Skip to customer test"), "mobile customer-test shortcut");
   assert(html.includes('id="customer-experience"'), "customer panel has a stable skip target");
+  assert(html.includes("data-voice-demo-card"), "rendered voice demo card");
+  assert(html.includes("3 · Test by phone"), "mobile phone-test step label");
+  assert(
+    html.includes(
+      "Call this number to speak with your personalized AI Sales Employee."
+    ),
+    "mobile phone-test support line"
+  );
   assert(css.includes("color: #b45309"), "customer label uses readable burnt orange");
   assert(
     !cssHasRule(css, ".pt-demo-label-customer", /#ffb701|#fc8500/i),
@@ -231,6 +245,10 @@ function testLayoutConstraints() {
   assert(
     css.includes("overscroll-behavior: auto"),
     "mobile chat transcripts must allow outer-page overscroll"
+  );
+  assert(
+    css.includes(".pt-demo .pt-voice-demo"),
+    "voice card has demo-scoped contrast styles"
   );
 
   console.log("PASS — demo chat layout CSS + rendered markup");

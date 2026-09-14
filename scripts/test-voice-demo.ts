@@ -293,11 +293,27 @@ function testDisclaimerAndUiWiring() {
     card.includes("Test your AI Sales Employee by phone"),
     "card title present"
   );
+  assert(
+    card.includes("3 · Test by phone"),
+    "mobile phone-test step label present"
+  );
+  assert(
+    card.includes(
+      "Call this number to speak with your personalized AI Sales Employee."
+    ),
+    "mobile phone-test support line present"
+  );
   assert(card.includes("Generate a new code"), "regen action present");
   assert(workspace.includes("VoiceDemoCard"), "demo workspace mounts voice card");
   assert(
     workspace.includes("pt-voice-demo-wrap"),
     "voice card sits outside chat panels"
+  );
+  const wrapIndex = workspace.indexOf("pt-voice-demo-wrap");
+  const customerIndex = workspace.indexOf("data-demo-customer-panel");
+  assert(
+    customerIndex >= 0 && wrapIndex > customerIndex,
+    "voice card must appear after customer chat panel"
   );
 
   const comingSoonDev = shouldShowVoiceDemoComingSoon({

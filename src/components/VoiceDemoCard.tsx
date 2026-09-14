@@ -126,10 +126,16 @@ export default function VoiceDemoCard({ demoId }: VoiceDemoCardProps) {
     <section className="pt-voice-demo" data-voice-demo-card>
       <div className="pt-voice-demo-inner">
         <div className="pt-voice-demo-copy">
-          <p className="pt-kicker">Phone test</p>
-          <h2 className="pt-voice-demo-title">
+          <p className="pt-kicker pt-voice-demo-kicker-desktop">Phone test</p>
+          <p className="pt-demo-label pt-voice-demo-kicker-mobile">
+            3 · Test by phone
+          </p>
+          <h2 className="pt-voice-demo-title pt-voice-demo-title-desktop">
             Test your AI Sales Employee by phone
           </h2>
+          <p className="pt-voice-demo-support pt-voice-demo-support-mobile">
+            Call this number to speak with your personalized AI Sales Employee.
+          </p>
           <p className="pt-voice-demo-disclaimer" data-voice-demo-disclaimer>
             {disclaimer}
           </p>
@@ -154,7 +160,10 @@ export default function VoiceDemoCard({ demoId }: VoiceDemoCardProps) {
             <div className="pt-voice-demo-field">
               <span className="pt-voice-demo-label">Demo number</span>
               <div className="pt-voice-demo-row">
-                <strong data-voice-demo-phone>
+                <strong
+                  className="pt-voice-demo-phone"
+                  data-voice-demo-phone
+                >
                   {payload.phoneNumber || "—"}
                 </strong>
                 {payload.phoneNumber ? (

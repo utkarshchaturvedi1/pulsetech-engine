@@ -1,21 +1,47 @@
 /* Demo workspace layout only. Imported from src/app/demo/layout.tsx so it
    always loads on /demo/* (client-only CSS imports were dropped from this route). */
 
+.pt-landing.pt-demo,
 .pt-demo {
   --pt-navy: #023047;
   --pt-teal: #209ebb;
   --pt-sky: #8ecae6;
   --pt-gold: #ffb701;
   --pt-warm: #fcfcfa;
+  --pt-demo-canvas: linear-gradient(160deg, #023047 0%, #0b7285 58%, #145a70 100%);
   color: var(--pt-navy);
+  background: var(--pt-demo-canvas);
+}
+
+/* Route wrapper + body are otherwise white from globals/landing — paint them
+   so the navy-teal canvas fills every outer layer behind the chat cards. */
+.pt-demo-route {
+  min-height: 100%;
+  background: var(--pt-demo-canvas, linear-gradient(160deg, #023047 0%, #0b7285 58%, #145a70 100%));
+}
+
+body:has(.pt-demo) {
   background: #023047;
 }
 
+/* Landing CSS paints .pt-shell / .pt-landing warm white — override every
+   outer canvas layer so the navy-teal page shows behind the chat cards. */
+.pt-landing.pt-demo .pt-shell,
 .pt-demo .pt-shell {
   min-height: 100vh;
   background:
-    radial-gradient(640px 280px at 14% 8%, rgba(142, 202, 230, 0.14), transparent 58%),
-    linear-gradient(165deg, #023047 0%, #145a70 48%, #0b7285 100%);
+    radial-gradient(640px 280px at 12% 12%, rgba(142, 202, 230, 0.12), transparent 58%),
+    var(--pt-demo-canvas);
+}
+
+.pt-landing.pt-demo .pt-content,
+.pt-demo .pt-content {
+  background: transparent;
+}
+
+.pt-demo .pt-demo-workspace,
+.pt-demo .pt-voice-demo-wrap {
+  background: transparent;
 }
 
 .pt-demo .pt-header {

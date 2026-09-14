@@ -15,7 +15,7 @@ export default function DemoLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className={`${demoSans.variable} ${demoSans.className} min-h-full`}>
+    <div className={`${demoSans.variable} ${demoSans.className} pt-demo-route min-h-full`}>
       {children}
     </div>
   );

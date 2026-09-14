@@ -211,6 +211,27 @@ function testLayoutConstraints() {
   assert(!html.includes("max-w-none"), "customer chat must not drop max-width");
   assert(html.includes("1 · Customize"), "setup panel label");
   assert(html.includes("2 · Test as a customer"), "customer panel label");
+  assert(
+    html.includes("Guide your setup on the left. Test the customer experience on the right."),
+    "desktop instruction copy"
+  );
+  assert(
+    html.includes(
+      "Customize your AI Sales Employee below. Then test the customer experience in the next chat."
+    ),
+    "mobile instruction copy"
+  );
+  assert(html.includes("Skip to customer test"), "mobile customer-test shortcut");
+  assert(html.includes('id="customer-experience"'), "customer panel has a stable skip target");
+  assert(css.includes("color: #b45309"), "customer label uses readable burnt orange");
+  assert(
+    !cssHasRule(css, ".pt-demo-label-customer", /#ffb701|#fc8500/i),
+    "customer label must not use pale gold or light orange"
+  );
+  assert(
+    css.includes("overscroll-behavior: auto"),
+    "mobile chat transcripts must allow outer-page overscroll"
+  );
 
   console.log("PASS — demo chat layout CSS + rendered markup");
 }

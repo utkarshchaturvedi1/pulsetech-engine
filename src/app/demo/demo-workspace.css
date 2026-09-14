@@ -8,15 +8,14 @@
   --pt-gold: #ffb701;
   --pt-warm: #fcfcfa;
   color: var(--pt-navy);
-  background: var(--pt-warm);
+  background: #023047;
 }
 
 .pt-demo .pt-shell {
   min-height: 100vh;
   background:
-    radial-gradient(900px 380px at 8% -10%, rgba(142, 202, 230, 0.42), transparent 62%),
-    radial-gradient(720px 320px at 96% 8%, rgba(32, 158, 187, 0.14), transparent 58%),
-    linear-gradient(180deg, #fcfcfa 0%, #eaf5f8 42%, #d9eef4 100%);
+    radial-gradient(640px 280px at 14% 8%, rgba(142, 202, 230, 0.14), transparent 58%),
+    linear-gradient(165deg, #023047 0%, #145a70 48%, #0b7285 100%);
 }
 
 .pt-demo .pt-header {
@@ -80,9 +79,46 @@
   line-height: 1.55;
 }
 
+.pt-demo-header-lead-desktop {
+  display: none;
+}
+
+.pt-demo-skip-customer {
+  display: inline-flex;
+  align-items: center;
+  margin: 0.55rem 0 0;
+  padding: 0.4rem 0.15rem;
+  min-height: 2.5rem;
+  color: #0b7285;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.pt-demo-skip-customer:hover,
+.pt-demo-skip-customer:focus-visible {
+  color: #023047;
+}
+
 @media (min-width: 640px) {
   .pt-demo-header-lead {
     font-size: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pt-demo-header-lead-desktop {
+    display: block;
+  }
+
+  .pt-demo-header-lead-mobile {
+    display: none;
+  }
+
+  .pt-demo-skip-customer {
+    display: none;
   }
 }
 
@@ -144,15 +180,21 @@
   border: 1px solid rgba(2, 48, 71, 0.14);
   background: #ffffff;
   padding: 0.55rem;
-  box-shadow: 0 22px 44px -30px rgba(2, 48, 71, 0.45);
+  box-shadow: 0 18px 36px -14px rgba(2, 48, 71, 0.55);
 }
 
 .pt-demo-panel-owner .pt-demo-frame {
-  border-color: rgba(32, 158, 187, 0.38);
+  border-color: rgba(32, 158, 187, 0.5);
+  box-shadow:
+    0 18px 36px -14px rgba(2, 48, 71, 0.55),
+    0 0 0 1px rgba(32, 158, 187, 0.22);
 }
 
 .pt-demo-panel-customer .pt-demo-frame {
-  border-color: rgba(2, 48, 71, 0.16);
+  border-color: color-mix(in srgb, var(--pt-accent, #023047) 48%, #023047);
+  box-shadow:
+    0 18px 36px -14px rgba(2, 48, 71, 0.55),
+    0 0 0 1px color-mix(in srgb, var(--pt-accent, #023047) 28%, rgba(2, 48, 71, 0.18));
 }
 
 .pt-demo-caption {
@@ -177,7 +219,7 @@
 }
 
 .pt-demo-label-customer {
-  color: #ffb701;
+  color: #b45309;
 }
 
 .pt-demo-caption-note {
@@ -244,6 +286,13 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+@media (max-width: 1023.98px) {
+  .pt-demo .pt-demo-chat [data-chat-messages] {
+    overscroll-behavior: auto;
+    overscroll-behavior-y: auto;
+  }
 }
 
 .pt-demo-chat [data-chat-input] {

@@ -103,9 +103,24 @@ export default function DemoWorkspace({
                 <h1 className="pt-demo-header-title">
                   Meet your AI Sales Employee
                 </h1>
-                <p className="pt-demo-header-lead">
+                <p className="pt-demo-header-lead pt-demo-header-lead-desktop">
                   Guide your setup on the left. Test the customer experience on the right.
                 </p>
+                <p className="pt-demo-header-lead pt-demo-header-lead-mobile">
+                  Customize your AI Sales Employee below. Then test the customer experience in the next chat.
+                </p>
+                <a
+                  href="#customer-experience"
+                  className="pt-demo-skip-customer"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    document
+                      .getElementById("customer-experience")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                >
+                  Skip to customer test ↓
+                </a>
               </div>
             </div>
           </header>
@@ -137,6 +152,7 @@ export default function DemoWorkspace({
             </section>
 
             <section
+              id="customer-experience"
               className="pt-demo-panel pt-demo-panel-customer"
               data-demo-customer-panel
               style={

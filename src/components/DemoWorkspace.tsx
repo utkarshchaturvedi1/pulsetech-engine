@@ -16,8 +16,7 @@ type DemoWorkspaceProps = {
 
 const PETER_AVATAR =
   "https://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
-const PULSETECH_LOGO =
-  "https://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-full-4.png";
+const PULSETECH_LOGO = "/branding/pulsetech-logo-color.svg";
 
 async function persistDemo(id: string, profile: BusinessProfile) {
   saveDemoLocal({ id, profile, updatedAt: new Date().toISOString() });
@@ -89,23 +88,22 @@ export default function DemoWorkspace({
       style={
         {
           "--pt-demo-chat-height": `${DEMO_CHAT_LAYOUT.panelHeightPx}px`,
-          "--pt-demo-customer-width": `${DEMO_CHAT_LAYOUT.customerPanelWidthPx}px`,
         } as CSSProperties
       }
     >
       <div className="pt-shell">
         <div className="pt-content flex min-h-screen min-w-0 flex-col overflow-x-hidden">
           <header className="pt-header shrink-0">
-            <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-4 sm:px-8 sm:py-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="pt-demo-header-inner">
               <BrandLogo />
-              <div className="min-w-0 lg:max-w-xl lg:text-right">
+              <div className="pt-demo-header-copy min-w-0">
                 {business.businessName ? (
                   <p className="pt-kicker truncate">{business.businessName}</p>
                 ) : null}
-                <h1 className="mt-1 text-2xl font-extrabold tracking-[-0.03em] text-slate-950 sm:text-3xl">
+                <h1 className="pt-demo-header-title">
                   Meet your AI Sales Employee
                 </h1>
-                <p className="mt-1.5 text-sm leading-6 text-slate-600 sm:text-base">
+                <p className="pt-demo-header-lead">
                   Guide your setup on the left. Test the customer experience on the right.
                 </p>
               </div>
@@ -119,10 +117,8 @@ export default function DemoWorkspace({
             >
               <div className="pt-demo-frame">
                 <div className="pt-demo-caption">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
-                    Guide your setup
-                  </p>
-                  <p className="text-[11px] text-slate-500">PulseTech setup assistant</p>
+                  <p className="pt-demo-label pt-demo-label-setup">1 · Customize</p>
+                  <p className="pt-demo-caption-note">PulseTech setup assistant</p>
                 </div>
                 <div className="pt-demo-chat">
                   <PulseTechEngineChat
@@ -143,13 +139,19 @@ export default function DemoWorkspace({
             <section
               className="pt-demo-panel pt-demo-panel-customer"
               data-demo-customer-panel
+              style={
+                {
+                  "--pt-accent": business.primaryColor || "#209EBB",
+                  "--pt-accent-secondary": business.secondaryColor || "#023047",
+                } as CSSProperties
+              }
             >
               <div className="pt-demo-frame">
                 <div className="pt-demo-caption">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-600">
-                    Customer experience
+                  <p className="pt-demo-label pt-demo-label-customer">
+                    2 · Test as a customer
                   </p>
-                  <p className="text-[11px] text-slate-500">Live sales conversation</p>
+                  <p className="pt-demo-caption-note">Live sales conversation</p>
                 </div>
                 <div className="pt-demo-chat">
                   <CustomerAI

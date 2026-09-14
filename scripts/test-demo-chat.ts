@@ -72,7 +72,10 @@ function cssHasRule(css: string, selector: string, needle: RegExp) {
 
 function testLayoutConstraints() {
   assert(DEMO_CHAT_LAYOUT.panelHeightPx === 560, "panel height constant");
-  assert(DEMO_CHAT_LAYOUT.customerPanelWidthPx === 420, "customer width constant");
+  assert(
+    !("customerPanelWidthPx" in DEMO_CHAT_LAYOUT),
+    "customer panel must not be width-capped"
+  );
 
   const workspace = readSrc("src/components/DemoWorkspace.tsx");
   assert(
@@ -117,10 +120,8 @@ function testLayoutConstraints() {
     "message list must not use height:auto"
   );
   assert(
-    /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+var\(--pt-demo-customer-width,\s*420px\)/.test(
-      css
-    ),
-    "desktop grid must reserve a 420px customer column with minmax(0,1fr) owner"
+    /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/.test(css),
+    "desktop grid must be equal 50/50 columns"
   );
   assert(
     cssHasRule(css, ".pt-demo-panel", /height:\s*var\(--pt-demo-chat-height,\s*560px\)/),
@@ -135,13 +136,11 @@ function testLayoutConstraints() {
     "panel min-width 0"
   );
   assert(
-    cssHasRule(
-      css,
-      ".pt-demo-panel-customer",
-      /width:\s*var\(--pt-demo-customer-width,\s*420px\)/
-    ),
-    "desktop customer panel width 420px"
+    cssHasRule(css, ".pt-demo-panel-customer", /width:\s*100%/),
+    "customer panel fills its equal grid column"
   );
+  assert(!css.includes("--pt-demo-customer-width"), "no customer width CSS variable");
+  assert(!/max-w-\[420px\]/.test(css), "no 420px max-width on demo workspace");
   assert(
     cssHasRule(css, ".pt-demo-caption", /flex:\s*none/),
     "caption flex-none"
@@ -206,9 +205,12 @@ function testLayoutConstraints() {
   assert(html.includes("data-chat-messages"), "rendered scrollable message list");
   assert(html.includes("data-chat-input"), "rendered input row");
   assert(html.includes("--pt-demo-chat-height"), "rendered 560px height var");
-  assert(html.includes("--pt-demo-customer-width"), "rendered 420px width var");
-  assert(/560px/.test(html) && /420px/.test(html), "inline layout sizes 560/420");
+  assert(!html.includes("--pt-demo-customer-width"), "no 420px customer width var");
+  assert(/560px/.test(html), "inline layout height 560");
+  assert(!html.includes("420px"), "customer chat must not be 420px capped");
   assert(!html.includes("max-w-none"), "customer chat must not drop max-width");
+  assert(html.includes("1 · Customize"), "setup panel label");
+  assert(html.includes("2 · Test as a customer"), "customer panel label");
 
   console.log("PASS — demo chat layout CSS + rendered markup");
 }

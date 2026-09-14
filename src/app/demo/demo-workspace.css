@@ -50,6 +50,15 @@ body:has(.pt-demo) {
   box-shadow: 0 1px 0 rgba(2, 48, 71, 0.04), 0 10px 24px -22px rgba(2, 48, 71, 0.45);
 }
 
+/* Loading / status screen: keep dark canvas, force readable light branding. */
+.pt-demo-status .pt-logo {
+  filter: brightness(0) invert(1);
+}
+
+.pt-demo-status-message {
+  color: #e8f6fb;
+}
+
 .pt-demo-header-inner {
   display: flex;
   flex-direction: column;

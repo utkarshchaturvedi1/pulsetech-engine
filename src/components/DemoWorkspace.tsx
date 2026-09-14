@@ -43,11 +43,13 @@ export function DemoStatusScreen({
   showHomeLink?: boolean;
 }) {
   return (
-    <div className="pt-landing pt-demo min-h-screen">
+    <div className="pt-landing pt-demo pt-demo-status min-h-screen">
       <div className="pt-shell min-h-screen">
         <div className="pt-content flex min-h-screen flex-col items-center justify-center px-6 py-12">
           <BrandLogo />
-          <p className="mt-8 max-w-md text-center text-lg leading-8 text-slate-600">{message}</p>
+          <p className="pt-demo-status-message mt-8 max-w-md text-center text-lg leading-8">
+            {message}
+          </p>
           {showHomeLink ? (
             <Link href="/" className="pt-btn-primary mt-8 inline-flex">
               Back to Homepage

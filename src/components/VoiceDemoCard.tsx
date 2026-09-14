@@ -111,11 +111,8 @@ export default function VoiceDemoCard({ demoId }: VoiceDemoCardProps) {
     }
   }
 
-  // Production with no public numbers: hide entirely.
-  if (payload && !payload.enabled && !payload.message) {
-    return null;
-  }
-
+  // Always render the card shell so mobile users are not left with a dead end
+  // after the customer chat. Number/code controls only appear when enabled.
   const remainingMs = payload?.session
     ? new Date(payload.session.expiresAt).getTime() - now
     : 0;

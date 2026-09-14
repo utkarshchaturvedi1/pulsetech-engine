@@ -86,6 +86,14 @@ function testLayoutConstraints() {
     workspace.includes("pt-voice-demo-wrap"),
     "voice demo card must sit outside the two chat panels"
   );
+  assert(
+    workspace.includes('id="phone-test"'),
+    "phone-test section needs a stable mobile scroll target"
+  );
+  assert(
+    !/className="pt-content[^"]*overflow-x-hidden/.test(workspace),
+    "demo content must not use overflow-x-hidden (clips phone card on Android)"
+  );
   const wrapIndex = workspace.indexOf("pt-voice-demo-wrap");
   const customerIndex = workspace.indexOf("data-demo-customer-panel");
   assert(

@@ -106,7 +106,7 @@ export default function ChatWindow({
       <div
         ref={listRef}
         data-chat-messages
-        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4 sm:px-5"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-auto px-4 py-4 sm:px-5"
       >
         {messages.map((message) => (
           <ChatMessage

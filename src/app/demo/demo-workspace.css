@@ -37,6 +37,20 @@ body:has(.pt-demo) {
 .pt-landing.pt-demo .pt-content,
 .pt-demo .pt-content {
   background: transparent;
+  /* Do not create a nested scrollport that clips the phone-test card on Android. */
+  overflow: visible;
+  height: auto;
+  min-height: 0;
+}
+
+.pt-landing.pt-demo {
+  /* Undo landing.css overflow-x:clip which forces a nested scroll container. */
+  overflow: visible;
+}
+
+.pt-demo .pt-shell {
+  overflow: visible;
+  height: auto;
 }
 
 .pt-demo .pt-demo-workspace,
@@ -324,9 +338,32 @@ body:has(.pt-demo) {
 }
 
 @media (max-width: 1023.98px) {
+  /* Let the page (not nested chat panes) be the primary scroller on phones so
+     users can reach the phone-test card after the customer chat. */
+  .pt-demo-panel,
+  .pt-demo-frame {
+    height: auto;
+    max-height: none;
+    min-height: var(--pt-demo-chat-height, 560px);
+    overflow: visible;
+  }
+
+  .pt-demo-chat,
+  .pt-demo-chat [data-customer-widget-shell],
+  .pt-demo-chat [data-chat-window] {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
   .pt-demo .pt-demo-chat [data-chat-messages] {
+    /* Do not set overflow-x:hidden here — with overflow-y:visible it
+       computes back to overflow-y:auto and traps Android page scroll. */
+    overflow: visible;
     overscroll-behavior: auto;
     overscroll-behavior-y: auto;
+    flex: 0 0 auto;
+    min-height: 12rem;
   }
 }
 
@@ -342,12 +379,20 @@ body:has(.pt-demo) {
 }
 
 .pt-voice-demo-wrap {
-  display: block;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1;
   width: 100%;
   max-width: 1120px;
   min-width: 0;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
   margin: 0 auto;
-  padding: 0.25rem 1rem 2.25rem;
+  padding: 0.75rem 1rem 2.5rem;
 }
 
 @media (min-width: 1024px) {
@@ -355,9 +400,33 @@ body:has(.pt-demo) {
     max-width: 80rem;
     padding: 0 1.5rem 2rem;
   }
+
+  /* Restore fixed equal panel geometry on desktop only. */
+  .pt-demo-panel,
+  .pt-demo-frame {
+    height: var(--pt-demo-chat-height, 560px);
+    max-height: var(--pt-demo-chat-height, 560px);
+    overflow: hidden;
+  }
+
+  .pt-demo-chat,
+  .pt-demo-chat [data-customer-widget-shell],
+  .pt-demo-chat [data-chat-window] {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .pt-demo .pt-demo-chat [data-chat-messages] {
+    flex: 1 1 0%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
 }
 
 .pt-voice-demo {
+  display: block;
   border-radius: 26px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: #ffffff;
@@ -374,12 +443,13 @@ body:has(.pt-demo) {
 
 .pt-voice-demo-inner {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   padding: 1.25rem 1.35rem 1.4rem;
   min-width: 0;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 1024px) {
   .pt-voice-demo-inner {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
     align-items: start;

@@ -94,7 +94,7 @@ export default function DemoWorkspace({
       }
     >
       <div className="pt-shell">
-        <div className="pt-content flex min-h-screen min-w-0 flex-col overflow-x-hidden">
+        <div className="pt-content flex min-h-0 min-w-0 flex-col">
           <header className="pt-header shrink-0">
             <div className="pt-demo-header-inner">
               <BrandLogo />
@@ -182,7 +182,12 @@ export default function DemoWorkspace({
             </section>
           </div>
 
-          <div className="pt-voice-demo-wrap">
+          {/* Outside the two-panel grid — must stay visible on mobile after both chats. */}
+          <div
+            id="phone-test"
+            className="pt-voice-demo-wrap shrink-0"
+            data-demo-phone-test
+          >
             <VoiceDemoCard demoId={resolvedDemoId} />
           </div>
         </div>

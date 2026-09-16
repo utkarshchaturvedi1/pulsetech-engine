@@ -10,9 +10,9 @@ const landingSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "PulseTech Labs | AI Sales Employees for home-service businesses",
+  title: "PulseTech Labs | AI Sales Employees for high-intent businesses",
   description:
-    "PulseTech gives home-service businesses an AI Sales Employee that answers website chat and inbound phone calls 24/7, captures the lead, and alerts your team immediately.",
+    "PulseTech gives your business an AI Sales Employee that answers website chat and inbound phone calls, captures the information your team needs, and alerts you while the customer is still engaged.",
 };
 
 export default function Home() {

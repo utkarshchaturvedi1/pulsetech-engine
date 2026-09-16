@@ -268,6 +268,16 @@ function testTwilioSignatureAndNeutralGreeting() {
   const gather = buildVoiceDemoGatherTwiml(url);
   assert(gather.includes("<Gather"), "Gather present");
   assert(gather.includes("numDigits=\"6\""), "collects 6 digits");
+  assert(gather.includes("timeout=\"20\""), "allows at least 20 seconds to enter the code");
+  assert(gather.includes("finishOnKey=\"\""), "submits on sixth digit without requiring #");
+  assert(gather.includes("voice=\"Polly.Joanna-Neural\""), "uses US English neural voice");
+  assert(
+    gather.includes(
+      "Welcome to PulseTech. Please enter your six-digit demo access code now. Take your time."
+    ),
+    "uses the friendly code-entry prompt"
+  );
+  assert(!/pound key|#/i.test(gather), "code-entry prompt must not require #");
   assert(
     !/Texas Solar|business name|your company/i.test(gather),
     "pre-validation greeting must not identify a business"

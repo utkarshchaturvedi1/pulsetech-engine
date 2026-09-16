@@ -54,13 +54,12 @@ export function twimlResponse(bodyInner: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${bodyInner}</Response>`;
 }
 
-/** Neutral Gather greeting — must not identify any business. */
+/** Neutral Gather greeting — must not identify any client business. */
 export function buildVoiceDemoGatherTwiml(actionUrl: string): string {
   const action = escapeXml(actionUrl);
   return twimlResponse(
-    `<Gather input="dtmf" timeout="12" numDigits="6" action="${action}" method="POST">` +
-      `<Say voice="Polly.Joanna">Thanks for calling the PulseTech voice demo line. ` +
-      `Please enter your six digit access code from the demo page, followed by the pound key if needed.</Say>` +
+    `<Gather input="dtmf" timeout="20" numDigits="6" finishOnKey="" action="${action}" method="POST">` +
+      `<Say voice="Polly.Joanna-Neural" language="en-US">Welcome to PulseTech. Please enter your six-digit demo access code now. Take your time.</Say>` +
       `</Gather>` +
       `<Say voice="Polly.Joanna">We did not receive a code. Please return to your demo page for a new access code, then call again. Goodbye.</Say>` +
       `<Hangup/>`

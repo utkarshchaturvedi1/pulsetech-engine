@@ -9,6 +9,7 @@ import {
   isLeadQualified,
   isLeadReadyForHandoff,
   isVisitFollowupAlertTrigger,
+  isWebsiteLeadCaptureComplete,
   LEAD_INACTIVITY_MS,
   shouldAttemptLeadHandoff,
   type LeadHandoffReason,
@@ -19,6 +20,7 @@ export {
   isLeadQualified,
   isLeadReadyForHandoff,
   isVisitFollowupAlertTrigger,
+  isWebsiteLeadCaptureComplete,
   LEAD_INACTIVITY_MS,
   shouldAttemptLeadHandoff,
 };

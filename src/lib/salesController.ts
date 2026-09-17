@@ -36,7 +36,7 @@ const ADDRESS_HINT_RE =
   /\b\d{1,6}\s+[A-Za-z0-9.'\- ]+(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|place|pl)\b/i;
 
 const CONCRETE_PROBLEM_RE =
-  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty|pipe)\b/i;
+  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty|pipe|hornet|wasp|yellowjacket|bee|pest|rodent|termite|ant|spider|infestation|nest|removed?|removal)\b/i;
 
 const FAKE_CAPABILITY_RE =
   /\b(i('ll| will)?\s+(dispatch|schedule|book)|i('ve| have)\s+(scheduled|booked|dispatched|sent this to dispatch|confirmed (your )?appointment)|check(ing)?\s+(live\s+)?availability|contact(ed|ing)?\s+(a\s+)?technician|we (can|will) (send|dispatch) (someone|a technician)|you(?:'re| are) (all )?set|confirmed for)\b/i;
@@ -51,7 +51,7 @@ const TECHNICIAN_DUMP_RE =
   /\b(trap inspection|hydro-?jet|auger|snake\/auger|garbage disposal testing|30[–-]90 minutes|most visits take|access constraints)\b/i;
 
 const FALSE_HANDOFF_RE =
-  /\b(i('ve| have) (sent|forwarded|handed)|sent (this|your request|your details|it) to (the )?team|the team (has|already has) your (details|request|information)|the team will (call|contact|reach)|our scheduling team has|handed (this|it) off|notification (was |has been )?sent)\b/i;
+  /\b(i('ve| have) (sent|forwarded|handed|shared)|shared your request|sent (this|your request|your details|it) to (the )?team|the team (has|already has) your (details|request|information)|the team will (call|contact|reach)|our scheduling team has|handed (this|it) off|notification (was |has been )?sent)\b/i;
 
 const PAYMENT_PUSH_RE =
   /\b(arrange (the |your |a )?(\$\s?\d[\d,]*(?:\.\d{2})?\s+)?payment|pay now|pay (the |this |that )?(fee|charge)|collect(ing)? (the |your )?payment|process(ing)? (your )?payment|i('ll| will) (take|collect|process) (your )?payment)\b/i;
@@ -136,7 +136,7 @@ function detectIntent(text: string): SalesIntent {
   }
 
   if (
-    /\b(i need|i want|need help|need a|need an|fix this|repair|estimate|quote)\b/.test(
+    /\b(i need|i want|need help|need a|need an|needs? to be|fix this|repair|estimate|quote)\b/.test(
       t
     )
   ) {
@@ -188,7 +188,11 @@ function extractName(text: string, objective: SalesObjective): string | null {
       /^[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(
         cleaned
       ) &&
-      !/^(just|only|still|yes|no|ok|okay|looking|browsing)$/i.test(cleaned)
+      !/^(just|only|still|yes|no|ok|okay|looking|browsing|yes please|yeah|yep|sure|please|thanks|thank you)$/i.test(
+        cleaned
+      ) &&
+      !detectCustomerAgreement(cleaned) &&
+      !isBareAffirmative(cleaned)
     ) {
       return cleaned;
     }
@@ -513,14 +517,19 @@ function detectLeadRefusal(text: string): {
 export function detectCustomerAgreement(text: string): boolean {
   const t = text.trim().toLowerCase();
   // Explicit proceed / book language (not bare affirmatives).
-  return /\b(let'?s do it|let'?s (move forward|proceed|schedule)|go ahead|please go ahead|please proceed|sign me up|i(?:'d| would) like to (move forward|proceed|get this done)|okay[,.]? let'?s|yes[,.]? let'?s|book it|schedule it|i want (the|that) service|please have someone (contact|call|come)|send (this|it) to the team)\b/i.test(
-    t
-  );
+  if (
+    /\b(let'?s do it|let'?s (move forward|proceed|schedule)|go ahead|please go ahead|please proceed|sign me up|i(?:'d| would) like to (move forward|proceed|get this done)|okay[,.]? let'?s|yes[,.]? let'?s|yes[,.]?\s*please|book it|schedule it|i want (the|that) service|please have someone (contact|call|come)|send (this|it) to the team)\b/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  return /^yes[,.]?\s*please[.!]?$/i.test(t);
 }
 
 /** Bare affirmative to the immediately preceding proposal (visit/estimate/etc.). */
 export function isBareAffirmative(text: string): boolean {
-  return /^(yes|yeah|yep|sure|ok|okay|sounds good|that works)[.!]?$/i.test(
+  return /^(yes|yeah|yep|sure|ok|okay|sounds good|that works|yes please)[.!]?$/i.test(
     text.trim()
   );
 }
@@ -703,6 +712,11 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   }
 
   if (state.customerAgreed || detectCustomerAgreement(latestUserText)) {
+    const missing = missingLeadFields(state);
+    if (missing[0] === "name") return "COLLECT_NAME";
+    if (missing[0] === "phone") return "COLLECT_PHONE";
+    if (missing[0] === "address") return "COLLECT_ADDRESS";
+    if (!state.preferredTiming) return "ADVANCE_TO_NEXT_STEP";
     return "CLOSE";
   }
 

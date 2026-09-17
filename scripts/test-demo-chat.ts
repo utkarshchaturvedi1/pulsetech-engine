@@ -563,7 +563,11 @@ function testSiteVisitFeeOnce() {
   );
   assert(!feeAfterTiming.ok, "must not repeat the fee after a visit-timing question");
 
-  const timingOnly = validateSalesReply(TIMING_ACK, afterTiming, solarBusiness);
+  const timingOnly = validateSalesReply(
+    TIMING_ACK,
+    { ...afterTiming, leadDeliveryStatus: "SENT" },
+    solarBusiness
+  );
   assert(
     timingOnly.ok,
     `timing ack without fee should pass: ${timingOnly.reasons.join("; ")}`

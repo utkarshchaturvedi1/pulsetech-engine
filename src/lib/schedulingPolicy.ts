@@ -61,12 +61,15 @@ export function resolveWebsiteChatCustomerHandoffReply(params: {
   customerName?: string | null;
   business: BusinessProfile;
 }): string | null {
+  // Never claim the request was shared unless the handoff was actually scheduled.
   if (!params.attempted) return null;
-  if (params.status !== "SENT" && params.status !== "FAILED") return null;
   if (params.status === "SENT") {
     return buildSuccessfulLeadHandoffCustomerMessage(params.customerName);
   }
-  return buildFailedLeadHandoffCustomerMessage(params.business);
+  if (params.status === "FAILED") {
+    return buildFailedLeadHandoffCustomerMessage(params.business);
+  }
+  return null;
 }
 
 /** Shorter preferred-day ask used when no site-assessment framing is needed (e.g. voice). */

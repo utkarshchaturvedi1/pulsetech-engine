@@ -434,9 +434,155 @@ async function main() {
 
   console.log("TEST10 PASS", { leadDetectionMs, handoffMs });
 
+  // TEST11 — exact hornet-nest production regression:
+  // request → address → yes please → name → phone → preferred time
+  // must schedule exactly one email+SMS delivery task.
+  {
+    const previousDryRun11 = process.env.LEAD_HANDOFF_DRY_RUN;
+    delete process.env.LEAD_HANDOFF_DRY_RUN;
+    process.env.SMTP_HOST = process.env.SMTP_HOST || "smtp.test.local";
+    process.env.SMTP_USER = process.env.SMTP_USER || "leads@test.local";
+    process.env.SMTP_PASS = process.env.SMTP_PASS || "test-pass";
+    process.env.SMTP_FROM = process.env.SMTP_FROM || "leads@test.local";
+    process.env.TWILIO_ACCOUNT_SID =
+      process.env.TWILIO_ACCOUNT_SID || "ACtest";
+    process.env.TWILIO_AUTH_TOKEN =
+      process.env.TWILIO_AUTH_TOKEN || "token";
+    process.env.TWILIO_FROM_NUMBER =
+      process.env.TWILIO_FROM_NUMBER || "+15551234567";
+
+    const pestBusiness: BusinessProfile = {
+      ...business,
+      website: "https://pest-hornet.test",
+      businessName: "Summit Pest Control",
+      services: ["Pest control", "Hornet nest removal"],
+      leadNotificationEmail: "owner@pest-hornet.test",
+      leadNotificationPhone: "+12145550189",
+    };
+
+    let deliveries = 0;
+    let lastDelivery: {
+      emailTo: string;
+      smsTo: string;
+      subject: string;
+      text: string;
+      smsBody: string;
+    } | null = null;
+    setLeadHandoffTestDelivery(async (input) => {
+      deliveries += 1;
+      lastDelivery = input;
+      return { emailOk: true, smsOk: true };
+    });
+
+    let hornet = createInitialSalesState({
+      conversationId: createConversationId(),
+      businessKey: businessIdentityKey(pestBusiness),
+    });
+    const steps: Array<{ user: string; assistant: string }> = [
+      {
+        assistant: "Hi! How can I help you today?",
+        user: "I have a hornet nest on my house that needs to be removed",
+      },
+      {
+        assistant: "What's the service address for the nest?",
+        user: "510 N Ravinia Dr, Dallas TX 75211",
+      },
+      {
+        assistant:
+          "I'll alert the team to arrange a site assessment. Would you like to move forward?",
+        user: "yes please",
+      },
+      {
+        assistant: "Great — what's your name?",
+        user: "Jordan Lee",
+      },
+      {
+        assistant: "Thanks Jordan — what's the best phone number to reach you?",
+        user: "2145550199",
+      },
+      {
+        assistant:
+          "What day or time would you prefer? The team will confirm availability.",
+        user: "Tomorrow morning",
+      },
+    ];
+
+    for (const step of steps) {
+      hornet = updateSalesStateFromTurn(
+        hornet,
+        [
+          { role: "assistant", content: step.assistant },
+          { role: "user", content: step.user },
+        ],
+        pestBusiness
+      );
+    }
+
+    assert(hornet.lead.name === "Jordan Lee", "TEST11: name captured");
+    assert(!!hornet.lead.phone, "TEST11: phone captured");
+    assert(!!hornet.lead.address, "TEST11: address captured");
+    assert(/tomorrow morning/i.test(hornet.preferredTiming || ""), "TEST11: preferred time");
+    assert(hornet.customerAgreed === true, "TEST11: yes please counted as agreement");
+    assert(
+      shouldAttemptLeadHandoff(hornet, "closure", "Tomorrow morning"),
+      "TEST11: should attempt handoff"
+    );
+
+    const queued11: Array<() => void | Promise<void>> = [];
+    const after11 = (task: () => void | Promise<void>) => {
+      queued11.push(task);
+    };
+
+    const send1 = await maybeSendLeadHandoff(
+      pestBusiness,
+      hornet,
+      "closure",
+      "Tomorrow morning"
+    );
+    scheduleLeadAlertDelivery(after11, send1.delivery);
+    assert(send1.attempted === true, "TEST11: handoffAttempted true");
+    assert(send1.status === "SENT", "TEST11: handoff scheduled as SENT");
+    assert(typeof send1.delivery === "function", "TEST11: delivery task returned");
+    assert(queued11.length === 1, "TEST11: one after() task queued");
+    assert(deliveries === 0, "TEST11: delivery not run before after()");
+
+    await queued11[0]();
+    assert(deliveries === 1, "TEST11: exactly one email+SMS delivery");
+    assert(!!lastDelivery, "TEST11: delivery payload present");
+    assert(
+      lastDelivery!.emailTo === "owner@pest-hornet.test",
+      "TEST11: per-business email recipient"
+    );
+    assert(
+      lastDelivery!.smsTo === "+12145550189",
+      "TEST11: per-business SMS recipient"
+    );
+    assert(/hornet/i.test(lastDelivery!.text), "TEST11: email includes need");
+    assert(/hornet/i.test(lastDelivery!.smsBody), "TEST11: SMS includes need");
+
+    const afterSend = {
+      ...hornet,
+      leadDeliveryStatus: "SENT" as const,
+    };
+    const send2 = await maybeSendLeadHandoff(
+      pestBusiness,
+      afterSend,
+      "closure",
+      "Tomorrow morning"
+    );
+    assert(send2.attempted === false, "TEST11: duplicate prevented");
+    assert(deliveries === 1, "TEST11: still exactly one delivery");
+
+    setLeadHandoffTestDelivery(null);
+    if (previousDryRun11 === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+    else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun11;
+    console.log("TEST11 PASS — hornet-nest handoffAttempted with one email+SMS");
+  }
+
   // Extra agreement checks
   assert(detectCustomerAgreement("Please proceed."), "extra: please proceed");
   assert(detectCustomerAgreement("Yes, go ahead."), "extra: yes go ahead");
+  assert(detectCustomerAgreement("yes please"), "extra: yes please is agreement");
   assert(!detectCustomerAgreement("Yes, I'm home."), "extra: yes home not agreement");
   assert(!detectCustomerAgreement("Yes, I need someone today."), "extra: yes today not auto");
 

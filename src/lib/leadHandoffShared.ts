@@ -6,7 +6,7 @@ export const LEAD_INACTIVITY_MS = 5 * 60 * 1000;
 export type LeadHandoffReason = "closure" | "inactivity";
 
 const CONCRETE_NEED_RE =
-  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty|pipe)\b/i;
+  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty|pipe|hornet|wasp|yellowjacket|bee|pest|rodent|termite|ant|spider|infestation|nest|removed?|removal)\b/i;
 
 export function hasConcreteNeed(need: string | null): boolean {
   if (!need || need.trim().length < 8) return false;
@@ -24,8 +24,22 @@ export function hasConcreteNeed(need: string | null): boolean {
 }
 
 /**
+ * Website chat capture complete: name, phone, address, preferred visit time.
+ * This is the primary handoff trigger — independent of concrete-need regex quirks.
+ */
+export function isWebsiteLeadCaptureComplete(state: SalesState): boolean {
+  return Boolean(
+    state.lead.name &&
+      state.lead.phone &&
+      state.lead.address &&
+      state.preferredTiming
+  );
+}
+
+/**
  * Qualified recoverable lead (SECURED + fields + need).
- * Does NOT mean handoff should fire — that also requires handoffReady.
+ * Does NOT mean handoff should fire — that also requires handoffReady
+ * or preferred timing / website capture completion.
  */
 export function isLeadQualified(state: SalesState): boolean {
   if (state.leadDeliveryStatus === "SENT") return false;
@@ -37,13 +51,14 @@ export function isLeadQualified(state: SalesState): boolean {
 }
 
 /**
- * Allowed to attempt owner notification: qualified + (natural close or
- * name/phone/address/preferred time captured).
+ * Allowed to attempt owner notification once capture is complete, or at a
+ * natural close endpoint for a qualified lead.
  */
 export function isLeadReadyForHandoff(state: SalesState): boolean {
+  if (state.leadDeliveryStatus === "SENT") return false;
+  if (isWebsiteLeadCaptureComplete(state)) return true;
   if (!isLeadQualified(state)) return false;
-  if (state.handoffReady === true) return true;
-  return Boolean(state.preferredTiming);
+  return state.handoffReady === true;
 }
 
 /**
@@ -55,9 +70,14 @@ export function isVisitFollowupAlertTrigger(
   latestUserMessage?: string
 ): boolean {
   if (!latestUserMessage) return false;
-  if (state.leadStatus !== "SECURED") return false;
   if (!state.lead.name || !state.lead.phone || !state.lead.address) return false;
-  if (state.intent !== "HIGH" && state.intent !== "READY_TO_ACT") return false;
+  if (
+    state.leadStatus !== "SECURED" &&
+    state.intent !== "HIGH" &&
+    state.intent !== "READY_TO_ACT"
+  ) {
+    return false;
+  }
   return isImmediateVisitFollowupLanguage(latestUserMessage);
 }
 
@@ -95,9 +115,14 @@ export function shouldAttemptLeadHandoff(
   reason: LeadHandoffReason,
   latestUserMessage?: string
 ): boolean {
-  if (!isLeadQualified(state)) return false;
+  if (state.leadDeliveryStatus === "SENT") return false;
+
+  // Primary website-chat path: name + phone + address + preferred time.
+  if (isWebsiteLeadCaptureComplete(state)) return true;
+
   if (reason === "inactivity") return isLeadReadyForHandoff(state);
   if (isVisitFollowupAlertTrigger(state, latestUserMessage)) return true;
+  if (!isLeadQualified(state)) return false;
   if (isLeadReadyForHandoff(state)) return true;
   return isClosureHandoffTrigger(state, latestUserMessage);
 }

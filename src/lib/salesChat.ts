@@ -4,9 +4,13 @@ import { formatBusinessKnowledge } from "./businessKnowledge";
 import {
   applyLeadDeliveryResult,
   describeLeadAlertTransport,
+  isWebsiteLeadCaptureComplete,
   maybeSendLeadHandoff,
 } from "./leadHandoff";
-import { resolveWebsiteChatCustomerHandoffReply } from "./schedulingPolicy";
+import {
+  buildFailedLeadHandoffCustomerMessage,
+  resolveWebsiteChatCustomerHandoffReply,
+} from "./schedulingPolicy";
 import {
   buildTurnControlBlock,
   buildValidationCorrection,
@@ -476,13 +480,22 @@ export async function generateSalesReply(
   salesState = applyLeadDeliveryResult(salesState, handoff);
   const transport = describeLeadAlertTransport();
 
-  const deterministicHandoffReply = resolveWebsiteChatCustomerHandoffReply({
+  // Success copy only after a handoff task was actually scheduled.
+  // If capture is complete but nothing was queued, use the professional fallback.
+  let deterministicHandoffReply = resolveWebsiteChatCustomerHandoffReply({
     attempted: handoff.attempted,
     status: handoff.status,
     currentObjective: salesState.currentObjective,
     customerName: salesState.lead.name,
     business,
   });
+  if (
+    !deterministicHandoffReply &&
+    isWebsiteLeadCaptureComplete(salesState) &&
+    (!handoff.attempted || handoff.status === "NOT_SENT")
+  ) {
+    deterministicHandoffReply = buildFailedLeadHandoffCustomerMessage(business);
+  }
   if (deterministicHandoffReply) {
     console.log("[chatTiming]", {
       conversationId: salesState.conversationId || "(none)",

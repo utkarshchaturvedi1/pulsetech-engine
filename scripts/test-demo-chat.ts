@@ -9,9 +9,11 @@ import {
   ASK_PREFERRED_DAY_TIME,
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
   buildFailedLeadHandoffCustomerMessage,
+  buildPricingApproachAnswer,
   buildSuccessfulLeadHandoffCustomerMessage,
   isFailedLeadHandoffCustomerMessage,
   isSuccessfulLeadHandoffCustomerMessage,
+  messageAsksPricingOrBilling,
   resolveWebsiteChatCustomerHandoffReply,
 } from "../src/lib/schedulingPolicy";
 import {
@@ -308,7 +310,10 @@ function securedLead(overrides: Partial<SalesState> = {}): SalesState {
   };
 }
 
-const TIMING_ACK = buildSuccessfulLeadHandoffCustomerMessage("Maya");
+const TIMING_ACK = buildSuccessfulLeadHandoffCustomerMessage(
+  "Maya",
+  "tomorrow morning"
+);
 
 function testVisitPreferenceNoDuplicateAddress() {
   const after = updateSalesStateFromTurn(
@@ -382,12 +387,17 @@ function testVisitPreferenceNoDuplicateAddress() {
   const good = validateSalesReply(TIMING_ACK, afterSent, business);
   assert(good.ok, `preferred-time ack should pass: ${good.reasons.join("; ")}`);
   assert(
-    TIMING_ACK.includes("earliest available appointment"),
-    "preferred-time ack must use appointment confirmation language for the team follow-up"
+    TIMING_ACK.includes("earliest available appointment") ||
+      /preferred time.*confirm availability/i.test(TIMING_ACK),
+    "preferred-time ack must note preference and team confirmation"
   );
   assert(
-    TIMING_ACK.includes("not booked yet"),
-    "preferred-time ack must not claim the visit is booked"
+    /We'll note tomorrow morning as your preferred time/i.test(TIMING_ACK),
+    "preferred-time ack must use natural preferred-time wording"
+  );
+  assert(
+    !/\bnot booked yet\b/i.test(TIMING_ACK),
+    "preferred-time ack should not use stiff not-booked-yet phrasing by default"
   );
   assert(
     shouldAttemptLeadHandoff(after, "closure", "Can you arrange tomorrow morning?"),
@@ -417,6 +427,16 @@ function testVisitPreferenceNoDuplicateAddress() {
     "website lead handoff must include preferred visit time"
   );
   assert(/tomorrow morning/i.test(email.text), "handoff includes the captured slot");
+  assert(
+    email.text.includes(
+      "Contact the customer to confirm availability for their preferred time. The requested time has not been confirmed or booked with the customer."
+    ),
+    "internal email NEXT STEP must use the preferred-time confirmation wording"
+  );
+  assert(
+    !email.text.includes("Do not treat the time as booked."),
+    "internal email must not keep the old next-step wording"
+  );
   assert(
     shouldAttemptLeadHandoff(after, "closure", "Can you arrange tomorrow morning?"),
     "captured visit preference must send/keep the internal alert immediately"
@@ -1032,13 +1052,20 @@ async function testPerBusinessLeadAlerts() {
 }
 
 function testCustomerFacingHandoffWording() {
-  const success = buildSuccessfulLeadHandoffCustomerMessage("Maya");
+  const success = buildSuccessfulLeadHandoffCustomerMessage(
+    "Maya",
+    "tomorrow morning"
+  );
   assert(isSuccessfulLeadHandoffCustomerMessage(success), "success helper matches wording");
   assert(/Thanks, Maya/.test(success), "success uses customer name");
   assert(/shared your request with the team/.test(success), "success says request was shared");
-  assert(/earliest available appointment/.test(success), "success asks team to confirm appointment");
-  assert(/not booked yet/.test(success), "success does not book the visit");
-  assert(!/booked(?! yet)/i.test(success.replace(/not booked yet/i, "")), "success must not claim booked");
+  assert(
+    /We'll note tomorrow morning as your preferred time/i.test(success),
+    "success notes preferred time naturally"
+  );
+  assert(/team will confirm availability/i.test(success), "success asks team to confirm");
+  assert(!/\bnot booked yet\b/i.test(success), "default success copy avoids stiff not-booked-yet");
+  assert(!/\bbooked\b/i.test(success), "success must not claim booked");
 
   const failed = buildFailedLeadHandoffCustomerMessage(business);
   assert(isFailedLeadHandoffCustomerMessage(failed), "failed helper matches wording");
@@ -1075,6 +1102,7 @@ function testCustomerFacingHandoffWording() {
     status: "SENT",
     currentObjective: "ADVANCE_TO_NEXT_STEP",
     customerName: "Maya",
+    preferredTiming: "tomorrow morning",
     business,
   });
   assert(resolvedSuccess === success, "successful handoff uses the customer-facing close");
@@ -1102,6 +1130,7 @@ function testCustomerFacingHandoffWording() {
     status: "SENT",
     currentObjective: "PRESENT_SOLUTION",
     customerName: "Maya",
+    preferredTiming: "tomorrow morning",
     business,
   });
   assert(
@@ -1124,11 +1153,127 @@ function testCustomerFacingHandoffWording() {
   console.log("PASS — customer-facing handoff success and failure wording");
 }
 
+function testCompoundPriceAndPreferredTime() {
+  const compoundMsg =
+    "How do you charge? Hourly or for full work? Please keep the appointment for tomorrow evening.";
+  assert(
+    messageAsksPricingOrBilling(compoundMsg),
+    "compound message must be detected as pricing/billing"
+  );
+
+  const roofingBusiness: BusinessProfile = {
+    ...business,
+    website: "https://ridgecrest-roofing.test",
+    businessName: "Ridgecrest Roofing",
+    services: ["Roof inspection", "Shingle repair", "Storm damage assessment"],
+    pricingRules: "",
+    leadNotificationEmail: "alerts@ridgecrest-roofing.test",
+    leadNotificationPhone: "+12145550177",
+  };
+
+  const prior = securedLead({
+    businessKey: roofingBusiness.website,
+    customerNeed: "Storm damaged shingles need inspection and repair.",
+    lead: {
+      name: "Sam Rivera",
+      phone: "4695550188",
+      email: null,
+      address: "8801 Mockingbird Ln, Dallas TX",
+    },
+    preferredTiming: null,
+    currentObjective: "PRESENT_SOLUTION",
+    leadDeliveryStatus: "NOT_SENT",
+  });
+
+  const after = updateSalesStateFromTurn(
+    prior,
+    [
+      {
+        role: "assistant",
+        content: "Thanks Sam — I have your details. What day or time would you prefer?",
+      },
+      { role: "user", content: compoundMsg },
+    ],
+    roofingBusiness
+  );
+
+  assert(
+    /tomorrow evening/i.test(after.preferredTiming || ""),
+    `preferred time must be captured from compound message, got ${after.preferredTiming}`
+  );
+  assert(
+    after.currentObjective === "HANDLE_PRICE_OBJECTION",
+    `compound price+timing should pursue pricing, got ${after.currentObjective}`
+  );
+  assert(
+    shouldAttemptLeadHandoff(after, "closure", compoundMsg),
+    "compound message with complete lead must still trigger handoff"
+  );
+
+  const pricingOnly = buildPricingApproachAnswer(roofingBusiness);
+  assert(
+    /scope of work|site assessment|fixtures or materials/i.test(pricingOnly),
+    "without profile pricing rules, answer must be scope-dependent and not invent hourly/fixed"
+  );
+  assert(
+    !/\bwe charge hourly\b/i.test(pricingOnly) &&
+      !/\btypically charges hourly\b/i.test(pricingOnly) &&
+      !/\btypically prices the full job\b/i.test(pricingOnly),
+    "must not invent hourly or fixed pricing when profile is silent"
+  );
+
+  const reply = resolveWebsiteChatCustomerHandoffReply({
+    attempted: true,
+    status: "SENT",
+    currentObjective: after.currentObjective,
+    customerName: after.lead.name,
+    preferredTiming: after.preferredTiming,
+    business: roofingBusiness,
+    latestUserMessage: compoundMsg,
+  });
+  assert(!!reply, "compound handoff reply must be produced");
+  assert(
+    /scope of work|site assessment/i.test(reply!),
+    "compound reply must answer the pricing question"
+  );
+  assert(
+    /shared your request with the team/i.test(reply!),
+    "compound reply must still acknowledge the handoff"
+  );
+  assert(
+    /We'll note tomorrow evening as your preferred time/i.test(reply!),
+    "compound reply must note preferred time naturally"
+  );
+  assert(!/\bnot booked yet\b/i.test(reply!), "avoid stiff not-booked-yet by default");
+  assert(!/\bbooked\b/i.test(reply!), "must not claim appointment is booked");
+
+  const withHourly: BusinessProfile = {
+    ...roofingBusiness,
+    pricingRules: "Labor is billed hourly; materials are itemized separately.",
+  };
+  const hourlyReply = resolveWebsiteChatCustomerHandoffReply({
+    attempted: true,
+    status: "SENT",
+    currentObjective: "HANDLE_PRICE_OBJECTION",
+    customerName: "Sam Rivera",
+    preferredTiming: "tomorrow evening",
+    business: withHourly,
+    latestUserMessage: compoundMsg,
+  });
+  assert(
+    /hourly/i.test(hourlyReply || ""),
+    "when profile establishes hourly pricing, the compound reply may use it"
+  );
+
+  console.log("PASS — compound price question + preferred time in one message");
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();
   testCustomerFacingHandoffWording();
+  testCompoundPriceAndPreferredTime();
   testSiteVisitFeeOnce();
   testHomepageDoesNotHardcodeTexasSolar();
   await testPersonalizedDemoSaveAndLoad();

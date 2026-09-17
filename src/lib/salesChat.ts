@@ -374,10 +374,11 @@ Do not promise same-day service unless BusinessProfile explicitly includes that 
 After name, phone, address, and the service need are captured:
 - If the customer says yes to a site assessment / next step and has not given a preferred time yet, reply with this meaning only: "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability."
 - Never say "we'll arrange a site assessment" or otherwise imply an appointment is already confirmed or booked.
-- Once name, phone, service address, and preferred time are captured, the system shares the request with the team. If that succeeded, close with this meaning: "Thanks, [name] — I've shared your request with the team. They'll contact you to confirm the earliest available appointment. Your preferred time is noted, but not booked yet."
+- Once name, phone, service address, and preferred time are captured, the system shares the request with the team. If that succeeded, close with this meaning: "Thanks, [name] — I've shared your request with the team. We'll note [preferred time] as your preferred time, and the team will confirm availability."
+- If the same visitor message also asks about pricing or how charges work, answer that pricing question in the same response using BusinessProfile pricing only. If the profile does not establish hourly versus fixed/project pricing, say pricing depends on scope, fixtures/materials, and site assessment — do not invent either approach.
 - If the request could not be shared, tell them to contact the business phone or email directly. Do not claim the team was alerted.
 - Never say "the lead hasn't been sent", "the office hasn't been reached", "handoff failed", or anything about email/SMS delivery.
-- If they ask about price after details are captured, answer the pricing question. Do not repeat delivery/handoff language.
+- If they ask about price after details are captured, answer the pricing question. Do not repeat delivery/handoff language unless this is the capture/handoff turn.
 
 Do not mention an owner-set visit fee after a timing question. Never arrange payment.
 
@@ -487,7 +488,9 @@ export async function generateSalesReply(
     status: handoff.status,
     currentObjective: salesState.currentObjective,
     customerName: salesState.lead.name,
+    preferredTiming: salesState.preferredTiming,
     business,
+    latestUserMessage: latestUser?.content,
   });
   if (
     !deterministicHandoffReply &&

@@ -284,6 +284,20 @@ async function main() {
   assert(!email.text.includes("Services on file"), "TEST8: no services dump");
   assert(!email.text.includes("Long owner prompt"), "TEST8: no prompt dump");
   assert(!email.text.includes("Lead notification emailed"), "TEST8: no false sent claim");
+  const preferredNext = buildLeadNotificationEmail(
+    business,
+    qualifiedBase({
+      preferredTiming: "tomorrow morning",
+      handoffReady: true,
+      urgency: "SOON",
+    })
+  );
+  assert(
+    preferredNext.text.includes(
+      "Contact the customer to confirm availability for their preferred time. The requested time has not been confirmed or booked with the customer."
+    ),
+    "TEST8: internal NEXT STEP preferred-time wording"
+  );
   console.log("TEST8 PASS");
 
   // Immediate visit-preference alert after lead capture (not inactivity).

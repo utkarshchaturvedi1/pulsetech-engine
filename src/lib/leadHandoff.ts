@@ -73,7 +73,7 @@ function buildNextStep(state: SalesState): string {
     return "URGENT: Contact this customer as soon as possible to confirm the earliest available time. Do not send automatic customer SMS.";
   }
   if (state.preferredTiming) {
-    return "Contact the customer to confirm availability for their preferred visit time. Do not treat the time as booked.";
+    return "Contact the customer to confirm availability for their preferred time. The requested time has not been confirmed or booked with the customer.";
   }
   if (state.customerAgreed) {
     return "Customer agreed to proceed. Follow up using the captured contact details to confirm timing.";

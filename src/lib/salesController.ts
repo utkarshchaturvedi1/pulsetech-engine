@@ -14,6 +14,7 @@ import {
   isSuccessfulLeadHandoffCustomerMessage,
   knowledgeAllowsSameDay,
   maxUrgency,
+  messageAsksPricingOrBilling,
 } from "./schedulingPolicy";
 import {
   LeadFields,
@@ -616,7 +617,7 @@ function detectSalesObjective(text: string): SalesObjective | null {
   }
 
   if (
-    /\b(too expensive|more than i expected|cost too much|pricey|how much|what(?:'s| is) the (price|cost)|pricing|diagnostic fee|is there a fee)\b/.test(
+    /\b(too expensive|more than i expected|cost too much|pricey|how much|what(?:'s| is) the (price|cost|charge|fee)|pricing|diagnostic fee|is there a fee|how (do|does|are) (you|y'?all|the (company|team)) charge|hourly or|fixed (price|rate|fee)|full work|billing)\b/.test(
       t
     )
   ) {
@@ -708,6 +709,9 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
     if (missing[0] === "name") return "COLLECT_NAME";
     if (missing[0] === "phone") return "COLLECT_PHONE";
     if (missing[0] === "address") return "COLLECT_ADDRESS";
+    if (messageAsksPricingOrBilling(latestUserText) && isV1LeadComplete(state)) {
+      return "HANDLE_PRICE_OBJECTION";
+    }
     return "ADVANCE_TO_NEXT_STEP";
   }
 
@@ -1136,7 +1140,10 @@ export function buildTurnControlBlock(
   const failedFallback = business
     ? buildFailedLeadHandoffCustomerMessage(business)
     : "We're unable to send your request to the team at the moment. Please contact the business directly.";
-  const successClose = buildSuccessfulLeadHandoffCustomerMessage(state.lead.name);
+  const successClose = buildSuccessfulLeadHandoffCustomerMessage(
+    state.lead.name,
+    state.preferredTiming
+  );
 
   return `
 ==================================================
@@ -1279,9 +1286,15 @@ Do NOT invent brands, catalogs, prices, or warranties. Do NOT ask access/pet/par
       return `YOUR ONLY OBJECTIVE: handle the price/fee concern.
 Acknowledge → answer honestly from BusinessProfile/owner knowledge only.
 Never invent prices.
+If the BusinessProfile does not establish hourly versus fixed/project pricing, say pricing depends on scope, fixtures/materials, and site assessment — the team will confirm the applicable approach. Do not invent hourly or fixed pricing.
+${
+  state.preferredTiming
+    ? `Also acknowledge the preferred visit time (${state.preferredTiming}) naturally: note it for the team and that they will confirm availability. Do not claim the appointment is booked.`
+    : ""
+}
 If leadCapturePaused, do NOT ask for refused lead fields.
 Continue selling the value of the next step. Ask at most ONE clarifying question if needed.
-Do not mention whether a request was shared, emailed, texted, or delivered. Do not repeat a closing handoff message.`;
+Do not mention whether a request was shared, emailed, texted, or delivered unless this turn is the successful handoff acknowledgement.`;
     case "HANDLE_COMPETITOR_OBJECTION":
       return `YOUR ONLY OBJECTIVE: handle competitor/price comparison.
 No invented superiority. Use BusinessProfile-supported facts only. Ask at most ONE clarifying question if needed.`;
@@ -1297,7 +1310,8 @@ Do not ambush before the primary need is handled.`;
         leadComplete &&
         (!!state.preferredTiming || state.urgency === "IMMEDIATE");
       const successClose = buildSuccessfulLeadHandoffCustomerMessage(
-        state.lead.name
+        state.lead.name,
+        state.preferredTiming
       );
       const failedFallback = business
         ? buildFailedLeadHandoffCustomerMessage(business)
@@ -1328,7 +1342,8 @@ Capture the customer's preference for the team — you do not have live scheduli
     }
     case "CLOSE": {
       const successClose = buildSuccessfulLeadHandoffCustomerMessage(
-        state.lead.name
+        state.lead.name,
+        state.preferredTiming
       );
       const failedFallback = business
         ? buildFailedLeadHandoffCustomerMessage(business)
@@ -1726,7 +1741,10 @@ export function buildValidationCorrection(
   reasons: string[],
   business?: BusinessProfile
 ): string {
-  const successClose = buildSuccessfulLeadHandoffCustomerMessage(state.lead.name);
+  const successClose = buildSuccessfulLeadHandoffCustomerMessage(
+    state.lead.name,
+    state.preferredTiming
+  );
   const failedFallback = business
     ? buildFailedLeadHandoffCustomerMessage(business)
     : "We're unable to send your request to the team at the moment. Please contact the business directly.";

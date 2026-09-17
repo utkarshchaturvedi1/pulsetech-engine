@@ -22,11 +22,16 @@ export function formatBusinessDirectContact(business: BusinessProfile): string {
 }
 
 export function buildSuccessfulLeadHandoffCustomerMessage(
-  name?: string | null
+  name?: string | null,
+  preferredTiming?: string | null
 ): string {
   const first = name?.trim().split(/\s+/)[0];
   const thanks = first ? `Thanks, ${first}` : "Thanks";
-  return `${thanks} — I've shared your request with the team. They'll contact you to confirm the earliest available appointment. Your preferred time is noted, but not booked yet.`;
+  const timing = preferredTiming?.trim();
+  const timingLine = timing
+    ? `We'll note ${timing} as your preferred time, and the team will confirm availability.`
+    : `They'll contact you to confirm the earliest available appointment.`;
+  return `${thanks} — I've shared your request with the team. ${timingLine}`;
 }
 
 export function buildFailedLeadHandoffCustomerMessage(
@@ -38,8 +43,9 @@ export function buildFailedLeadHandoffCustomerMessage(
 export function isSuccessfulLeadHandoffCustomerMessage(reply: string): boolean {
   return (
     /\bshared your request with the team\b/i.test(reply) &&
-    /\bearliest available appointment\b/i.test(reply) &&
-    /\bnot booked yet\b/i.test(reply)
+    (/\bpreferred time\b/i.test(reply) ||
+      /\bearliest available appointment\b/i.test(reply)) &&
+    /\bteam will confirm\b/i.test(reply)
   );
 }
 
@@ -51,6 +57,88 @@ export function isFailedLeadHandoffCustomerMessage(reply: string): boolean {
   );
 }
 
+/** True when the visitor is asking about pricing, billing, or how charges work. */
+export function messageAsksPricingOrBilling(text: string): boolean {
+  const t = text.toLowerCase();
+  return (
+    /\b(how (do|does|are) (you|y'?all|the (company|team|business)) charge|how (is|are) (pricing|billing|charges?)|hourly or|fixed (price|rate|fee)|project (price|rate|pricing)|full work|for the (full )?job|billing|how much|what(?:'s| is) the (price|cost|charge|fee)|pricing|diagnostic fee|is there a fee|too expensive|cost too much)\b/i.test(
+      t
+    ) || /\b(hourly|per hour|flat (rate|fee)|lump sum)\b/i.test(t)
+  );
+}
+
+const SCOPE_DEPENDENT_PRICING_ANSWER =
+  "Pricing depends on the scope of work, the fixtures or materials involved, and what the team finds during the site assessment — they'll confirm the applicable pricing approach.";
+
+/**
+ * Answer hourly-vs-fixed (or similar) from BusinessProfile only.
+ * Never invents an approach the profile does not establish.
+ */
+export function buildPricingApproachAnswer(
+  business: BusinessProfile
+): string {
+  const blob = [
+    business.pricingRules || "",
+    business.systemPrompt || "",
+    ...business.faqs.map((f) => `${f.question} ${f.answer}`),
+  ]
+    .join("\n")
+    .toLowerCase();
+
+  const hasHourly =
+    /\bhourly\b/.test(blob) ||
+    /\bper hour\b/.test(blob) ||
+    /\bby the hour\b/.test(blob);
+  const hasFixed =
+    /\b(fixed|flat)\s+(price|rate|fee)\b/.test(blob) ||
+    /\b(project|job)\s+(price|rate|pricing|fee)\b/.test(blob) ||
+    /\blump sum\b/.test(blob) ||
+    /\bfor the (full )?job\b/.test(blob);
+
+  if (hasHourly && !hasFixed) {
+    const rules = business.pricingRules?.trim();
+    return rules
+      ? rules
+      : "This business typically charges hourly. The team can confirm the rate and what is included for your request.";
+  }
+  if (hasFixed && !hasHourly) {
+    const rules = business.pricingRules?.trim();
+    return rules
+      ? rules
+      : "This business typically prices the full job rather than by the hour. The team can confirm the applicable price for your request.";
+  }
+  if (hasHourly && hasFixed) {
+    const rules = business.pricingRules?.trim();
+    return rules
+      ? rules
+      : "Depending on the work, pricing may be hourly or for the full job. The team will confirm which approach applies after reviewing the scope.";
+  }
+
+  const rules = business.pricingRules?.trim();
+  if (rules) return rules;
+
+  return SCOPE_DEPENDENT_PRICING_ANSWER;
+}
+
+export function buildHandoffReplyWithOptionalPricing(params: {
+  customerName?: string | null;
+  preferredTiming?: string | null;
+  business: BusinessProfile;
+  latestUserMessage?: string;
+}): string {
+  const handoff = buildSuccessfulLeadHandoffCustomerMessage(
+    params.customerName,
+    params.preferredTiming
+  );
+  if (
+    params.latestUserMessage &&
+    messageAsksPricingOrBilling(params.latestUserMessage)
+  ) {
+    return `${buildPricingApproachAnswer(params.business)} ${handoff}`;
+  }
+  return handoff;
+}
+
 export const INTERNAL_HANDOFF_STATUS_RE =
   /\b(lead hasn.t been sent|the lead has not been sent|office hasn.t been reached|the office has not been reached|handoff failed|leadDeliveryStatus|smtp|twilio|notification (email|sms)|email\/sms|delivery status)\b/i;
 
@@ -59,12 +147,19 @@ export function resolveWebsiteChatCustomerHandoffReply(params: {
   status: "NOT_SENT" | "SENT" | "FAILED";
   currentObjective: SalesObjective;
   customerName?: string | null;
+  preferredTiming?: string | null;
   business: BusinessProfile;
+  latestUserMessage?: string;
 }): string | null {
   // Never claim the request was shared unless the handoff was actually scheduled.
   if (!params.attempted) return null;
   if (params.status === "SENT") {
-    return buildSuccessfulLeadHandoffCustomerMessage(params.customerName);
+    return buildHandoffReplyWithOptionalPricing({
+      customerName: params.customerName,
+      preferredTiming: params.preferredTiming,
+      business: params.business,
+      latestUserMessage: params.latestUserMessage,
+    });
   }
   if (params.status === "FAILED") {
     return buildFailedLeadHandoffCustomerMessage(params.business);

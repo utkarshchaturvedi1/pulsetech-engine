@@ -51,11 +51,19 @@ export default function DemoSlugPage() {
           });
           return;
         }
+        if (response.status === 404) {
+          setBoot({
+            status: "error",
+            message:
+              "This invitation link could not find a saved demo. Please ask PulseTech to regenerate it.",
+          });
+          return;
+        }
       } catch {
-        // Fall through to local cache.
+        // Fall through to local cache only when the network request fails.
       }
 
-      if (local?.profile) {
+      if (local?.profile?.businessName) {
         setBoot({
           status: "ready",
           demoId: slug,

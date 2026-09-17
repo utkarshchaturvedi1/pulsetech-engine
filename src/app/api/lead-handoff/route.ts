@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { BusinessProfile } from "../../../types/business";
 import {
   applyLeadDeliveryResult,
   maybeSendLeadHandoff,
+  scheduleLeadAlertDelivery,
   type LeadHandoffReason,
 } from "../../../lib/leadHandoff";
 import {
@@ -104,10 +105,17 @@ export async function POST(request: NextRequest) {
       latestUserMessage
     );
     salesState = applyLeadDeliveryResult(salesState, handoff);
+    scheduleLeadAlertDelivery(after, handoff.delivery);
 
     return NextResponse.json({
       salesState,
-      handoff,
+      handoff: {
+        attempted: handoff.attempted,
+        status: handoff.status,
+        error: handoff.error,
+        emailTo: handoff.emailTo,
+        smsTo: handoff.smsTo,
+      },
       conversationId,
     });
   } catch (error) {

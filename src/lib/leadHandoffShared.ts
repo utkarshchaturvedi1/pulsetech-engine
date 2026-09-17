@@ -37,10 +37,13 @@ export function isLeadQualified(state: SalesState): boolean {
 }
 
 /**
- * Allowed to attempt owner notification: qualified + handoffReady.
+ * Allowed to attempt owner notification: qualified + (natural close or
+ * name/phone/address/preferred time captured).
  */
 export function isLeadReadyForHandoff(state: SalesState): boolean {
-  return isLeadQualified(state) && state.handoffReady === true;
+  if (!isLeadQualified(state)) return false;
+  if (state.handoffReady === true) return true;
+  return Boolean(state.preferredTiming);
 }
 
 /**
@@ -93,10 +96,8 @@ export function shouldAttemptLeadHandoff(
   latestUserMessage?: string
 ): boolean {
   if (!isLeadQualified(state)) return false;
-  if (reason === "inactivity") return state.handoffReady === true;
+  if (reason === "inactivity") return isLeadReadyForHandoff(state);
   if (isVisitFollowupAlertTrigger(state, latestUserMessage)) return true;
-  if (!isLeadReadyForHandoff(state) && !isClosureHandoffTrigger(state, latestUserMessage)) {
-    return false;
-  }
+  if (isLeadReadyForHandoff(state)) return true;
   return isClosureHandoffTrigger(state, latestUserMessage);
 }

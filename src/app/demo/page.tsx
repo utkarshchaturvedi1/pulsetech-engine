@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import DemoWorkspace from "../../components/DemoWorkspace";
+import DemoWorkspace, { DemoStatusScreen } from "../../components/DemoWorkspace";
 import { BusinessProfile } from "../../types/business";
 import {
   consumePendingDemo,
@@ -44,16 +43,6 @@ export default function DemoPage() {
       }
 
       if (id) {
-        const local = loadDemoLocal(id);
-        if (local?.profile) {
-          setBoot({
-            status: "ready",
-            demoId: id,
-            profile: local.profile,
-          });
-          return;
-        }
-
         try {
           const response = await fetch(`/api/demo/${encodeURIComponent(id)}`);
           if (response.ok) {
@@ -69,7 +58,15 @@ export default function DemoPage() {
             return;
           }
         } catch {
-          // Fall through.
+          const local = loadDemoLocal(id);
+          if (local?.profile) {
+            setBoot({
+              status: "ready",
+              demoId: id,
+              profile: local.profile,
+            });
+            return;
+          }
         }
 
         setBoot({
@@ -91,27 +88,11 @@ export default function DemoPage() {
   }, []);
 
   if (boot.status === "loading") {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100">
-        <div className="text-slate-500">Loading...</div>
-      </main>
-    );
+    return <DemoStatusScreen message="Loading..." />;
   }
 
   if (boot.status === "error") {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100 px-6">
-        <div className="max-w-md text-center">
-          <p className="text-lg text-slate-700">{boot.message}</p>
-          <Link
-            href="/"
-            className="mt-6 inline-block rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700"
-          >
-            Back to Homepage
-          </Link>
-        </div>
-      </main>
-    );
+    return <DemoStatusScreen message={boot.message} showHomeLink />;
   }
 
   return (

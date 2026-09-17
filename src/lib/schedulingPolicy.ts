@@ -1,4 +1,5 @@
-import type { UrgencyLevel } from "./salesState";
+import type { BusinessProfile } from "../types/business";
+import type { SalesObjective, UrgencyLevel } from "./salesState";
 
 /**
  * Website chat: after the customer says yes to a site assessment / next step,
@@ -7,9 +8,66 @@ import type { UrgencyLevel } from "./salesState";
 export const SITE_ASSESSMENT_TEAM_ALERT_ASK =
   "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability.";
 
-/** Shared preferred-time acknowledgement (website chat + inbound voice). */
+/** Shared preferred-time acknowledgement (inbound voice). Website chat uses lead-handoff copy. */
 export const PREFERRED_TIME_TEAM_ALERT_ACK =
   "I've noted your preference for tomorrow morning. I'll alert the team now; they'll contact you as soon as possible to confirm the earliest available appointment.";
+
+export function formatBusinessDirectContact(business: BusinessProfile): string {
+  const phone = business.phone?.trim();
+  const email = business.email?.trim();
+  if (phone && email) return `${phone} or ${email}`;
+  if (phone) return phone;
+  if (email) return email;
+  return "the business using the contact details on their website";
+}
+
+export function buildSuccessfulLeadHandoffCustomerMessage(
+  name?: string | null
+): string {
+  const first = name?.trim().split(/\s+/)[0];
+  const thanks = first ? `Thanks, ${first}` : "Thanks";
+  return `${thanks} — I've shared your request with the team. They'll contact you to confirm the earliest available appointment. Your preferred time is noted, but not booked yet.`;
+}
+
+export function buildFailedLeadHandoffCustomerMessage(
+  business: BusinessProfile
+): string {
+  return `We're unable to send your request to the team at the moment. Please contact ${formatBusinessDirectContact(business)} directly.`;
+}
+
+export function isSuccessfulLeadHandoffCustomerMessage(reply: string): boolean {
+  return (
+    /\bshared your request with the team\b/i.test(reply) &&
+    /\bearliest available appointment\b/i.test(reply) &&
+    /\bnot booked yet\b/i.test(reply)
+  );
+}
+
+export function isFailedLeadHandoffCustomerMessage(reply: string): boolean {
+  return (
+    /\bunable to send your request to the team\b/i.test(reply) &&
+    /\bplease contact\b/i.test(reply) &&
+    /\bdirectly\b/i.test(reply)
+  );
+}
+
+export const INTERNAL_HANDOFF_STATUS_RE =
+  /\b(lead hasn.t been sent|the lead has not been sent|office hasn.t been reached|the office has not been reached|handoff failed|leadDeliveryStatus|smtp|twilio|notification (email|sms)|email\/sms|delivery status)\b/i;
+
+export function resolveWebsiteChatCustomerHandoffReply(params: {
+  attempted: boolean;
+  status: "NOT_SENT" | "SENT" | "FAILED";
+  currentObjective: SalesObjective;
+  customerName?: string | null;
+  business: BusinessProfile;
+}): string | null {
+  if (!params.attempted) return null;
+  if (params.status !== "SENT" && params.status !== "FAILED") return null;
+  if (params.status === "SENT") {
+    return buildSuccessfulLeadHandoffCustomerMessage(params.customerName);
+  }
+  return buildFailedLeadHandoffCustomerMessage(params.business);
+}
 
 /** Shorter preferred-day ask used when no site-assessment framing is needed (e.g. voice). */
 export const ASK_PREFERRED_DAY_TIME =

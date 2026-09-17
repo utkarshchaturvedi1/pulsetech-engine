@@ -8,6 +8,7 @@ import VoiceDemoCard from "./VoiceDemoCard";
 import { BusinessProfile } from "../types/business";
 import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
 import { DEMO_CHAT_LAYOUT } from "../lib/demoChatLayout";
+import { hasConfiguredWebsiteChatLeadAlerts } from "../lib/leadAlertRecipients";
 
 type DemoWorkspaceProps = {
   initialProfile: BusinessProfile;
@@ -21,13 +22,16 @@ const PULSETECH_LOGO = "/branding/pulsetech-logo-color.svg";
 async function persistDemo(id: string, profile: BusinessProfile) {
   saveDemoLocal({ id, profile, updatedAt: new Date().toISOString() });
   try {
-    await fetch("/api/demo/" + encodeURIComponent(id), {
+    const response = await fetch("/api/demo/" + encodeURIComponent(id), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ profile }),
     });
+    if (!response.ok) {
+      console.error("[demo] shared profile save failed", response.status);
+    }
   } catch {
-    // Local save is enough for the current session.
+    console.error("[demo] shared profile save failed");
   }
 }
 
@@ -174,7 +178,7 @@ export default function DemoWorkspace({
                 <div className="pt-demo-chat">
                   <CustomerAI
                     business={business}
-                    disabled={false}
+                    disabled={!hasConfiguredWebsiteChatLeadAlerts(business)}
                     className="h-full min-h-0 min-w-0 w-full"
                   />
                 </div>

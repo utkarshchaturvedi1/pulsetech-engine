@@ -1,9 +1,15 @@
 import { BusinessProfile } from "../types/business";
 
+export type CreatedPersonalizedDemo = {
+  id: string;
+  profile: BusinessProfile;
+  invitationPath: string;
+};
+
 export async function analyzeWebsite(
   website: string,
   additionalInfo: string = ""
-): Promise<BusinessProfile> {
+): Promise<CreatedPersonalizedDemo> {
   const response = await fetch("/api/analyze", {
     method: "POST",
     headers: {
@@ -15,7 +21,13 @@ export async function analyzeWebsite(
     }),
   });
 
-  let payload: (Partial<BusinessProfile> & { error?: string }) | null = null;
+  let payload: {
+    id?: string;
+    profile?: BusinessProfile;
+    invitationPath?: string;
+    businessName?: string;
+    error?: string;
+  } | null = null;
 
   try {
     payload = await response.json();
@@ -29,9 +41,17 @@ export async function analyzeWebsite(
     );
   }
 
-  if (!payload || typeof payload.businessName !== "string") {
+  const profile = payload?.profile;
+  const id = payload?.id?.trim() || "";
+
+  if (!id || !profile || typeof profile.businessName !== "string" || !profile.businessName.trim()) {
     throw new Error("Website analysis returned an invalid business profile.");
   }
 
-  return payload as BusinessProfile;
+  return {
+    id,
+    profile,
+    invitationPath:
+      payload?.invitationPath || "/demo/" + encodeURIComponent(id),
+  };
 }

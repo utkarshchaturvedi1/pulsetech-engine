@@ -3,6 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchWebsite } from "../../../lib/fetchWebsite";
 import { cleanHtml } from "../../../lib/cleanHtml";
 import { analyzeBusiness } from "../../../lib/aiAnalyzer";
+import {
+  invitationPathForDemoId,
+  isInvitationSaveReady,
+  saveNewPersonalizedDemo,
+  SETUP_SAVE_FAILED_MESSAGE,
+} from "../../../lib/personalizedDemo";
 
 function normalizeWebsite(website: string): string {
   const trimmed = website.trim();
@@ -45,8 +51,30 @@ export async function POST(request: NextRequest) {
       cleanedHtml,
       additionalInfo
     );
+    business.website = website;
+    business.isTestData = false;
 
-    return NextResponse.json(business);
+    const commit = await saveNewPersonalizedDemo(business);
+    if (!isInvitationSaveReady(commit)) {
+      console.error("[analyze] demo save failed", commit.reason, commit.backend);
+      return NextResponse.json(
+        {
+          error: SETUP_SAVE_FAILED_MESSAGE,
+        },
+        {
+          status: 503,
+        }
+      );
+    }
+
+    return NextResponse.json({
+      id: commit.demo.id,
+      profile: commit.demo.profile,
+      persisted: commit.persisted,
+      durable: commit.durable,
+      backend: commit.backend,
+      invitationPath: invitationPathForDemoId(commit.demo.id),
+    });
   } catch (error) {
     console.error("POST /api/analyze failed:", error);
 

@@ -1,14 +1,17 @@
 import { BusinessProfile } from "../types/business";
 import {
   INVENTED_SCHEDULE_RANGE_RE,
-  PREFERRED_TIME_TEAM_ALERT_ACK,
+  INTERNAL_HANDOFF_STATUS_RE,
   SAME_DAY_PROMISE_RE,
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
+  buildFailedLeadHandoffCustomerMessage,
+  buildSuccessfulLeadHandoffCustomerMessage,
   detectSchedulingUrgency,
   detectVisitPreferenceRequest,
   extractPreferredVisitTimeFromText,
   impliesConfirmedSiteAssessment,
-  isPreferredTimeTeamAck,
+  isFailedLeadHandoffCustomerMessage,
+  isSuccessfulLeadHandoffCustomerMessage,
   knowledgeAllowsSameDay,
   maxUrgency,
 } from "./schedulingPolicy";
@@ -586,7 +589,8 @@ function computeHandoffReady(state: SalesState, latestUserText: string): boolean
     state.customerAgreed ||
     state.currentObjective === "CLOSE" ||
     state.salesStage === "COMPLETED" ||
-    detectCustomerFinished(latestUserText);
+    detectCustomerFinished(latestUserText) ||
+    Boolean(state.preferredTiming);
 
   return naturalEndpoint;
 }
@@ -662,8 +666,11 @@ function looksLikeLeadFieldOnlyReply(text: string): boolean {
 
 
 function selectObjective(state: SalesState, latestUserText: string): SalesObjective {
-  // After successful handoff, answer new questions — do not reopen lead capture.
-  if (state.leadDeliveryStatus === "SENT") {
+  // After lead capture / handoff attempt, answer new questions — do not reopen lead capture.
+  if (
+    state.leadDeliveryStatus === "SENT" ||
+    state.leadDeliveryStatus === "FAILED"
+  ) {
     const postSend = detectSalesObjective(latestUserText);
     if (
       postSend === "HANDLE_PRICE_OBJECTION" ||
@@ -815,7 +822,6 @@ function buildSummary(state: SalesState): string {
     state.leadCapturePaused ? "leadCapture=PAUSED" : null,
     state.customerAgreed ? "customerAgreed=true" : null,
     state.handoffReady ? "handoffReady=true" : "handoffReady=false",
-    state.leadDeliveryStatus ? `leadDelivery=${state.leadDeliveryStatus}` : null,
     state.siteVisitFeeMentioned ? "siteVisitFeeMentioned=true" : null,
     state.refusedLeadFields.length
       ? `refused=${state.refusedLeadFields.join(",")}`
@@ -1091,14 +1097,20 @@ export function updateSalesStateFromTurn(
   return state;
 }
 
-export function buildTurnControlBlock(state: SalesState): string {
+export function buildTurnControlBlock(
+  state: SalesState,
+  business?: BusinessProfile
+): string {
   const leadLines = Object.entries(state.lead)
     .map(([key, value]) => `- ${key}: ${value ?? "not collected"}`)
     .join("\n");
 
+  const visibleFacts = state.establishedFacts.filter(
+    (f) => !f.startsWith("leadDelivery=")
+  );
   const facts =
-    state.establishedFacts.length > 0
-      ? state.establishedFacts.map((f) => `- ${f}`).join("\n")
+    visibleFacts.length > 0
+      ? visibleFacts.map((f) => `- ${f}`).join("\n")
       : "- none yet";
 
   const refused =
@@ -1106,7 +1118,11 @@ export function buildTurnControlBlock(state: SalesState): string {
       ? state.refusedLeadFields.join(", ")
       : "none";
 
-  const objectiveDirective = objectiveInstruction(state);
+  const objectiveDirective = objectiveInstruction(state, business);
+  const failedFallback = business
+    ? buildFailedLeadHandoffCustomerMessage(business)
+    : "We're unable to send your request to the team at the moment. Please contact the business directly.";
+  const successClose = buildSuccessfulLeadHandoffCustomerMessage(state.lead.name);
 
   return `
 ==================================================
@@ -1130,7 +1146,6 @@ Current state:
 - leadCapturePaused: ${state.leadCapturePaused}
 - customerAgreed: ${state.customerAgreed}
 - handoffReady: ${state.handoffReady}
-- leadDeliveryStatus: ${state.leadDeliveryStatus}
 - siteVisitFeeMentioned: ${state.siteVisitFeeMentioned}
 - customerAskedAboutFee: ${state.customerAskedAboutFee}
 - siteVisitFeeLabel: ${state.siteVisitFeeLabel || "none"}
@@ -1149,18 +1164,21 @@ ${state.objections.length ? state.objections.map((o) => `- ${o}`).join("\n") : "
 Summary: ${state.summary}
 
 ${
-  state.leadDeliveryStatus === "SENT"
-    ? `Lead notification already delivered (leadDeliveryStatus=SENT). Do NOT re-ask for name, phone, address, or other already-captured lead fields. You may still answer new customer questions.`
+  state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "FAILED"
+    ? `Lead capture is complete. Do NOT re-ask for name, phone, address, or other already-captured lead fields. You may still answer new customer questions (including price) without repeating closing/handoff language.`
     : ""
 }
 
-LEAD HANDOFF TRUTH:
+CUSTOMER-FACING REQUEST LANGUAGE:
+Never mention email, SMS, delivery status, "lead", "handoff", or internal systems.
+Never say "the lead hasn't been sent", "the office hasn't been reached", or "handoff failed".
+Never claim an appointment is booked.
 ${
   state.leadDeliveryStatus === "SENT"
-    ? `leadDeliveryStatus=SENT. You MAY truthfully say the request/details were sent to the team / notification was delivered.`
+    ? `If this turn is a closing acknowledgement, use this meaning only: "${successClose}" If the customer asked a new question, answer that question and do not repeat the closing message.`
     : state.leadDeliveryStatus === "FAILED"
-      ? `leadDeliveryStatus=FAILED. Delivery did NOT succeed. Do NOT claim the team was notified or that you sent the request. Say the details are captured and the team still needs to be reached / follow-up will be arranged.`
-      : `leadDeliveryStatus=NOT_SENT. Do NOT claim you sent the request, handed it off, or that the team already has/will call about a delivered notification. You may say the details are captured.`
+      ? `Do NOT say the team was alerted or that the request was shared. If this turn is a closing acknowledgement, use this meaning only: "${failedFallback}" If the customer asked a new question, answer that question and do not mention request-delivery.`
+      : `Do not claim the request was shared with the team. Continue capturing missing details one question at a time.`
 }
 
 ${objectiveDirective}
@@ -1179,7 +1197,7 @@ HARD RULES FOR THIS RESPONSE:
 11. If customerAgreed is true / objective is CLOSE: stop overselling, no questionnaire, no extra questions — deliver the positive final handoff message only (request captured; team will confirm availability). Never use "I can't book / can't complete the booking" language. Do NOT ask "Anything else?", "One quick question...", or "Would you like me to...".
 12. Prefer preserving the opportunity over forcing lead capture.
 13. For COLLECT_* and UNDERSTAND_NEED: roughly one short sentence + one question.
-14. Only claim successful lead handoff/email/notification if leadDeliveryStatus=SENT.
+14. Never expose internal delivery status. Never claim an appointment is booked.
 15. Do NOT proactively ask for gate codes, pets, parking, doorman, or access instructions — the human team can collect those later unless the customer brings them up.
 16. If preferredTiming is already established, do NOT keep refining appointment windows into smaller slots. Capture the preference and move on.
 17. Keep the reply concise: normally 1–3 sentences unless the customer explicitly asked for a detailed explanation.
@@ -1188,7 +1206,10 @@ HARD RULES FOR THIS RESPONSE:
 `.trim();
 }
 
-function objectiveInstruction(state: SalesState): string {
+function objectiveInstruction(
+  state: SalesState,
+  business?: BusinessProfile
+): string {
   switch (state.currentObjective) {
     case "COLLECT_NAME":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's first name only.
@@ -1245,7 +1266,8 @@ Do NOT invent brands, catalogs, prices, or warranties. Do NOT ask access/pet/par
 Acknowledge → answer honestly from BusinessProfile/owner knowledge only.
 Never invent prices.
 If leadCapturePaused, do NOT ask for refused lead fields.
-Continue selling the value of the next step. Ask at most ONE clarifying question if needed.`;
+Continue selling the value of the next step. Ask at most ONE clarifying question if needed.
+Do not mention whether a request was shared, emailed, texted, or delivered. Do not repeat a closing handoff message.`;
     case "HANDLE_COMPETITOR_OBJECTION":
       return `YOUR ONLY OBJECTIVE: handle competitor/price comparison.
 No invented superiority. Use BusinessProfile-supported facts only. Ask at most ONE clarifying question if needed.`;
@@ -1260,6 +1282,12 @@ Do not ambush before the primary need is handled.`;
       const needsTeamAck =
         leadComplete &&
         (!!state.preferredTiming || state.urgency === "IMMEDIATE");
+      const successClose = buildSuccessfulLeadHandoffCustomerMessage(
+        state.lead.name
+      );
+      const failedFallback = business
+        ? buildFailedLeadHandoffCustomerMessage(business)
+        : "We're unable to send your request to the team at the moment. Please contact the business directly.";
       return `YOUR ONLY OBJECTIVE: advance toward the business's real next step.
 Do not invent availability windows, dates, scheduling ranges, or a menu of time choices.
 Never say "next week, 2–4 weeks, or later" or similar invented options.
@@ -1267,12 +1295,14 @@ Do NOT invent time slots such as 8–10, 10–12, 12–4, etc.
 Never confirm an appointment or availability.
 Never promise same-day service unless BusinessProfile explicitly includes that promise.
 ${
-  needsTeamAck
+  needsTeamAck && state.leadDeliveryStatus === "SENT"
     ? `preferred_visit_time / preferredTiming is ${state.preferredTiming || "the earliest available time"}.
 Do NOT ask for name, phone, or address if they are already captured.
 Do NOT mention any site-visit fee, dollar amount, or payment.
-Reply with this meaning (do not add extra scheduling options): "${PREFERRED_TIME_TEAM_ALERT_ACK}"
+Reply with this meaning (do not add extra scheduling options): "${successClose}"
 Do NOT ask another timing/refinement question.`
+    : needsTeamAck && state.leadDeliveryStatus === "FAILED"
+      ? `Do NOT claim the team was alerted. Reply with this meaning only: "${failedFallback}"`
     : leadComplete
       ? `Lead is captured. After the customer agrees to a site assessment / next step, reply with this meaning only: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
 Never say "we'll arrange a site assessment" or otherwise imply the appointment is already confirmed or booked.
@@ -1282,20 +1312,30 @@ Do not offer arbitrary future options.`
 Do NOT ask for gate codes, pets, parking, or access instructions.
 Capture the customer's preference for the team — you do not have live scheduling.`;
     }
-    case "CLOSE":
+    case "CLOSE": {
+      const successClose = buildSuccessfulLeadHandoffCustomerMessage(
+        state.lead.name
+      );
+      const failedFallback = business
+        ? buildFailedLeadHandoffCustomerMessage(business)
+        : "We're unable to send your request to the team at the moment. Please contact the business directly.";
       return `YOUR ONLY OBJECTIVE: close / hand off cleanly with a positive FINAL message — then STOP.
 Do NOT ask any question (no "Anything else?", no "One quick question...", no "Would you like me to...", no access/timing/confirmation questions).
 Do NOT repeat the service explanation or visit/estimate process.
 Do NOT pretend the appointment is already booked or that availability is already confirmed.
 Do NOT say "I can't book", "I can't complete the booking", or similar limitation language.
+Never mention email, SMS, delivery status, or internal systems.
 
-Preferred closing style (adapt with the customer's name and known facts only):
-"Perfect${state.lead.name ? `, ${state.lead.name}` : ""}. I have everything we need: your contact details, ${state.customerNeed || "your service request"}${state.preferredTiming ? `, and your preferred time ${state.preferredTiming}` : ""}. Our team will get in touch with you to confirm availability and finalize the appointment."
-
-Handoff language MUST match leadDeliveryStatus=${state.leadDeliveryStatus}:
-- SENT: you may say the request was sent/captured for the team as above.
-- NOT_SENT or FAILED: say the request/details are captured; do NOT claim a notification email was delivered.
+Preferred closing style:
+${
+  state.leadDeliveryStatus === "SENT"
+    ? `"${successClose}"`
+    : state.leadDeliveryStatus === "FAILED"
+      ? `"${failedFallback}"`
+      : `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I have your details${state.preferredTiming ? ` and preferred time (${state.preferredTiming})` : ""}. Our team will confirm the earliest available appointment. Nothing is booked yet."`
+}
 Then STOP.`;
+    }
     default:
       return `YOUR ONLY OBJECTIVE: ${state.currentObjective}
 Ask at most ONE question if needed.`;
@@ -1553,19 +1593,41 @@ export function validateSalesReply(
     reasons.push("Compound multi-part question in a single-objective turn.");
   }
 
+  if (INTERNAL_HANDOFF_STATUS_RE.test(reply)) {
+    reasons.push("Exposed internal lead-handoff delivery status to the customer.");
+  }
+
+  if (
+    state.leadDeliveryStatus === "FAILED" &&
+    /\b(shared your request with the team|alert(ed)? the team|the team (has been|was) (notified|alerted)|i('ve| have) (sent|shared) (your|the) request)\b/i.test(
+      reply
+    ) &&
+    !isFailedLeadHandoffCustomerMessage(reply)
+  ) {
+    reasons.push("Claimed the team was alerted after the request could not be sent.");
+  }
+
   if (
     state.leadDeliveryStatus !== "SENT" &&
     FALSE_HANDOFF_RE.test(reply)
   ) {
-    const preferredTimeAck =
-      (state.currentObjective === "ADVANCE_TO_NEXT_STEP" ||
-        state.currentObjective === "COLLECT_ADDRESS") &&
-      isPreferredTimeTeamAck(reply);
-    if (!preferredTimeAck) {
+    const allowedFailedFallback =
+      state.leadDeliveryStatus === "FAILED" &&
+      isFailedLeadHandoffCustomerMessage(reply);
+    if (!allowedFailedFallback) {
       reasons.push(
-        "Claimed successful lead handoff/notification when leadDeliveryStatus is not SENT."
+        "Claimed successful lead handoff/notification when the request was not shared with the team."
       );
     }
+  }
+
+  if (
+    state.leadDeliveryStatus === "SENT" &&
+    isSuccessfulLeadHandoffCustomerMessage(reply) === false &&
+    state.currentObjective === "CLOSE" &&
+    /\b(lead hasn'?t|office hasn'?t|not been sent|not been reached)\b/i.test(reply)
+  ) {
+    reasons.push("Closing message must not expose internal delivery status.");
   }
 
   if (PAYMENT_PUSH_RE.test(reply)) {
@@ -1647,8 +1709,13 @@ export function recordSiteVisitFeeMention(
 
 export function buildValidationCorrection(
   state: SalesState,
-  reasons: string[]
+  reasons: string[],
+  business?: BusinessProfile
 ): string {
+  const successClose = buildSuccessfulLeadHandoffCustomerMessage(state.lead.name);
+  const failedFallback = business
+    ? buildFailedLeadHandoffCustomerMessage(business)
+    : "We're unable to send your request to the team at the moment. Please contact the business directly.";
   return `
 CORRECTION — previous draft violated Sales Controller rules:
 ${reasons.map((r) => `- ${r}`).join("\n")}
@@ -1661,14 +1728,21 @@ Do not invent prices, availability, booking, or dispatch.
 Never arrange payment, say pay now, or collect a fee.
 Mention an owner-set site-visit fee at most once unless the customer asks about it again.
 If the customer just asked about visit timing, do not mention the fee.
-If acknowledging a preferred visit time, reply with this meaning: "${PREFERRED_TIME_TEAM_ALERT_ACK}"
-If the customer just said yes to a site assessment and no preferred time is known yet, reply with this meaning: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
 Never say "we'll arrange a site assessment" or imply the appointment is confirmed.
 Never invent next week / 2–4 weeks / later menus.
 Keep the reply to 1–3 sentences unless they asked for more detail.
-Do not claim lead handoff/notification unless leadDeliveryStatus=SENT.
+Never mention email, SMS, delivery status, "the lead hasn't been sent", "the office hasn't been reached", or "handoff failed".
+Never claim an appointment is booked.
+${
+  state.leadDeliveryStatus === "SENT"
+    ? `If acknowledging the captured request, use this meaning: "${successClose}"`
+    : state.leadDeliveryStatus === "FAILED"
+      ? `If acknowledging the captured request, use this meaning: "${failedFallback}" Do not claim the team was alerted.`
+      : `Do not claim the request was already shared with the team. If the customer just said yes to a site assessment and no preferred time is known yet, reply with this meaning: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"`
+}
 Do not give DIY tutorials or technician dumps.
-If objective is CLOSE: give the positive final captured-request message using known name/need/timing only, then STOP. No questions. No access asks. No "anything else?".
+If objective is CLOSE: give the final message then STOP. No questions. No access asks. No "anything else?".
+If the customer asked about price, answer the price question and do not repeat request-delivery language.
 Keep it natural and concise.
 `.trim();
 }

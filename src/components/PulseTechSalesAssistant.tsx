@@ -5,10 +5,7 @@ import ChatWindow from "./Chat/ChatWindow";
 import ChatAgentShell from "./Chat/ChatAgentShell";
 import AnalysisProgressIndicator from "./AnalysisProgressIndicator";
 import { analyzeWebsite } from "../lib/websiteAnalyzer";
-import {
-  demoIdFromWebsite,
-  savePendingDemo,
-} from "../lib/demoStore";
+import { saveDemoLocal } from "../lib/demoStore";
 import { BusinessProfile } from "../types/business";
 
 type Props = {
@@ -43,28 +40,24 @@ function elapsedForProgress(progress: number): number {
   return -18000 * Math.log(1 - progress / 99);
 }
 
-async function persistAndOpenDemo(profile: BusinessProfile) {
-  const id = demoIdFromWebsite(profile.website);
+async function openSavedDemo(created: {
+  id: string;
+  profile: BusinessProfile;
+  invitationPath: string;
+}) {
+  if (!created.id || !created.profile.businessName?.trim()) {
+    throw new Error(
+      "We analyzed the website but could not save your demo. Please try again from the homepage."
+    );
+  }
 
-  savePendingDemo({
-    id,
-    profile,
+  saveDemoLocal({
+    id: created.id,
+    profile: created.profile,
     updatedAt: new Date().toISOString(),
   });
 
-  try {
-    await fetch(`/api/demo/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ profile }),
-    });
-  } catch {
-    // Local/session persistence is enough to open the demo.
-  }
-
-  window.location.href = `/demo/${encodeURIComponent(id)}`;
+  window.location.href = created.invitationPath;
 }
 
 export default function PulseTechSalesAssistant({
@@ -83,7 +76,9 @@ export default function PulseTechSalesAssistant({
   const progressRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
   const analysisKeyRef = useRef("");
-  const analysisPromiseRef = useRef<Promise<BusinessProfile> | null>(null);
+  const analysisPromiseRef = useRef<ReturnType<typeof analyzeWebsite> | null>(
+    null
+  );
   const completionHandledRef = useRef(false);
 
   useEffect(() => {
@@ -142,7 +137,7 @@ export default function PulseTechSalesAssistant({
 
     async function runAnalysis() {
       try {
-        const profile = await analysisPromiseRef.current!;
+        const created = await analysisPromiseRef.current!;
 
         if (!active) return;
 
@@ -162,7 +157,7 @@ export default function PulseTechSalesAssistant({
           "🎉 Your AI Sales Employee is ready. Opening your demo...",
         ]);
 
-        await persistAndOpenDemo(profile);
+        await openSavedDemo(created);
       } catch (err) {
         if (!active) return;
 

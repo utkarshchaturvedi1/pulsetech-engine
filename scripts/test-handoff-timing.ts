@@ -4,6 +4,8 @@ config({ path: ".env.local" });
 // CRITICAL: automated tests must never send real SMTP email.
 process.env.LEAD_HANDOFF_DRY_RUN = "true";
 
+import { readFileSync } from "fs";
+import path from "path";
 import type { BusinessProfile } from "../src/types/business";
 import {
   buildLeadNotificationEmail,
@@ -12,6 +14,8 @@ import {
   isLeadQualified,
   isLeadReadyForHandoff,
   maybeSendLeadHandoff,
+  scheduleLeadAlertDelivery,
+  setLeadHandoffTestDelivery,
   shouldAttemptLeadHandoff,
 } from "../src/lib/leadHandoff";
 import {
@@ -43,12 +47,16 @@ const business: BusinessProfile = {
   faqs: [],
   leadQuestions: [],
   systemPrompt: "Long owner prompt that must NOT appear in the email dump.",
+  leadNotificationEmail: "owner@summit.test",
+  leadNotificationPhone: "+15125550142",
 };
 
 const businessB: BusinessProfile = {
   ...business,
   website: "https://autreys-plumbing.test",
   businessName: "Autrey's Plumbing LLC",
+  leadNotificationEmail: "owner@autrey.test",
+  leadNotificationPhone: "+12145550189",
 };
 
 function assert(condition: boolean, message: string) {
@@ -178,18 +186,21 @@ async function main() {
     dryRun: true,
   });
 
-  // -------- TEST 4 — CUSTOMER STILL TALKING --------
+  // -------- TEST 4 — PREFERRED TIME COMPLETES HANDOFF READINESS --------
   let s4 = qualifiedBase({ handoffReady: false });
   assert(isLeadQualified(s4), "TEST4: qualified");
   assert(!isLeadReadyForHandoff(s4), "TEST4: not handoff ready while gathering");
-  s4 = applyTurn(s4, "I need someone today.", "Want an inspection?");
-  assert(s4.leadDeliveryStatus !== "SENT", "TEST4: no send");
   assert(
-    !shouldAttemptLeadHandoff(s4, "inactivity"),
-    "TEST4: inactivity blocked without handoffReady"
+    !shouldAttemptLeadHandoff(s4, "closure"),
+    "TEST4: no auto-handoff before preferred time"
   );
-  s4 = applyTurn(s4, "I'm home right now.", "Any access notes?");
-  assert(!shouldAttemptLeadHandoff(s4, "closure"), "TEST4: still no closure");
+  s4 = applyTurn(s4, "I need someone today.", "Want an inspection?");
+  assert(!!s4.preferredTiming, "TEST4: preferred time captured");
+  assert(isLeadReadyForHandoff(s4), "TEST4: ready after preferred time");
+  assert(
+    shouldAttemptLeadHandoff(s4, "closure", "I need someone today."),
+    "TEST4: auto-handoff after name/phone/address/preferred time"
+  );
   console.log("TEST4 PASS", { ready: s4.handoffReady, urgency: s4.urgency });
 
   // -------- TEST 5 — HANDOFF READY + INACTIVITY --------
@@ -297,6 +308,131 @@ async function main() {
     "TEST9: inactivity still requires handoffReady"
   );
   console.log("TEST9 PASS");
+
+  // TEST10 — visitor chat must not wait for SMTP/SMS; missing Twilio must not block email.
+  const previousDryRun = process.env.LEAD_HANDOFF_DRY_RUN;
+  const previousTwilio = {
+    sid: process.env.TWILIO_ACCOUNT_SID,
+    token: process.env.TWILIO_AUTH_TOKEN,
+    from: process.env.TWILIO_FROM_NUMBER,
+  };
+  const previousSmtp = {
+    host: process.env.SMTP_HOST,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+    from: process.env.SMTP_FROM,
+  };
+  delete process.env.LEAD_HANDOFF_DRY_RUN;
+  delete process.env.TWILIO_ACCOUNT_SID;
+  delete process.env.TWILIO_AUTH_TOKEN;
+  delete process.env.TWILIO_FROM_NUMBER;
+  process.env.SMTP_HOST = previousSmtp.host || "smtp.test.local";
+  process.env.SMTP_USER = previousSmtp.user || "leads@test.local";
+  process.env.SMTP_PASS = previousSmtp.pass || "test-pass";
+  process.env.SMTP_FROM = previousSmtp.from || "leads@test.local";
+
+  let deliveryFinished = false;
+  setLeadHandoffTestDelivery(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    deliveryFinished = true;
+    return { emailOk: true, smsOk: false };
+  });
+  const readyLead = qualifiedBase({
+    preferredTiming: "tomorrow morning",
+    handoffReady: true,
+    currentObjective: "ADVANCE_TO_NEXT_STEP",
+  });
+  const detectStarted = Date.now();
+  const detected = applyTurn(
+    qualifiedBase({
+      preferredTiming: null,
+      handoffReady: false,
+    }),
+    "Can you come tomorrow morning?"
+  );
+  const leadDetectionMs = Date.now() - detectStarted;
+  assert(!!detected.preferredTiming, "TEST10: preferred time captured");
+  assert(isLeadReadyForHandoff(detected), "TEST10: lead ready after preferred time");
+
+  const queued: Array<() => void | Promise<void>> = [];
+  const vercelAfter = (task: () => void | Promise<void>) => {
+    queued.push(task);
+  };
+
+  const sendStarted = Date.now();
+  const smtpOnly = await maybeSendLeadHandoff(
+    business,
+    readyLead,
+    "closure",
+    "Can you come tomorrow morning?"
+  );
+  scheduleLeadAlertDelivery(vercelAfter, smtpOnly.delivery);
+  const handoffMs = Date.now() - sendStarted;
+  assert(smtpOnly.attempted === true, "TEST10: attempted");
+  assert(smtpOnly.status === "SENT", "TEST10: SMTP-only still schedules the email");
+  assert(typeof smtpOnly.delivery === "function", "TEST10: delivery task is returned");
+  assert(queued.length === 1, "TEST10: after() received the delivery task");
+  assert(handoffMs < 400, `TEST10: response must not wait for delivery, took ${handoffMs}ms`);
+  assert(!deliveryFinished, "TEST10: email/SMS not finished before the response");
+  await queued[0]();
+  assert(deliveryFinished, "TEST10: after() lifecycle awaited delivery to completion");
+  setLeadHandoffTestDelivery(null);
+
+  const chatRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/chat/route.ts"),
+    "utf8"
+  );
+  const inactivityRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/lead-handoff/route.ts"),
+    "utf8"
+  );
+  assert(
+    /import \{ after, NextRequest, NextResponse \} from "next\/server"/.test(chatRoute),
+    "TEST10: website chat must import after() from next/server"
+  );
+  assert(
+    chatRoute.includes("scheduleLeadAlertDelivery(after, leadDelivery)"),
+    "TEST10: website chat must schedule delivery with after()"
+  );
+  assert(
+    /import \{ after, NextRequest, NextResponse \} from "next\/server"/.test(inactivityRoute),
+    "TEST10: inactivity handoff must import after() from next/server"
+  );
+  assert(
+    inactivityRoute.includes("scheduleLeadAlertDelivery(after, handoff.delivery)"),
+    "TEST10: inactivity handoff must schedule delivery with after()"
+  );
+
+  delete process.env.SMTP_HOST;
+  delete process.env.SMTP_USER;
+  delete process.env.SMTP_PASS;
+  delete process.env.SMTP_FROM;
+  const none = await maybeSendLeadHandoff(
+    business,
+    readyLead,
+    "closure",
+    "Can you come tomorrow morning?"
+  );
+  assert(none.status === "FAILED", "TEST10: no SMTP and no Twilio → FAILED");
+
+  if (previousDryRun === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+  else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun;
+  if (previousTwilio.sid === undefined) delete process.env.TWILIO_ACCOUNT_SID;
+  else process.env.TWILIO_ACCOUNT_SID = previousTwilio.sid;
+  if (previousTwilio.token === undefined) delete process.env.TWILIO_AUTH_TOKEN;
+  else process.env.TWILIO_AUTH_TOKEN = previousTwilio.token;
+  if (previousTwilio.from === undefined) delete process.env.TWILIO_FROM_NUMBER;
+  else process.env.TWILIO_FROM_NUMBER = previousTwilio.from;
+  if (previousSmtp.host === undefined) delete process.env.SMTP_HOST;
+  else process.env.SMTP_HOST = previousSmtp.host;
+  if (previousSmtp.user === undefined) delete process.env.SMTP_USER;
+  else process.env.SMTP_USER = previousSmtp.user;
+  if (previousSmtp.pass === undefined) delete process.env.SMTP_PASS;
+  else process.env.SMTP_PASS = previousSmtp.pass;
+  if (previousSmtp.from === undefined) delete process.env.SMTP_FROM;
+  else process.env.SMTP_FROM = previousSmtp.from;
+
+  console.log("TEST10 PASS", { leadDetectionMs, handoffMs });
 
   // Extra agreement checks
   assert(detectCustomerAgreement("Please proceed."), "extra: please proceed");

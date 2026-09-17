@@ -6,6 +6,14 @@ import ChatAgentShell from "./Chat/ChatAgentShell";
 import AnalysisProgressIndicator from "./AnalysisProgressIndicator";
 import { analyzeWebsite } from "../lib/websiteAnalyzer";
 import { BusinessProfile } from "../types/business";
+import {
+  formatLeadAlertsConfigured,
+  isValidLeadAlertEmail,
+  LEAD_ALERT_EMAIL_PROMPT,
+  LEAD_ALERT_SMS_PROMPT,
+  normalizeLeadAlertSms,
+  shouldCollectLeadAlertSetup,
+} from "../lib/leadAlertRecipients";
 
 type PulseTechEngineChatProps = {
   website: string;
@@ -23,7 +31,12 @@ type PulseTechEngineChatProps = {
   demoId?: string;
 };
 
-type ChatPhase = "analyzing" | "ready" | "error";
+type ChatPhase =
+  | "analyzing"
+  | "collecting_email"
+  | "collecting_sms"
+  | "ready"
+  | "error";
 
 const DEFAULT_AGENT_NAME = "Peter";
 const DEFAULT_AGENT_ROLE = "AI Sales Agent";
@@ -68,9 +81,13 @@ export default function PulseTechEngineChat({
   skipAnalysis = false,
   demoId = "",
 }: PulseTechEngineChatProps) {
-  const [phase, setPhase] = useState<ChatPhase>(
-    skipAnalysis ? "ready" : "analyzing"
-  );
+  const [phase, setPhase] = useState<ChatPhase>(() => {
+    if (!skipAnalysis) return "analyzing";
+    if (business && shouldCollectLeadAlertSetup(business)) {
+      return "collecting_email";
+    }
+    return "ready";
+  });
   const [assistantMessages, setAssistantMessages] = useState<string[]>([]);
   const [progress, setProgress] = useState(skipAnalysis ? 100 : 0);
   const [showProgress, setShowProgress] = useState(!skipAnalysis);
@@ -84,6 +101,14 @@ export default function PulseTechEngineChat({
   const completionHandledRef = useRef(skipAnalysis);
   const onCompleteRef = useRef(onAnalysisComplete);
   const onUpdateRef = useRef(onProfileUpdate);
+  const [openingMessage] = useState(() => {
+    if (!skipAnalysis) return ANALYZING_MESSAGE;
+    if (business && shouldCollectLeadAlertSetup(business)) {
+      return LEAD_ALERT_EMAIL_PROMPT;
+    }
+    return INVITE_READY_MESSAGE;
+  });
+  const pendingEmailRef = useRef("");
   const inviteSeededRef = useRef(false);
 
   useEffect(() => {
@@ -98,10 +123,14 @@ export default function PulseTechEngineChat({
   useEffect(() => {
     if (!skipAnalysis || inviteSeededRef.current) return;
     inviteSeededRef.current = true;
-    setPhase("ready");
     setShowProgress(false);
     setProgress(100);
-  }, [skipAnalysis]);
+    if (business && shouldCollectLeadAlertSetup(business)) {
+      setPhase("collecting_email");
+    } else {
+      setPhase("ready");
+    }
+  }, [skipAnalysis, business]);
 
   useEffect(() => {
     if (skipAnalysis) return;
@@ -125,7 +154,9 @@ export default function PulseTechEngineChat({
     }
 
     if (!analysisPromiseRef.current) {
-      analysisPromiseRef.current = analyzeWebsite(website, additionalInfo);
+      analysisPromiseRef.current = analyzeWebsite(website, additionalInfo).then(
+        (created) => created.profile
+      );
     }
 
     const startedAt =
@@ -230,6 +261,30 @@ You can reply "retry" to try analyzing again.`
     };
   }, [website, additionalInfo, skipAnalysis, retryToken]);
 
+  async function persistProfile(
+    next: BusinessProfile
+  ): Promise<BusinessProfile> {
+    if (!demoId) {
+      throw new Error("A valid demo id is required to save lead alerts.");
+    }
+    const response = await fetch("/api/demo/" + encodeURIComponent(demoId), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile: next }),
+    });
+    const data = (await response.json()) as {
+      profile?: BusinessProfile;
+      persisted?: boolean;
+      error?: string;
+    };
+    if (!response.ok || data.persisted === false || !data.profile) {
+      throw new Error(data.error || "Unable to save lead alerts.");
+    }
+    businessRef.current = data.profile;
+    onUpdateRef.current?.(data.profile);
+    return data.profile;
+  }
+
   async function handleUserMessage(message: string): Promise<string> {
     const text = message.trim();
 
@@ -244,6 +299,40 @@ You can reply "retry" to try analyzing again.`
       }
 
       return `Analysis failed. Reply "retry" to try again, or return to the homepage with a different website.`;
+    }
+
+    if (phase === "collecting_email") {
+      if (!isValidLeadAlertEmail(text)) {
+        return LEAD_ALERT_EMAIL_PROMPT;
+      }
+      pendingEmailRef.current = text.trim().toLowerCase();
+      setPhase("collecting_sms");
+      return LEAD_ALERT_SMS_PROMPT;
+    }
+
+    if (phase === "collecting_sms") {
+      const sms = normalizeLeadAlertSms(text);
+      if (!sms) {
+        return LEAD_ALERT_SMS_PROMPT;
+      }
+      const current = businessRef.current;
+      if (!current) {
+        return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";
+      }
+      try {
+        const saved = await persistProfile({
+          ...current,
+          leadNotificationEmail: pendingEmailRef.current,
+          leadNotificationPhone: sms,
+        });
+        const email = saved.leadNotificationEmail || pendingEmailRef.current;
+        const phone = saved.leadNotificationPhone || sms;
+        setPhase("ready");
+        setAssistantMessages((prev) => [...prev, INVITE_READY_MESSAGE]);
+        return formatLeadAlertsConfigured(email, phone);
+      } catch {
+        return "I couldn't save those lead-alert details. Please try the email and mobile number again.";
+      }
     }
 
     if (!businessRef.current) {
@@ -305,16 +394,18 @@ You can reply "retry" to try analyzing again.`
       className={className}
     >
       <ChatWindow
-        initialMessage={
-          skipAnalysis ? INVITE_READY_MESSAGE : ANALYZING_MESSAGE
-        }
+        initialMessage={openingMessage}
         assistantMessages={assistantMessages}
         placeholder={
-          phase === "ready"
-            ? "Share updates for your AI Sales Employee..."
-            : phase === "error"
-              ? 'Type "retry" to try again...'
-              : "Analyzing your website..."
+          phase === "collecting_email"
+            ? "Enter the business email address..."
+            : phase === "collecting_sms"
+              ? "Enter the mobile number with country code..."
+              : phase === "ready"
+                ? "Share updates for your AI Sales Employee..."
+                : phase === "error"
+                  ? 'Type "retry" to try again...'
+                  : "Analyzing your website..."
         }
         disabled={phase === "analyzing"}
         onUserMessage={handleUserMessage}

@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { BusinessProfile } from "../../../types/business";
 import {
   generateSalesReply,
   SalesChatMessage,
 } from "../../../lib/salesChat";
+import { scheduleLeadAlertDelivery } from "../../../lib/leadHandoff";
 import {
   businessIdentityKey,
   createInitialSalesState,
@@ -123,17 +124,19 @@ export async function POST(request: NextRequest) {
       previousState = createInitialSalesState({ conversationId, businessKey });
     }
 
-    const { reply, salesState: nextState } = await generateSalesReply(
-      business,
-      messages,
-      previousState
-    );
+    const {
+      reply,
+      salesState: nextState,
+      leadDelivery,
+    } = await generateSalesReply(business, messages, previousState);
 
     const salesState: SalesState = {
       ...nextState,
       conversationId,
       businessKey: nextState.businessKey || businessKey,
     };
+
+    scheduleLeadAlertDelivery(after, leadDelivery);
 
     return NextResponse.json({ reply, salesState, conversationId });
   } catch (error) {

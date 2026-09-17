@@ -58,7 +58,24 @@ export async function PUT(
       );
     }
     const commit = await commitSharedProfile(demoId, profile);
-    return NextResponse.json(commit.demo);
+    if (!commit.persisted) {
+      return NextResponse.json(
+        {
+          error: "Unable to save demo.",
+          reason: commit.reason,
+          persisted: false,
+          durable: commit.durable,
+          backend: commit.backend,
+        },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({
+      ...commit.demo,
+      persisted: commit.persisted,
+      durable: commit.durable,
+      backend: commit.backend,
+    });
   } catch (error) {
     console.error("PUT /api/demo/[id] failed:", error);
     return NextResponse.json(

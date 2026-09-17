@@ -163,6 +163,10 @@ export async function commitSharedProfile(
     throw new Error("A valid demo id is required.");
   }
 
+  if (!profile.businessName?.trim()) {
+    throw new Error("A business name is required.");
+  }
+
   const demo = buildStoredDemo(safe, profile);
   const durableConfigured = isDurableProfileStoreConfigured();
   const ephemeral = isEphemeralRuntime();

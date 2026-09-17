@@ -3,8 +3,10 @@ import { BusinessProfile } from "../types/business";
 import { formatBusinessKnowledge } from "./businessKnowledge";
 import {
   applyLeadDeliveryResult,
+  describeLeadAlertTransport,
   maybeSendLeadHandoff,
 } from "./leadHandoff";
+import { resolveWebsiteChatCustomerHandoffReply } from "./schedulingPolicy";
 import {
   buildTurnControlBlock,
   buildValidationCorrection,
@@ -368,7 +370,10 @@ Do not promise same-day service unless BusinessProfile explicitly includes that 
 After name, phone, address, and the service need are captured:
 - If the customer says yes to a site assessment / next step and has not given a preferred time yet, reply with this meaning only: "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability."
 - Never say "we'll arrange a site assessment" or otherwise imply an appointment is already confirmed or booked.
-- If the customer says tomorrow morning, today, as soon as possible, or asks when you can come: note their preference when given, treat urgent wording as urgent, and reply with this meaning only: "I've noted your preference for tomorrow morning. I'll alert the team now; they'll contact you as soon as possible to confirm the earliest available appointment."
+- Once name, phone, service address, and preferred time are captured, the system shares the request with the team. If that succeeded, close with this meaning: "Thanks, [name] — I've shared your request with the team. They'll contact you to confirm the earliest available appointment. Your preferred time is noted, but not booked yet."
+- If the request could not be shared, tell them to contact the business phone or email directly. Do not claim the team was alerted.
+- Never say "the lead hasn't been sent", "the office hasn't been reached", "handoff failed", or anything about email/SMS delivery.
+- If they ask about price after details are captured, answer the pricing question. Do not repeat delivery/handoff language.
 
 Do not mention an owner-set visit fee after a timing question. Never arrange payment.
 
@@ -444,29 +449,62 @@ export async function generateSalesReply(
   business: BusinessProfile,
   messages: SalesChatMessage[],
   previousState?: SalesState | null
-): Promise<{ reply: string; salesState: SalesState }> {
+): Promise<{
+  reply: string;
+  salesState: SalesState;
+  leadDelivery?: () => Promise<void>;
+}> {
+  const started = Date.now();
+  const latestUser = [...messages].reverse().find((m) => m.role === "user");
+
+  const detectStarted = Date.now();
   let salesState = updateSalesStateFromTurn(
     previousState,
     messages,
     business
   );
+  const leadDetectionMs = Date.now() - detectStarted;
 
-  const latestUser = [...messages].reverse().find((m) => m.role === "user");
-
-  // LEAD CAPTURE != LEAD HANDOFF.
-  // Only attempt email on explicit customer closure during chat turns.
-  // Inactivity handoff is handled separately via /api/lead-handoff.
+  const handoffStarted = Date.now();
   const handoff = await maybeSendLeadHandoff(
     business,
     salesState,
     "closure",
     latestUser?.content
   );
+  const handoffMs = Date.now() - handoffStarted;
   salesState = applyLeadDeliveryResult(salesState, handoff);
+  const transport = describeLeadAlertTransport();
+
+  const deterministicHandoffReply = resolveWebsiteChatCustomerHandoffReply({
+    attempted: handoff.attempted,
+    status: handoff.status,
+    currentObjective: salesState.currentObjective,
+    customerName: salesState.lead.name,
+    business,
+  });
+  if (deterministicHandoffReply) {
+    console.log("[chatTiming]", {
+      conversationId: salesState.conversationId || "(none)",
+      leadDetectionMs,
+      handoffMs,
+      openaiMs: 0,
+      supabaseMs: 0,
+      totalMs: Date.now() - started,
+      handoffAttempted: handoff.attempted,
+      handoffStatus: handoff.status,
+      ...transport,
+    });
+    return {
+      reply: deterministicHandoffReply,
+      salesState,
+      leadDelivery: handoff.delivery,
+    };
+  }
 
   const baseInstructions = `${buildMasterSalesCommand(business)}
 
-${buildTurnControlBlock(salesState)}`;
+${buildTurnControlBlock(salesState, business)}`;
 
   async function requestReply(extra?: string): Promise<string> {
     const response = await openai.responses.create({
@@ -491,19 +529,34 @@ ${extra}`
     return reply;
   }
 
+  const openaiStarted = Date.now();
   let reply = await requestReply();
   const validation = validateSalesReply(reply, salesState, business);
 
   if (!validation.ok) {
     reply = await requestReply(
-      buildValidationCorrection(salesState, validation.reasons)
+      buildValidationCorrection(salesState, validation.reasons, business)
     );
   }
+  const openaiMs = Date.now() - openaiStarted;
 
   salesState = recordSiteVisitFeeMention(salesState, reply);
+
+  console.log("[chatTiming]", {
+    conversationId: salesState.conversationId || "(none)",
+    leadDetectionMs,
+    handoffMs,
+    openaiMs,
+    supabaseMs: 0,
+    totalMs: Date.now() - started,
+    handoffAttempted: handoff.attempted,
+    handoffStatus: handoff.status,
+    ...transport,
+  });
 
   return {
     reply,
     salesState,
+    leadDelivery: handoff.delivery,
   };
 }

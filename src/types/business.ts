@@ -37,6 +37,8 @@ export type BusinessProfile = {
   /** Visit charges, free estimates, or pricing rules. Only if the owner explicitly provided them. */
   pricingRules?: string;
   tone?: string;
+  /** Per-demo website-chat lead-alert email. Required for generated businesses. */
   leadNotificationEmail?: string;
+  /** Per-demo internal SMS number in E.164. Required for generated businesses. */
   leadNotificationPhone?: string;
 };

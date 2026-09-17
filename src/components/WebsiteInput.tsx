@@ -11,7 +11,7 @@ export default function WebsiteInput({
   onGenerate,
   loading = false,
 }: WebsiteInputProps) {
-  const [website, setWebsite] = useState("https://texassolar.pro");
+  const [website, setWebsite] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

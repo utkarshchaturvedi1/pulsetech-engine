@@ -27,6 +27,16 @@ import {
   recordInvalidCodeAttempt,
 } from "../src/lib/voiceDemoSession";
 import {
+  scheduleLeadAlertDelivery,
+  setLeadHandoffTestDelivery,
+} from "../src/lib/leadHandoff";
+import {
+  isPostCallTranscriptionEvent,
+  processVoiceLeadHandoff,
+  resetVoiceLeadHandoffIdempotencyForTests,
+} from "../src/lib/voiceLeadHandoff";
+import type { BusinessProfile } from "../src/types/business";
+import {
   VOICE_DEMO_DISCLAIMER,
   VOICE_DEMO_MAX_INVALID_ATTEMPTS,
 } from "../src/lib/voiceDemoCopy";
@@ -338,6 +348,186 @@ function testDisclaimerAndUiWiring() {
   console.log("PASS — disclaimer + demo UI wiring");
 }
 
+function voiceBusiness(): BusinessProfile {
+  return {
+    website: "https://kiser-hvac.test",
+    businessName: "Northwind Heating",
+    tagline: "",
+    logo: "",
+    primaryColor: "",
+    secondaryColor: "",
+    phone: "(214) 555-0100",
+    email: "hello@kiser-hvac.test",
+    address: "",
+    services: ["Heating repair", "Air conditioning"],
+    serviceAreas: ["Dallas"],
+    faqs: [],
+    leadQuestions: [],
+    systemPrompt: "",
+    leadNotificationEmail: "alerts@kiser-hvac.test",
+    leadNotificationPhone: "+12145550189",
+  };
+}
+
+function completedVoicePayload(conversationId: string) {
+  return {
+    type: "post_call_transcription",
+    data: {
+      conversation_id: conversationId,
+      status: "done",
+      analysis: {
+        data_collection_results: {},
+      },
+      metadata: {
+        phone_call: {
+          agent_number: "+18888502173",
+          external_number: "+12145550199",
+        },
+      },
+      transcript: [
+        { role: "agent", message: "Thanks for calling. How can I help?" },
+        {
+          role: "user",
+          message:
+            "The air conditioner is not cooling. I need someone today as soon as possible.",
+        },
+        { role: "agent", message: "What's your first name?" },
+        { role: "user", message: "Jordan Lee" },
+        { role: "agent", message: "What's the best phone number?" },
+        { role: "user", message: "2145550199" },
+        { role: "agent", message: "What's the service address?" },
+        { role: "user", message: "1500 Marilla St, Dallas TX 75201" },
+        {
+          role: "agent",
+          message: "What day or time would you prefer?",
+        },
+        { role: "user", message: "tomorrow morning" },
+        {
+          role: "agent",
+          message: "Would you like me to arrange an appointment?",
+        },
+        { role: "user", message: "yes please" },
+      ],
+    },
+  };
+}
+
+async function testVoiceLeadHandoffFromPostCall() {
+  resetVoiceLeadHandoffIdempotencyForTests();
+  const previousDryRun = process.env.LEAD_HANDOFF_DRY_RUN;
+  delete process.env.LEAD_HANDOFF_DRY_RUN;
+
+  let deliveries = 0;
+  const captured: {
+    current: { emailTo: string; smsTo: string; subject: string } | null;
+  } = { current: null };
+  setLeadHandoffTestDelivery(async (input) => {
+    deliveries += 1;
+    captured.current = {
+      emailTo: input.emailTo,
+      smsTo: input.smsTo,
+      subject: input.subject,
+    };
+    return { emailOk: true, smsOk: true };
+  });
+
+  const business = voiceBusiness();
+  const payload = completedVoicePayload("elconv_voice_lead_001");
+  assert(
+    isPostCallTranscriptionEvent(payload),
+    "completed call is a transcription event"
+  );
+
+  const queued: Array<() => void | Promise<void>> = [];
+  const result = await processVoiceLeadHandoff({
+    eventType: payload.type,
+    data: payload.data,
+    business,
+    demoId: "mbkiser-e32d26bf",
+    demoResolved: true,
+  });
+  scheduleLeadAlertDelivery((task) => queued.push(task), result.delivery);
+
+  assert(result.voiceHandoffReady === true, "completed urgent voice lead is ready");
+  assert(result.extractedFields.name === true, "name present");
+  assert(result.extractedFields.phone === true, "phone present");
+  assert(result.extractedFields.address === true, "address present");
+  assert(result.extractedFields.preferredTiming === true, "preferred time present");
+  assert(result.extractedFields.need === true, "need present");
+  assert(result.attempted === true, "handoff attempted");
+  assert(result.queueStatus === "queued", `queued not delivered, got ${result.queueStatus}`);
+  assert(result.skipReason === null, "no skip on completed lead");
+  assert(queued.length === 1, "exactly one after() delivery task");
+  assert(deliveries === 0, "webhook must not wait for SMTP/SMS");
+  assert(result.emailTo === "alerts@kiser-hvac.test", "business-specific email");
+  assert(result.smsTo === "+12145550189", "business-specific SMS");
+  assert(result.salesState?.urgency === "IMMEDIATE", "urgent wording sets IMMEDIATE");
+
+  await queued[0]();
+  assert(deliveries === 1, "exactly one email+SMS delivery");
+  assert(captured.current?.emailTo === "alerts@kiser-hvac.test", "email recipient");
+  assert(captured.current?.smsTo === "+12145550189", "sms recipient");
+  assert(/URGENT/i.test(captured.current?.subject || ""), "urgent email subject");
+
+  const replay = await processVoiceLeadHandoff({
+    eventType: payload.type,
+    data: payload.data,
+    business,
+    demoId: "mbkiser-e32d26bf",
+    demoResolved: true,
+  });
+  assert(replay.attempted === false, "replay must not attempt again");
+  assert(replay.skipReason === "duplicate", "replay skip reason is duplicate");
+  assert(deliveries === 1, "replay must not send another alert");
+
+  resetVoiceLeadHandoffIdempotencyForTests();
+  const incompletePayload = {
+    type: "post_call_transcription",
+    data: {
+      conversation_id: "elconv_voice_incomplete_002",
+      analysis: { data_collection_results: {} },
+      transcript: [
+        { role: "agent", message: "How can I help?" },
+        { role: "user", message: "My heater is not working." },
+        { role: "agent", message: "What's your name?" },
+        { role: "user", message: "Sam" },
+      ],
+    },
+  };
+  const incomplete = await processVoiceLeadHandoff({
+    eventType: incompletePayload.type,
+    data: incompletePayload.data,
+    business,
+    demoId: "mbkiser-e32d26bf",
+    demoResolved: true,
+  });
+  assert(incomplete.voiceHandoffReady === false, "incomplete call is not ready");
+  assert(incomplete.queueStatus === "skipped", "incomplete must not queue");
+  assert(incomplete.skipReason === "incomplete", "incomplete skip reason");
+  assert(incomplete.extractedFields.name === true, "incomplete may have a name");
+  assert(incomplete.extractedFields.address === false, "incomplete missing address");
+  assert(incomplete.extractedFields.preferredTiming === false, "incomplete missing time");
+  assert(deliveries === 1, "incomplete must not deliver");
+
+  const audioEvent = { type: "post_call_audio", data: { conversation_id: "x" } };
+  assert(
+    isPostCallTranscriptionEvent(audioEvent) === false,
+    "audio webhook is not a transcription event"
+  );
+
+  const route = readSrc("src/app/api/elevenlabs/post-call/route.ts");
+  assert(route.includes("scheduleVoiceLeadAlertDelivery(after"), "uses after() lifecycle");
+  assert(!route.includes("PHONE_AGENT_LEAD_EMAIL"), "does not use global phone-agent email");
+  assert(!route.includes("await sendEmail"), "does not await SMTP in the webhook");
+  assert(route.includes("delivered: false"), "200 must not claim delivery");
+
+  setLeadHandoffTestDelivery(null);
+  if (previousDryRun === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+  else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun;
+
+  console.log("PASS — voice post-call lead handoff queue, skip, and replay");
+}
+
 async function main() {
   await testCodeGenerationAndSessions();
   await testExpiry();
@@ -346,6 +536,7 @@ async function main() {
   await testBindingAndNoGlobalMutation();
   testTwilioSignatureAndNeutralGreeting();
   testDisclaimerAndUiWiring();
+  await testVoiceLeadHandoffFromPostCall();
   console.log("All voice demo tests passed.");
 }
 

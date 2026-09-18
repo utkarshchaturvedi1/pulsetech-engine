@@ -27,7 +27,9 @@ export type PhoneLeadAlertState = {
 };
 
 function clean(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
 }
 
 export function field(source: Record<string, unknown>, ...names: string[]): string {
@@ -68,7 +70,8 @@ export function extractPreferredVisitTime(
     "preferred_time",
     "preferred_appointment",
     "preferred_timing",
-    "visit_time"
+    "visit_time",
+    "appointment_time"
   );
   if (fromFields) return fromFields;
   const fromText = extractPreferredVisitTimeFromText(transcriptText);
@@ -141,11 +144,38 @@ export function extractPhoneLead(
     business: options.businessName,
     demoId: options.demoId || "",
     isTestData: Boolean(options.isTestData),
-    name: field(extracted, "full_name", "name"),
-    phone: field(extracted, "phone_number", "phone"),
+    name: field(
+      extracted,
+      "full_name",
+      "name",
+      "caller_name",
+      "customer_name",
+      "first_name"
+    ),
+    phone: field(
+      extracted,
+      "phone_number",
+      "phone",
+      "caller_phone",
+      "customer_phone",
+      "contact_number"
+    ),
     email: field(extracted, "email"),
-    address: field(extracted, "service_address", "address"),
-    need: field(extracted, "service_needed", "customer_need"),
+    address: field(
+      extracted,
+      "service_address",
+      "address",
+      "property_address",
+      "service_location"
+    ),
+    need: field(
+      extracted,
+      "service_needed",
+      "customer_need",
+      "service_need",
+      "issue",
+      "request"
+    ),
     preferredVisitTime: extractPreferredVisitTime(
       extracted,
       options.transcriptText || ""

@@ -28,7 +28,9 @@ import {
 } from "../src/lib/customerChatClient";
 import {
   detectCustomerAgreement,
+  isFieldConfirmationReply,
   updateSalesStateFromTurn,
+  validateSalesReply,
 } from "../src/lib/salesController";
 import {
   businessIdentityKey,
@@ -787,6 +789,211 @@ async function main() {
         handoffMs: completedLeadHandoffMs,
         openaiMs: 0,
         totalMs: completedLeadTotalMs,
+      },
+    });
+  }
+
+  // TEST13 — confirmed short name, estimate-before-time, time phrases never become name.
+  {
+    const previousDryRun13 = process.env.LEAD_HANDOFF_DRY_RUN;
+    delete process.env.LEAD_HANDOFF_DRY_RUN;
+    let deliveries13 = 0;
+    let lastDelivery13: {
+      emailTo: string;
+      smsTo: string;
+    } | null = null;
+    setLeadHandoffTestDelivery(async (input) => {
+      deliveries13 += 1;
+      lastDelivery13 = { emailTo: input.emailTo, smsTo: input.smsTo };
+      return { emailOk: true, smsOk: true };
+    });
+
+    let flow = createInitialSalesState({
+      conversationId: createConversationId(),
+      businessKey: businessIdentityKey(business),
+    });
+
+    flow = applyTurn(
+      flow,
+      "My automatic garage door is not working. Can you help?",
+      "👋 Hi! How can I help you today?"
+    );
+    assert(flow.currentObjective === "COLLECT_NAME", `TEST13: start with name, got ${flow.currentObjective}`);
+
+    flow = applyTurn(flow, "V", "What's your first name?");
+    assert(flow.lead.name === "V", `TEST13: short name captured, got ${flow.lead.name}`);
+    assert(flow.currentObjective === "COLLECT_PHONE", `TEST13: after V ask phone, got ${flow.currentObjective}`);
+
+    assert(isFieldConfirmationReply("yes"), "TEST13: yes is confirmation");
+    assert(isFieldConfirmationReply("yes."), "TEST13: yes. is confirmation");
+    assert(isFieldConfirmationReply("correct"), "TEST13: correct is confirmation");
+    assert(isFieldConfirmationReply("that is right"), "TEST13: that is right is confirmation");
+
+    flow = applyTurn(
+      flow,
+      "yes",
+      "Thanks — is V the first name I should use?"
+    );
+    assert(flow.lead.name === "V", "TEST13: confirmation keeps the captured name");
+    assert(flow.currentObjective !== "COLLECT_NAME", "TEST13: confirmation must not re-open name capture");
+    assert(flow.currentObjective === "COLLECT_PHONE", `TEST13: still collecting phone, got ${flow.currentObjective}`);
+    assert(flow.leadStatus !== "NOT_SECURED" || flow.intent !== "LOW", "TEST13: confirmation does not reset the journey");
+
+    flow = applyTurn(flow, "9898989898", "Thanks V — what's the best phone number?");
+    assert(!!flow.lead.phone && flow.lead.phone.includes("9898989898"), "TEST13: phone captured");
+    assert(flow.lead.name === "V", "TEST13: phone turn does not clear name");
+    assert(flow.currentObjective !== "COLLECT_NAME", "TEST13: must not ask for first name again after it was confirmed");
+    assert(flow.currentObjective === "COLLECT_ADDRESS", `TEST13: next field is address, got ${flow.currentObjective}`);
+
+    const reaskName = validateSalesReply(
+      "What's your first name?",
+      flow,
+      business
+    );
+    assert(!reaskName.ok, "TEST13: asking first name again after capture must fail validation");
+
+    flow = applyTurn(
+      flow,
+      "my first name is Victor",
+      "What's the service address?"
+    );
+    assert(flow.lead.name === "Victor", `TEST13: explicit correction to full name, got ${flow.lead.name}`);
+    assert(!!flow.lead.phone && flow.lead.phone.includes("9898989898"), "TEST13: correction keeps phone");
+    assert(flow.currentObjective === "COLLECT_ADDRESS", `TEST13: still need address, got ${flow.currentObjective}`);
+
+    flow = applyTurn(
+      flow,
+      "1500 Marilla St, Dallas TX 75201",
+      "What's the service address?"
+    );
+    assert(!!flow.lead.address, "TEST13: address captured");
+    assert(flow.lead.name === "Victor", "TEST13: address turn keeps Victor");
+    assert(!flow.preferredTiming, "TEST13: address is not a preferred time");
+    assert(
+      !shouldAttemptLeadHandoff(flow, "closure", "1500 Marilla St, Dallas TX 75201"),
+      "TEST13: no handoff before preferred time"
+    );
+
+    flow = applyTurn(
+      flow,
+      "yes",
+      "Would you like me to arrange an on-site estimate?"
+    );
+    assert(flow.appointmentIntent === true, "TEST13: estimate yes is agreement to proceed");
+    assert(!flow.preferredTiming, "TEST13: estimate yes does not invent preferred time");
+    assert(flow.handoffReady === false, "TEST13: not handoff-ready without preferred time");
+    assert(
+      !shouldAttemptLeadHandoff(flow, "closure", "yes"),
+      "TEST13: estimate agreement is not lead completion"
+    );
+    const prematureRecorded = validateSalesReply(
+      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will confirm availability.",
+      flow,
+      business
+    );
+    assert(!prematureRecorded.ok, "TEST13: recorded copy is invalid before preferred time");
+    const estimateSend = await maybeSendLeadHandoff(business, flow, "closure", "yes");
+    assert(estimateSend.attempted === false, "TEST13: no alert queued on estimate yes");
+    assert(deliveries13 === 0, "TEST13: no email/SMS before preferred time");
+    assert(flow.currentObjective === "ADVANCE_TO_NEXT_STEP", `TEST13: ask preferred time next, got ${flow.currentObjective}`);
+
+    flow = applyTurn(
+      flow,
+      "ok",
+      "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability."
+    );
+    assert(flow.lead.name === "Victor", "TEST13: ok does not become a name");
+    assert(!flow.preferredTiming, "TEST13: ok is not preferred time");
+    assert(flow.handoffReady === false, "TEST13: still waiting for preferred time");
+
+    const timePhrases = [
+      "tomorrow morning",
+      "this weekend",
+      "Monday afternoon",
+      "any time tomorrow",
+    ];
+    for (const phrase of timePhrases) {
+      const named = {
+        ...flow,
+        lead: { ...flow.lead, name: "Victor" },
+        currentObjective: "COLLECT_NAME" as const,
+      };
+      const afterPhrase = applyTurn(
+        named,
+        phrase,
+        "What's your first name?"
+      );
+      assert(
+        afterPhrase.lead.name === "Victor",
+        `TEST13: time phrase must not overwrite name (${phrase} -> ${afterPhrase.lead.name})`
+      );
+    }
+
+    const detectStarted13 = Date.now();
+    flow = applyTurn(
+      flow,
+      "tomorrow morning",
+      "What day or time would you prefer? The team will confirm availability."
+    );
+    const leadDetectionMs13 = Date.now() - detectStarted13;
+    assert(flow.lead.name === "Victor", `TEST13: preferred time must not become name, got ${flow.lead.name}`);
+    assert(/tomorrow morning/i.test(flow.preferredTiming || ""), `TEST13: preferred time stored, got ${flow.preferredTiming}`);
+    assert(flow.handoffReady === true, "TEST13: ready after final required detail");
+    const decision13 = evaluateHandoffReadiness(flow, "tomorrow morning");
+    assert(decision13.handoffReady === true, "TEST13: central decision ready");
+    assert(decision13.missingRequiredFields.length === 0, "TEST13: no missing fields");
+
+    const queued13: Array<() => void | Promise<void>> = [];
+    const sendStarted13 = Date.now();
+    const send13 = await maybeSendLeadHandoff(
+      business,
+      flow,
+      "closure",
+      "tomorrow morning"
+    );
+    scheduleLeadAlertDelivery((task) => queued13.push(task), send13.delivery);
+    const handoffMs13 = Date.now() - sendStarted13;
+    assert(send13.attempted === true, "TEST13: handoff attempted on final detail");
+    assert(send13.status === "QUEUED", `TEST13: queued not claimed sent, got ${send13.status}`);
+    assert(queued13.length === 1, "TEST13: exactly one after() delivery task");
+    assert(deliveries13 === 0, "TEST13: visitor is not blocked on provider delivery");
+
+    const expectedFinal =
+      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will confirm availability.";
+    const finalReply = resolveWebsiteChatCustomerHandoffReply({
+      attempted: send13.attempted,
+      status: send13.status,
+      currentObjective: flow.currentObjective,
+      customerName: flow.lead.name,
+      preferredTiming: flow.preferredTiming,
+      business,
+      latestUserMessage: "tomorrow morning",
+    });
+    assert(finalReply === expectedFinal, `TEST13: final wording, got ${finalReply}`);
+
+    await queued13[0]();
+    assert(deliveries13 === 1, "TEST13: exactly one email+SMS delivery");
+    assert(!!lastDelivery13, "TEST13: delivery payload present");
+
+    const dup13 = await maybeSendLeadHandoff(
+      business,
+      { ...flow, leadDeliveryStatus: "QUEUED" },
+      "closure",
+      "tomorrow morning"
+    );
+    assert(dup13.attempted === false, "TEST13: duplicate prevented");
+    assert(deliveries13 === 1, "TEST13: still one delivery");
+
+    setLeadHandoffTestDelivery(null);
+    if (previousDryRun13 === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+    else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun13;
+
+    console.log("TEST13 PASS — confirmed name / estimate-before-time / preferred-time isolation", {
+      finalPreferredTimeTurn: {
+        leadDetectionMs: leadDetectionMs13,
+        handoffMs: handoffMs13,
+        openaiMs: 0,
+        totalMs: leadDetectionMs13 + handoffMs13,
       },
     });
   }

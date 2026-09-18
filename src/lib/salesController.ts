@@ -172,37 +172,136 @@ function extractEmail(text: string): string | null {
   return match ? match[0].trim() : null;
 }
 
-function extractName(text: string, objective: SalesObjective): string | null {
-  const labeled = text.match(
-    /(?:my name(?:'s| is)|this is|call me)\s+([A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)/i
-  )?.[1];
+/** Affirmative answers to the immediately pending confirmation question. */
+export function isFieldConfirmationReply(text: string): boolean {
+  return /^(yes|yeah|yep|yup|correct|that'?s? (right|correct)|that is right|that is correct)[.!]?$/i.test(
+    text.trim()
+  );
+}
 
-  if (labeled) {
-    const cleaned = labeled
-      .replace(/\b(and|my|phone|number|email|address)\b.*$/i, "")
-      .trim();
-    if (cleaned && !/^(just|only|still|not|looking|browsing)$/i.test(cleaned)) {
-      return cleaned;
-    }
+function isNameTimePhrase(value: string): boolean {
+  const t = value.trim();
+  if (!t) return true;
+  if (extractPreferredVisitTimeFromText(t)) return true;
+  return /^(today|tomorrow|tonight|morning|afternoon|evening|night|weekend|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|anytime|any\s+time)$/i.test(
+    t
+  );
+}
+
+function isPlausiblePersonName(value: string): boolean {
+  const cleaned = value.trim().replace(/^["']|["']$/g, "");
+  if (
+    !/^[A-Za-z](?:[A-Za-z.'-]{0,40})?(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(
+      cleaned
+    )
+  ) {
+    return false;
   }
+  if (isNameTimePhrase(cleaned)) return false;
+  if (
+    /^(just|only|still|yes|no|ok|okay|looking|browsing|yes please|yeah|yep|sure|please|thanks|thank you|correct|right|hi|hello)$/i.test(
+      cleaned
+    )
+  ) {
+    return false;
+  }
+  if (
+    detectCustomerAgreement(cleaned) ||
+    isBareAffirmative(cleaned) ||
+    isFieldConfirmationReply(cleaned)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function extractExplicitPersonName(text: string): string | null {
+  const labeled = text.match(
+    /(?:my\s+(?:first\s+)?name(?:'s| is)|(?:first\s+)?name(?:'s| is)|this is|call me)\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)/i
+  )?.[1];
+  if (!labeled) return null;
+  const cleaned = labeled
+    .replace(/\b(and|my|phone|number|email|address)\b.*$/i, "")
+    .trim();
+  return isPlausiblePersonName(cleaned) ? cleaned : null;
+}
+
+function extractName(text: string, objective: SalesObjective): string | null {
+  const explicit = extractExplicitPersonName(text);
+  if (explicit) return explicit;
 
   if (objective === "COLLECT_NAME") {
     const cleaned = text.trim().replace(/^["']|["']$/g, "");
-    if (
-      /^[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(
-        cleaned
-      ) &&
-      !/^(just|only|still|yes|no|ok|okay|looking|browsing|yes please|yeah|yep|sure|please|thanks|thank you)$/i.test(
-        cleaned
-      ) &&
-      !detectCustomerAgreement(cleaned) &&
-      !isBareAffirmative(cleaned)
-    ) {
-      return cleaned;
-    }
+    if (isPlausiblePersonName(cleaned)) return cleaned;
   }
 
   return null;
+}
+
+function isExplicitNameCorrection(text: string): boolean {
+  return /(?:my\s+(?:first\s+)?name(?:'s| is)|(?:first\s+)?name(?:'s| is)|call me|actually)\b/i.test(
+    text
+  );
+}
+
+function shouldReplaceCapturedName(
+  existing: string,
+  incoming: string,
+  text: string
+): boolean {
+  if (isExplicitNameCorrection(text)) return true;
+  const prev = existing.trim();
+  const next = incoming.trim();
+  return (
+    prev.length <= 2 &&
+    next.length > prev.length &&
+    next.toLowerCase().startsWith(prev.toLowerCase())
+  );
+}
+
+function assistantAskedToConfirmName(assistantText: string): boolean {
+  const t = assistantText.trim();
+  if (!t) return false;
+  return (
+    /\b(first name|your name|name to use|call you)\b/i.test(t) &&
+    /\b(is\b|confirm|correct|right|did i get|just to (confirm|check)|should i (use|go with)|to use)\b/i.test(
+      t
+    )
+  );
+}
+
+function extractNameCandidateFromAssistant(assistantText: string): string | null {
+  const quoted = assistantText.match(/["']([A-Za-z](?:[A-Za-z.'-]{0,40})?)["']/);
+  if (quoted?.[1] && isPlausiblePersonName(quoted[1])) return quoted[1];
+  const isName = assistantText.match(
+    /\bis\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?)\s+(?:the |your )?(?:first )?name/i
+  );
+  if (isName?.[1] && isPlausiblePersonName(isName[1])) return isName[1];
+  const useName = assistantText.match(
+    /\b(?:use|using|call you)\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?)\b/i
+  );
+  if (useName?.[1] && isPlausiblePersonName(useName[1])) return useName[1];
+  return null;
+}
+
+function previousUserMessage(
+  messages: Array<{ role: string; content: string }>
+): string {
+  const users = messages.filter((message) => message.role === "user");
+  if (users.length < 2) return "";
+  return users[users.length - 2]?.content || "";
+}
+
+function assignLeadName(state: SalesState, name: string): void {
+  const next = name.trim();
+  if (!next) return;
+  if (state.lead.name === next) return;
+  state.lead.name = next;
+  state.establishedFacts = state.establishedFacts.filter(
+    (fact) => !/^name=/i.test(fact)
+  );
+  state.establishedFacts = addFact(state.establishedFacts, `name=${next}`);
+  state.refusedLeadFields = state.refusedLeadFields.filter((f) => f !== "name");
 }
 
 function extractAddress(
@@ -869,9 +968,17 @@ export function updateSalesStateFromTurn(
   }
 
   const detectedIntent = detectIntent(text);
+  const confirmationReply = isFieldConfirmationReply(text);
   // Low-intent browsing should not permanently overwrite an active high-intent journey
   // unless the conversation is still in discovery with no lead progress.
-  if (detectedIntent === "LOW" && state.leadStatus === "NOT_SECURED" && !state.lead.name) {
+  // Confirmation replies ("yes", "correct") never reset an in-progress capture.
+  if (
+    detectedIntent === "LOW" &&
+    state.leadStatus === "NOT_SECURED" &&
+    !state.lead.name &&
+    !confirmationReply &&
+    !isBareAffirmative(text)
+  ) {
     state.intent = "LOW";
   } else {
     state.intent = maxIntent(state.intent, detectedIntent);
@@ -886,7 +993,7 @@ export function updateSalesStateFromTurn(
     );
   }
 
-  const timing = extractPreferredTiming(text);
+  const timing = confirmationReply ? null : extractPreferredTiming(text);
   if (timing) {
     const refined = refinePreferredTiming(state.preferredTiming, timing);
     state.preferredTiming = refined;
@@ -932,15 +1039,29 @@ export function updateSalesStateFromTurn(
     state.appointmentIntent = true;
   }
 
+  const priorAssistant = lastAssistantMessage(messages);
+  const confirmingName =
+    confirmationReply && assistantAskedToConfirmName(priorAssistant);
+  if (confirmingName) {
+    const candidate =
+      extractNameCandidateFromAssistant(priorAssistant) ||
+      extractName(previousUserMessage(messages), "COLLECT_NAME") ||
+      (state.lead.name && isPlausiblePersonName(state.lead.name)
+        ? state.lead.name
+        : null);
+    if (candidate) {
+      assignLeadName(state, candidate);
+    }
+  }
+
   if (detectCustomerAgreement(text)) {
     state.customerAgreed = true;
     state.establishedFacts = addFact(
       state.establishedFacts,
       "Customer agreed to proceed"
     );
-  } else if (isBareAffirmative(text)) {
+  } else if (!confirmingName && isBareAffirmative(text)) {
     // Agreeing to the prior proposal (visit/estimate) — not final conversation closure.
-    const priorAssistant = lastAssistantMessage(messages);
     if (
       assistantProposedNextStep(priorAssistant) &&
       state.appointmentIntent !== false
@@ -978,11 +1099,13 @@ export function updateSalesStateFromTurn(
     state.customerContext = addFact(state.customerContext, note);
   }
 
-  const name = extractName(text, state.currentObjective);
-  if (name && !state.lead.name) {
-    state.lead.name = name;
-    state.establishedFacts = addFact(state.establishedFacts, `name=${name}`);
-    state.refusedLeadFields = state.refusedLeadFields.filter((f) => f !== "name");
+  if (!confirmationReply) {
+    const name = extractName(text, state.currentObjective);
+    if (name) {
+      if (!state.lead.name || shouldReplaceCapturedName(state.lead.name, name, text)) {
+        assignLeadName(state, name);
+      }
+    }
   }
 
   const phone = extractPhone(text);
@@ -1290,9 +1413,7 @@ Ask at most ONE clarifying question if needed.`;
 Do not ambush before the primary need is handled.`;
     case "ADVANCE_TO_NEXT_STEP": {
       const leadComplete = isV1LeadComplete(state);
-      const needsTeamAck =
-        leadComplete &&
-        (!!state.preferredTiming || state.urgency === "IMMEDIATE");
+      const needsTeamAck = leadComplete && !!state.preferredTiming;
       const successClose = buildSuccessfulLeadHandoffCustomerMessage(
         state.lead.name,
         state.preferredTiming
@@ -1318,7 +1439,8 @@ Do NOT ask another timing/refinement question.`
     : needsTeamAck && state.leadDeliveryStatus === "FAILED"
       ? `Do NOT claim the team was alerted. Reply with this meaning only: "${failedFallback}"`
     : leadComplete
-      ? `Lead is captured. After the customer agrees to a site assessment / next step, reply with this meaning only: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
+      ? `Lead is captured. Preferred time is still missing, so this is not a completed handoff. After the customer agrees to a site assessment / next step, reply with this meaning only: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
+Never say the request was recorded or shared with the team until preferred time is captured and delivery is queued or sent.
 Never say "we'll arrange a site assessment" or otherwise imply the appointment is already confirmed or booked.
 Do not offer arbitrary future options.`
       : "If useful, ask at most ONE open preference question (e.g. preferred day/time) without inventing windows."
@@ -1349,6 +1471,8 @@ ${
       ? `"${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}"`
     : state.leadDeliveryStatus === "FAILED"
       ? `"${failedFallback}"`
+      : !state.preferredTiming
+        ? `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. What day or time would you prefer? The team will confirm availability."`
       : `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I have your details${state.preferredTiming ? ` and preferred time (${state.preferredTiming})` : ""}. Our team will confirm the earliest available appointment. Nothing is booked yet."`
 }
 Then STOP.`;
@@ -1363,7 +1487,7 @@ function leadFieldAskPatterns(field: keyof LeadFields): RegExp[] {
   switch (field) {
     case "name":
       return [
-        /\b(what(?:'s| is) your name|may i (have|get) your name|your name\??|last name)\b/i,
+        /\b(what(?:'s| is) your (first )?name|may i (have|get) your (first )?name|your (first )?name\??|last name)\b/i,
       ];
     case "phone":
       return [
@@ -1612,6 +1736,16 @@ export function validateSalesReply(
 
   if (INTERNAL_HANDOFF_STATUS_RE.test(reply)) {
     reasons.push("Exposed internal lead-handoff delivery status to the customer.");
+  }
+
+  if (
+    (/\bi('ve| have) recorded your request\b/i.test(reply) ||
+      isQueuedLeadHandoffCustomerMessage(reply)) &&
+    (state.leadDeliveryStatus !== "QUEUED" || !state.preferredTiming)
+  ) {
+    reasons.push(
+      "Claimed the request was recorded before preferred time was captured and delivery was queued."
+    );
   }
 
   if (

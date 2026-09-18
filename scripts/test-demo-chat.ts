@@ -10,8 +10,10 @@ import {
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
   buildFailedLeadHandoffCustomerMessage,
   buildPricingApproachAnswer,
+  buildQueuedLeadHandoffCustomerMessage,
   buildSuccessfulLeadHandoffCustomerMessage,
   isFailedLeadHandoffCustomerMessage,
+  isQueuedLeadHandoffCustomerMessage,
   isSuccessfulLeadHandoffCustomerMessage,
   messageAsksPricingOrBilling,
   resolveWebsiteChatCustomerHandoffReply,
@@ -876,6 +878,7 @@ function qualifiedWebsiteLead(businessKey: string): SalesState {
       address: "200 Main St, Dallas TX",
     },
     customerNeed: "Kitchen is clogged and needs pest treatment today.",
+    preferredTiming: "today",
   };
 }
 
@@ -1067,6 +1070,15 @@ function testCustomerFacingHandoffWording() {
   assert(!/\bnot booked yet\b/i.test(success), "default success copy avoids stiff not-booked-yet");
   assert(!/\bbooked\b/i.test(success), "success must not claim booked");
 
+  const queued = buildQueuedLeadHandoffCustomerMessage(
+    "Maya",
+    "tomorrow morning"
+  );
+  assert(isQueuedLeadHandoffCustomerMessage(queued), "queued helper matches wording");
+  assert(/recorded your request/i.test(queued), "queued says the request was recorded");
+  assert(/noted tomorrow morning as your preferred time/i.test(queued), "queued notes preferred time");
+  assert(!/shared your request with the team/i.test(queued), "queued must not claim the request was shared");
+
   const failed = buildFailedLeadHandoffCustomerMessage(business);
   assert(isFailedLeadHandoffCustomerMessage(failed), "failed helper matches wording");
   assert(/unable to send your request to the team/.test(failed), "failed does not fake an alert");
@@ -1080,6 +1092,12 @@ function testCustomerFacingHandoffWording() {
   });
   const successValidation = validateSalesReply(success, sentState, business);
   assert(successValidation.ok, `success wording must pass: ${successValidation.reasons.join("; ")}`);
+
+  const queuedState = { ...sentState, leadDeliveryStatus: "QUEUED" as const };
+  const queuedValidation = validateSalesReply(queued, queuedState, business);
+  assert(queuedValidation.ok, `queued wording must pass: ${queuedValidation.reasons.join("; ")}`);
+  const falseSuccessOnQueued = validateSalesReply(success, queuedState, business);
+  assert(!falseSuccessOnQueued.ok, "must not claim the team was alerted while delivery is queued");
 
   const failedState = { ...sentState, leadDeliveryStatus: "FAILED" as const };
   const failedValidation = validateSalesReply(failed, failedState, business);
@@ -1106,6 +1124,16 @@ function testCustomerFacingHandoffWording() {
     business,
   });
   assert(resolvedSuccess === success, "successful handoff uses the customer-facing close");
+
+  const resolvedQueued = resolveWebsiteChatCustomerHandoffReply({
+    attempted: true,
+    status: "QUEUED",
+    currentObjective: "ADVANCE_TO_NEXT_STEP",
+    customerName: "Maya",
+    preferredTiming: "tomorrow morning",
+    business,
+  });
+  assert(resolvedQueued === queued, "queued handoff uses recorded-request wording");
 
   const resolvedFailed = resolveWebsiteChatCustomerHandoffReply({
     attempted: true,

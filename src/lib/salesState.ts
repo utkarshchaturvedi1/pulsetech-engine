@@ -35,7 +35,7 @@ export type LeadFields = {
 
 export type UrgencyLevel = "NONE" | "SOON" | "IMMEDIATE";
 
-export type LeadDeliveryStatus = "NOT_SENT" | "SENT" | "FAILED";
+export type LeadDeliveryStatus = "NOT_SENT" | "QUEUED" | "SENT" | "FAILED";
 
 export type SalesState = {
   /** Immutable conversation identity for this Customer AI session. */

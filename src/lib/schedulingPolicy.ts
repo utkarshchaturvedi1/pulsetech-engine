@@ -34,6 +34,20 @@ export function buildSuccessfulLeadHandoffCustomerMessage(
   return `${thanks} — I've shared your request with the team. ${timingLine}`;
 }
 
+/** Used while delivery is queued / in progress — never claims the team already received it. */
+export function buildQueuedLeadHandoffCustomerMessage(
+  name?: string | null,
+  preferredTiming?: string | null
+): string {
+  const first = name?.trim().split(/\s+/)[0];
+  const thanks = first ? `Thanks, ${first}` : "Thanks";
+  const timing = preferredTiming?.trim();
+  const recorded = timing
+    ? `I've recorded your request and noted ${timing} as your preferred time.`
+    : `I've recorded your request.`;
+  return `${thanks} — ${recorded} The team will confirm availability.`;
+}
+
 export function buildFailedLeadHandoffCustomerMessage(
   business: BusinessProfile
 ): string {
@@ -54,6 +68,15 @@ export function isFailedLeadHandoffCustomerMessage(reply: string): boolean {
     /\bunable to send your request to the team\b/i.test(reply) &&
     /\bplease contact\b/i.test(reply) &&
     /\bdirectly\b/i.test(reply)
+  );
+}
+
+export function isQueuedLeadHandoffCustomerMessage(reply: string): boolean {
+  return (
+    /\bi('ve| have) recorded your request\b/i.test(reply) &&
+    /\bpreferred time\b/i.test(reply) &&
+    /\bteam will confirm availability\b/i.test(reply) &&
+    !/\bshared your request with the team\b/i.test(reply)
   );
 }
 
@@ -125,11 +148,18 @@ export function buildHandoffReplyWithOptionalPricing(params: {
   preferredTiming?: string | null;
   business: BusinessProfile;
   latestUserMessage?: string;
+  deliveryStatus?: "QUEUED" | "SENT" | "FAILED" | "NOT_SENT";
 }): string {
-  const handoff = buildSuccessfulLeadHandoffCustomerMessage(
-    params.customerName,
-    params.preferredTiming
-  );
+  const handoff =
+    params.deliveryStatus === "QUEUED"
+      ? buildQueuedLeadHandoffCustomerMessage(
+          params.customerName,
+          params.preferredTiming
+        )
+      : buildSuccessfulLeadHandoffCustomerMessage(
+          params.customerName,
+          params.preferredTiming
+        );
   if (
     params.latestUserMessage &&
     messageAsksPricingOrBilling(params.latestUserMessage)
@@ -144,14 +174,13 @@ export const INTERNAL_HANDOFF_STATUS_RE =
 
 export function resolveWebsiteChatCustomerHandoffReply(params: {
   attempted: boolean;
-  status: "NOT_SENT" | "SENT" | "FAILED";
+  status: "NOT_SENT" | "QUEUED" | "SENT" | "FAILED";
   currentObjective: SalesObjective;
   customerName?: string | null;
   preferredTiming?: string | null;
   business: BusinessProfile;
   latestUserMessage?: string;
 }): string | null {
-  // Never claim the request was shared unless the handoff was actually scheduled.
   if (!params.attempted) return null;
   if (params.status === "SENT") {
     return buildHandoffReplyWithOptionalPricing({
@@ -159,6 +188,16 @@ export function resolveWebsiteChatCustomerHandoffReply(params: {
       preferredTiming: params.preferredTiming,
       business: params.business,
       latestUserMessage: params.latestUserMessage,
+      deliveryStatus: "SENT",
+    });
+  }
+  if (params.status === "QUEUED") {
+    return buildHandoffReplyWithOptionalPricing({
+      customerName: params.customerName,
+      preferredTiming: params.preferredTiming,
+      business: params.business,
+      latestUserMessage: params.latestUserMessage,
+      deliveryStatus: "QUEUED",
     });
   }
   if (params.status === "FAILED") {
@@ -277,6 +316,11 @@ export function maxUrgency(a: UrgencyLevel, b: UrgencyLevel): UrgencyLevel {
 }
 
 export function extractPreferredVisitTimeFromText(text: string): string | null {
+  const relativeWindow = text.match(
+    /\b((?:early\s+)?(?:morning|afternoon|evening|night)\s+(?:this|next)\s+(?:weekend|week)|(?:this|next)\s+(?:weekend|week)(?:\s+(?:morning|afternoon|evening|night))?)\b/i
+  );
+  if (relativeWindow) return relativeWindow[0].trim();
+
   const asap = text.match(
     /\b(as soon as possible|asap|right away|today(?:\s+(?:morning|afternoon|evening))?|tonight)\b/i
   );

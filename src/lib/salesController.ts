@@ -1,16 +1,19 @@
 import { BusinessProfile } from "../types/business";
+import { evaluateHandoffReadiness } from "./leadHandoffShared";
 import {
   INVENTED_SCHEDULE_RANGE_RE,
   INTERNAL_HANDOFF_STATUS_RE,
   SAME_DAY_PROMISE_RE,
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
   buildFailedLeadHandoffCustomerMessage,
+  buildQueuedLeadHandoffCustomerMessage,
   buildSuccessfulLeadHandoffCustomerMessage,
   detectSchedulingUrgency,
   detectVisitPreferenceRequest,
   extractPreferredVisitTimeFromText,
   impliesConfirmedSiteAssessment,
   isFailedLeadHandoffCustomerMessage,
+  isQueuedLeadHandoffCustomerMessage,
   isSuccessfulLeadHandoffCustomerMessage,
   knowledgeAllowsSameDay,
   maxUrgency,
@@ -236,7 +239,7 @@ function extractPreferredTiming(text: string): string | null {
 }
 
 const DAY_RE =
-  /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|this (morning|afternoon|evening))\b/i;
+  /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|this (morning|afternoon|evening|weekend|week)|next (weekend|week)|weekend)\b/i;
 const WINDOW_RE =
   /\b(\d{1,2}\s*(?::\d{2})?\s*[-–]\s*\d{1,2}\s*(?::\d{2})?\s*(am|pm)?|between\s+\d{1,2}\s*(?:am|pm)?\s*(?:and|[-–])\s*\d{1,2}\s*(am|pm)?)\b/i;
 const AFTER_BEFORE_RE = /\b((after|before)\s+\d{1,2}\s*(am|pm)?)\b/i;
@@ -573,36 +576,12 @@ function isV1LeadComplete(state: SalesState): boolean {
   );
 }
 
-const INFORMATION_GATHERING_OBJECTIVES: SalesObjective[] = [
-  "COLLECT_NAME",
-  "COLLECT_PHONE",
-  "COLLECT_EMAIL",
-  "COLLECT_ADDRESS",
-  "UNDERSTAND_NEED",
-];
-
 /**
- * handoffReady ≠ SECURED. True only at a natural endpoint when gathering is done.
+ * handoffReady is the central capture+proceed decision — not SECURED and not
+ * service-keyword matching.
  */
 function computeHandoffReady(state: SalesState, latestUserText: string): boolean {
-  if (state.leadStatus !== "SECURED") return false;
-  if (state.intent !== "HIGH" && state.intent !== "READY_TO_ACT") return false;
-  if (!isLeadSecured(state)) return false;
-  if (!isCustomerNeedSpecific(state.customerNeed)) return false;
-  if (missingLeadFields(state).length > 0) return false;
-
-  if (INFORMATION_GATHERING_OBJECTIVES.includes(state.currentObjective)) {
-    return false;
-  }
-
-  const naturalEndpoint =
-    state.customerAgreed ||
-    state.currentObjective === "CLOSE" ||
-    state.salesStage === "COMPLETED" ||
-    detectCustomerFinished(latestUserText) ||
-    Boolean(state.preferredTiming);
-
-  return naturalEndpoint;
+  return evaluateHandoffReadiness(state, latestUserText).handoffReady;
 }
 
 function detectSalesObjective(text: string): SalesObjective | null {
@@ -679,6 +658,7 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   // After lead capture / handoff attempt, answer new questions — do not reopen lead capture.
   if (
     state.leadDeliveryStatus === "SENT" ||
+    state.leadDeliveryStatus === "QUEUED" ||
     state.leadDeliveryStatus === "FAILED"
   ) {
     const postSend = detectSalesObjective(latestUserText);
@@ -1185,7 +1165,9 @@ ${state.objections.length ? state.objections.map((o) => `- ${o}`).join("\n") : "
 Summary: ${state.summary}
 
 ${
-  state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "FAILED"
+  state.leadDeliveryStatus === "SENT" ||
+  state.leadDeliveryStatus === "QUEUED" ||
+  state.leadDeliveryStatus === "FAILED"
     ? `Lead capture is complete. Do NOT re-ask for name, phone, address, or other already-captured lead fields. You may still answer new customer questions (including price) without repeating closing/handoff language.`
     : ""
 }
@@ -1197,6 +1179,8 @@ Never claim an appointment is booked.
 ${
   state.leadDeliveryStatus === "SENT"
     ? `If this turn is a closing acknowledgement, use this meaning only: "${successClose}" If the customer asked a new question, answer that question and do not repeat the closing message.`
+    : state.leadDeliveryStatus === "QUEUED"
+      ? `Do NOT say you have shared the request with the team. If this turn is a closing acknowledgement, use this meaning only: "${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}" If the customer asked a new question, answer that question and do not repeat delivery language.`
     : state.leadDeliveryStatus === "FAILED"
       ? `Do NOT say the team was alerted or that the request was shared. If this turn is a closing acknowledgement, use this meaning only: "${failedFallback}" If the customer asked a new question, answer that question and do not mention request-delivery.`
       : `Do not claim the request was shared with the team. Continue capturing missing details one question at a time.`
@@ -1329,6 +1313,8 @@ Do NOT ask for name, phone, or address if they are already captured.
 Do NOT mention any site-visit fee, dollar amount, or payment.
 Reply with this meaning (do not add extra scheduling options): "${successClose}"
 Do NOT ask another timing/refinement question.`
+    : needsTeamAck && state.leadDeliveryStatus === "QUEUED"
+      ? `Do NOT claim the request was shared with the team. Reply with this meaning only: "${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}"`
     : needsTeamAck && state.leadDeliveryStatus === "FAILED"
       ? `Do NOT claim the team was alerted. Reply with this meaning only: "${failedFallback}"`
     : leadComplete
@@ -1359,6 +1345,8 @@ Preferred closing style:
 ${
   state.leadDeliveryStatus === "SENT"
     ? `"${successClose}"`
+    : state.leadDeliveryStatus === "QUEUED"
+      ? `"${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}"`
     : state.leadDeliveryStatus === "FAILED"
       ? `"${failedFallback}"`
       : `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I have your details${state.preferredTiming ? ` and preferred time (${state.preferredTiming})` : ""}. Our team will confirm the earliest available appointment. Nothing is booked yet."`
@@ -1637,6 +1625,16 @@ export function validateSalesReply(
   }
 
   if (
+    state.leadDeliveryStatus === "QUEUED" &&
+    isQueuedLeadHandoffCustomerMessage(reply) === false &&
+    FALSE_HANDOFF_RE.test(reply)
+  ) {
+    reasons.push(
+      "Claimed the request was shared with the team while delivery is still queued."
+    );
+  }
+
+  if (
     state.leadDeliveryStatus !== "SENT" &&
     FALSE_HANDOFF_RE.test(reply)
   ) {
@@ -1768,6 +1766,8 @@ Never claim an appointment is booked.
 ${
   state.leadDeliveryStatus === "SENT"
     ? `If acknowledging the captured request, use this meaning: "${successClose}"`
+    : state.leadDeliveryStatus === "QUEUED"
+      ? `If acknowledging the captured request, use this meaning: "${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}" Do not say the request was shared with the team.`
     : state.leadDeliveryStatus === "FAILED"
       ? `If acknowledging the captured request, use this meaning: "${failedFallback}" Do not claim the team was alerted.`
       : `Do not claim the request was already shared with the team. If the customer just said yes to a site assessment and no preferred time is known yet, reply with this meaning: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"`

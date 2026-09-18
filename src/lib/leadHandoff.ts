@@ -5,24 +5,31 @@ import {
   resolveWebsiteChatLeadAlert,
 } from "./leadAlertRecipients";
 import {
+  evaluateHandoffReadiness,
   isClosureHandoffTrigger,
+  isHandoffAlreadyScheduled,
   isLeadQualified,
   isLeadReadyForHandoff,
   isVisitFollowupAlertTrigger,
   isWebsiteLeadCaptureComplete,
   LEAD_INACTIVITY_MS,
+  publicHandoffDecisionLog,
   shouldAttemptLeadHandoff,
+  toHandoffDeliveryLogStatus,
   type LeadHandoffReason,
 } from "./leadHandoffShared";
 
 export {
+  evaluateHandoffReadiness,
   isClosureHandoffTrigger,
   isLeadQualified,
   isLeadReadyForHandoff,
   isVisitFollowupAlertTrigger,
   isWebsiteLeadCaptureComplete,
   LEAD_INACTIVITY_MS,
+  publicHandoffDecisionLog,
   shouldAttemptLeadHandoff,
+  toHandoffDeliveryLogStatus,
 };
 export type { LeadHandoffReason };
 
@@ -184,7 +191,7 @@ export function buildLeadNotificationEmail(
 
 export type LeadHandoffResult = {
   attempted: boolean;
-  status: "NOT_SENT" | "SENT" | "FAILED";
+  status: "NOT_SENT" | "QUEUED" | "SENT" | "FAILED";
   error?: string;
   emailTo?: string;
   smsTo?: string;
@@ -391,17 +398,40 @@ export async function maybeSendLeadHandoff(
   reason: LeadHandoffReason,
   latestUserMessage?: string
 ): Promise<LeadHandoffResult> {
-  if (state.leadDeliveryStatus === "SENT") {
-    return { attempted: false, status: "SENT" };
+  const decision = evaluateHandoffReadiness(state, latestUserMessage);
+
+  if (isHandoffAlreadyScheduled(state)) {
+    const status = state.leadDeliveryStatus === "QUEUED" ? "QUEUED" : "SENT";
+    console.log(
+      "[leadHandoff] decision",
+      publicHandoffDecisionLog({
+        decision,
+        deliveryStatus: toHandoffDeliveryLogStatus(status),
+      })
+    );
+    return { attempted: false, status };
   }
 
   if (!shouldAttemptLeadHandoff(state, reason, latestUserMessage)) {
+    console.log(
+      "[leadHandoff] decision",
+      publicHandoffDecisionLog({
+        decision,
+        deliveryStatus: toHandoffDeliveryLogStatus(
+          state.leadDeliveryStatus || "NOT_SENT"
+        ),
+      })
+    );
     return { attempted: false, status: state.leadDeliveryStatus || "NOT_SENT" };
   }
 
   const recipients = resolveWebsiteChatLeadAlert(business);
   if (!recipients.ok) {
     console.error("[leadHandoff] " + recipients.error);
+    console.log(
+      "[leadHandoff] decision",
+      publicHandoffDecisionLog({ decision, deliveryStatus: "failed" })
+    );
     return {
       attempted: true,
       status: "FAILED",
@@ -419,11 +449,8 @@ export async function maybeSendLeadHandoff(
       {
         conversationId: state.conversationId || "(none)",
         businessKey: state.businessKey || "(none)",
-        businessName: business.businessName,
         reason,
-        subject,
-        emailTo: recipients.email,
-        smsTo: recipients.sms,
+        ...publicHandoffDecisionLog({ decision, deliveryStatus: "sent" }),
       }
     );
     return {
@@ -439,12 +466,20 @@ export async function maybeSendLeadHandoff(
   const transport = { smtpConfigured, smsConfigured };
 
   if (state.leadDeliveryStatus === "FAILED" && !smtpConfigured && !smsConfigured && !leadHandoffTestDelivery) {
+    console.log(
+      "[leadHandoff] decision",
+      publicHandoffDecisionLog({ decision, deliveryStatus: "failed" })
+    );
     return { attempted: false, status: "FAILED", error: "Alert transport not configured" };
   }
 
   if (!leadHandoffTestDelivery && !smtpConfigured && !smsConfigured) {
     console.error(
       "[leadHandoff] Alert transport is not configured. Set SMTP_* for email and TWILIO_* for SMS."
+    );
+    console.log(
+      "[leadHandoff] decision",
+      publicHandoffDecisionLog({ decision, deliveryStatus: "failed" })
     );
     return {
       attempted: true,
@@ -522,9 +557,14 @@ export async function maybeSendLeadHandoff(
     }
   };
 
+  console.log(
+    "[leadHandoff] decision",
+    publicHandoffDecisionLog({ decision, deliveryStatus: "queued" })
+  );
+
   return {
     attempted: true,
-    status: "SENT",
+    status: "QUEUED",
     emailTo: recipients.email,
     smsTo: recipients.sms,
     delivery,

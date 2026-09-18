@@ -86,6 +86,7 @@ export function createCustomerChatSession(
     if (salesState.conversationId !== conversationId) return;
     if (salesState.businessKey !== businessKey) return;
     if (salesState.leadDeliveryStatus === "SENT") return;
+    if (salesState.leadDeliveryStatus === "QUEUED") return;
     if (!isLeadReadyForHandoff(salesState)) return;
 
     try {
@@ -119,6 +120,9 @@ export function createCustomerChatSession(
       if (salesState?.leadDeliveryStatus === "SENT") {
         clearInactivityTimer();
       }
+      if (salesState?.leadDeliveryStatus === "QUEUED") {
+        clearInactivityTimer();
+      }
     } catch (error) {
       console.error("[customerChatClient] inactivity handoff failed", error);
     }
@@ -130,6 +134,7 @@ export function createCustomerChatSession(
     if (!sessionActive) return;
     if (!salesState) return;
     if (salesState.leadDeliveryStatus === "SENT") return;
+    if (salesState.leadDeliveryStatus === "QUEUED") return;
     if (!isLeadReadyForHandoff(salesState)) return;
 
     const generation = ++inactivityGeneration;
@@ -205,7 +210,7 @@ export function createCustomerChatSession(
       },
     ];
 
-    if (salesState?.leadDeliveryStatus !== "SENT") {
+    if (salesState?.leadDeliveryStatus !== "SENT" && salesState?.leadDeliveryStatus !== "QUEUED") {
       scheduleInactivityHandoff();
     } else {
       clearInactivityTimer();

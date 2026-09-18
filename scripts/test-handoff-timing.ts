@@ -9,6 +9,7 @@ import path from "path";
 import type { BusinessProfile } from "../src/types/business";
 import {
   buildLeadNotificationEmail,
+  evaluateHandoffReadiness,
   isClosureHandoffTrigger,
   isLeadHandoffDryRun,
   isLeadQualified,
@@ -18,6 +19,10 @@ import {
   setLeadHandoffTestDelivery,
   shouldAttemptLeadHandoff,
 } from "../src/lib/leadHandoff";
+import {
+  buildQueuedLeadHandoffCustomerMessage,
+  resolveWebsiteChatCustomerHandoffReply,
+} from "../src/lib/schedulingPolicy";
 import {
   createCustomerChatSession,
 } from "../src/lib/customerChatClient";
@@ -171,7 +176,11 @@ async function main() {
   // -------- TEST 3 — GENUINE CLOSURE (dry-run SMTP) --------
   const closeMsg = "Yes, let's do it.";
   assert(detectCustomerAgreement(closeMsg), "TEST3: agreement true");
-  let s3 = applyTurn(qualifiedBase(), closeMsg, "Would you like to move forward?");
+  let s3 = applyTurn(
+    qualifiedBase({ preferredTiming: "tomorrow morning" }),
+    closeMsg,
+    "Would you like to move forward?"
+  );
   assert(s3.customerAgreed === true, "TEST3: customerAgreed");
   assert(s3.handoffReady === true, "TEST3: handoffReady");
   assert(isLeadReadyForHandoff(s3), "TEST3: ready for handoff");
@@ -383,7 +392,7 @@ async function main() {
   scheduleLeadAlertDelivery(vercelAfter, smtpOnly.delivery);
   const handoffMs = Date.now() - sendStarted;
   assert(smtpOnly.attempted === true, "TEST10: attempted");
-  assert(smtpOnly.status === "SENT", "TEST10: SMTP-only still schedules the email");
+  assert(smtpOnly.status === "QUEUED", "TEST10: live path queues delivery without waiting");
   assert(typeof smtpOnly.delivery === "function", "TEST10: delivery task is returned");
   assert(queued.length === 1, "TEST10: after() received the delivery task");
   assert(handoffMs < 400, `TEST10: response must not wait for delivery, took ${handoffMs}ms`);
@@ -555,7 +564,7 @@ async function main() {
     );
     scheduleLeadAlertDelivery(after11, send1.delivery);
     assert(send1.attempted === true, "TEST11: handoffAttempted true");
-    assert(send1.status === "SENT", "TEST11: handoff scheduled as SENT");
+    assert(send1.status === "QUEUED", "TEST11: handoff scheduled as QUEUED");
     assert(typeof send1.delivery === "function", "TEST11: delivery task returned");
     assert(queued11.length === 1, "TEST11: one after() task queued");
     assert(deliveries === 0, "TEST11: delivery not run before after()");
@@ -574,6 +583,18 @@ async function main() {
     assert(/hornet/i.test(lastDelivery!.text), "TEST11: email includes need");
     assert(/hornet/i.test(lastDelivery!.smsBody), "TEST11: SMS includes need");
 
+    const afterQueued = {
+      ...hornet,
+      leadDeliveryStatus: "QUEUED" as const,
+    };
+    const sendQueuedDup = await maybeSendLeadHandoff(
+      pestBusiness,
+      afterQueued,
+      "closure",
+      "Tomorrow morning"
+    );
+    assert(sendQueuedDup.attempted === false, "TEST11: queued duplicate prevented");
+
     const afterSend = {
       ...hornet,
       leadDeliveryStatus: "SENT" as const,
@@ -591,6 +612,183 @@ async function main() {
     if (previousDryRun11 === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
     else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun11;
     console.log("TEST11 PASS — hornet-nest handoffAttempted with one email+SMS");
+  }
+
+  // TEST12 — same generic readiness across structurally different services (no service-specific rules).
+  {
+    const services: Array<{
+      profile: BusinessProfile;
+      need: string;
+      name: string;
+      phone: string;
+      address: string;
+      timing: string;
+    }> = [
+      {
+        profile: {
+          ...business,
+          website: "https://northstar-hvac.test",
+          businessName: "Northstar Climate",
+          services: ["Heating repair", "Cooling maintenance"],
+          leadNotificationEmail: "owner@northstar-hvac.test",
+          leadNotificationPhone: "+15125550101",
+        },
+        need: "The indoor unit will not start and the house is getting too warm.",
+        name: "Avery Chen",
+        phone: "5125550101",
+        address: "2200 Guadalupe St, Austin TX 78705",
+        timing: "morning this weekend",
+      },
+      {
+        profile: {
+          ...business,
+          website: "https://greenline-yards.test",
+          businessName: "Greenline Yards",
+          services: ["Lawn care", "Seasonal cleanup"],
+          leadNotificationEmail: "owner@greenline-yards.test",
+          leadNotificationPhone: "+15125550102",
+        },
+        need: "The front yard needs a seasonal cleanup and the hedge line is overgrown.",
+        name: "Morgan Patel",
+        phone: "5125550102",
+        address: "88 Barton Springs Rd, Austin TX 78704",
+        timing: "this weekend",
+      },
+      {
+        profile: {
+          ...business,
+          website: "https://brightline-electric.test",
+          businessName: "Brightline Electric",
+          services: ["Outlet repair", "Panel inspection"],
+          leadNotificationEmail: "owner@brightline-electric.test",
+          leadNotificationPhone: "+15125550103",
+        },
+        need: "Two kitchen outlets have no power after a breaker reset.",
+        name: "Riley Brooks",
+        phone: "5125550103",
+        address: "410 Congress Ave, Austin TX 78701",
+        timing: "tomorrow afternoon",
+      },
+    ];
+
+    const source = readFileSync(
+      path.join(process.cwd(), "src/lib/leadHandoffShared.ts"),
+      "utf8"
+    );
+    assert(
+      !/\b(pools?|pest control|hornets?|plumbing|plumbers?)\b/i.test(source),
+      "TEST12: readiness module must not contain service-specific keywords"
+    );
+
+    process.env.LEAD_HANDOFF_DRY_RUN = "true";
+    let completedLeadTotalMs = 0;
+    let completedLeadDetectionMs = 0;
+    let completedLeadHandoffMs = 0;
+
+    for (const sample of services) {
+      const prior = qualifiedBase({
+        lead: {
+          name: sample.name,
+          phone: sample.phone,
+          email: null,
+          address: sample.address,
+        },
+        customerNeed: sample.need,
+        preferredTiming: null,
+        handoffReady: false,
+        customerAgreed: false,
+        currentObjective: "ADVANCE_TO_NEXT_STEP",
+      });
+      const before = evaluateHandoffReadiness(prior);
+      assert(before.handoffReady === false, `TEST12: not ready before timing (${sample.profile.businessName})`);
+      assert(
+        before.missingRequiredFields.includes("preferredTiming"),
+        `TEST12: missing preferredTiming (${sample.profile.businessName})`
+      );
+
+      const detectStarted = Date.now();
+      const after = updateSalesStateFromTurn(
+        prior,
+        [
+          {
+            role: "assistant",
+            content: "What day or time would you prefer? The team will confirm availability.",
+          },
+          { role: "user", content: sample.timing },
+        ],
+        sample.profile
+      );
+      const leadDetectionMs = Date.now() - detectStarted;
+      const decision = evaluateHandoffReadiness(after, sample.timing);
+      assert(after.handoffReady === true, `TEST12: handoffReady (${sample.profile.businessName})`);
+      assert(decision.handoffReady === true, `TEST12: central decision ready (${sample.profile.businessName})`);
+      assert(decision.missingRequiredFields.length === 0, `TEST12: no missing fields (${sample.profile.businessName})`);
+      assert(
+        decision.visitorRequestedProceedOrCompleted === true,
+        `TEST12: proceed/complete true (${sample.profile.businessName})`
+      );
+      assert(
+        shouldAttemptLeadHandoff(after, "closure", sample.timing),
+        `TEST12: should attempt (${sample.profile.businessName})`
+      );
+
+      const sendStarted = Date.now();
+      const send = await maybeSendLeadHandoff(
+        sample.profile,
+        after,
+        "closure",
+        sample.timing
+      );
+      const handoffMs = Date.now() - sendStarted;
+      assert(send.attempted === true, `TEST12: attempted (${sample.profile.businessName})`);
+      assert(send.status === "SENT", `TEST12: dry-run SENT (${sample.profile.businessName})`);
+
+      const queuedReply = resolveWebsiteChatCustomerHandoffReply({
+        attempted: true,
+        status: "QUEUED",
+        currentObjective: after.currentObjective,
+        customerName: after.lead.name,
+        preferredTiming: after.preferredTiming,
+        business: sample.profile,
+        latestUserMessage: sample.timing,
+      });
+      const expectedQueued = buildQueuedLeadHandoffCustomerMessage(
+        after.lead.name,
+        after.preferredTiming
+      );
+      assert(queuedReply === expectedQueued, `TEST12: queued wording (${sample.profile.businessName})`);
+      assert(
+        !/shared your request with the team/i.test(queuedReply || ""),
+        `TEST12: queued copy must not claim shared (${sample.profile.businessName})`
+      );
+
+      const sentReply = resolveWebsiteChatCustomerHandoffReply({
+        attempted: true,
+        status: "SENT",
+        currentObjective: after.currentObjective,
+        customerName: after.lead.name,
+        preferredTiming: after.preferredTiming,
+        business: sample.profile,
+        latestUserMessage: sample.timing,
+      });
+      assert(
+        /shared your request with the team/i.test(sentReply || ""),
+        `TEST12: SENT copy may claim shared (${sample.profile.businessName})`
+      );
+
+      completedLeadDetectionMs = leadDetectionMs;
+      completedLeadHandoffMs = handoffMs;
+      completedLeadTotalMs = leadDetectionMs + handoffMs;
+    }
+
+    console.log("TEST12 PASS — generic readiness across three services", {
+      completedLeadTurn: {
+        leadDetectionMs: completedLeadDetectionMs,
+        handoffMs: completedLeadHandoffMs,
+        openaiMs: 0,
+        totalMs: completedLeadTotalMs,
+      },
+    });
   }
 
   // Extra agreement checks

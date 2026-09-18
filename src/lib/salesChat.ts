@@ -4,8 +4,10 @@ import { formatBusinessKnowledge } from "./businessKnowledge";
 import {
   applyLeadDeliveryResult,
   describeLeadAlertTransport,
-  isWebsiteLeadCaptureComplete,
+  evaluateHandoffReadiness,
   maybeSendLeadHandoff,
+  publicHandoffDecisionLog,
+  toHandoffDeliveryLogStatus,
 } from "./leadHandoff";
 import {
   buildFailedLeadHandoffCustomerMessage,
@@ -374,9 +376,10 @@ Do not promise same-day service unless BusinessProfile explicitly includes that 
 After name, phone, address, and the service need are captured:
 - If the customer says yes to a site assessment / next step and has not given a preferred time yet, reply with this meaning only: "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability."
 - Never say "we'll arrange a site assessment" or otherwise imply an appointment is already confirmed or booked.
-- Once name, phone, service address, and preferred time are captured, the system shares the request with the team. If that succeeded, close with this meaning: "Thanks, [name] — I've shared your request with the team. We'll note [preferred time] as your preferred time, and the team will confirm availability."
+- Once name, phone, service address, and preferred time are captured and the visitor has asked to proceed or finished, the system queues an alert. While that is only queued, say the request has been recorded and the preferred time noted — never that it was already shared.
+- Say you have shared the request with the team only if delivery status is actually SENT.
 - If the same visitor message also asks about pricing or how charges work, answer that pricing question in the same response using BusinessProfile pricing only. If the profile does not establish hourly versus fixed/project pricing, say pricing depends on scope, fixtures/materials, and site assessment — do not invent either approach.
-- If the request could not be shared, tell them to contact the business phone or email directly. Do not claim the team was alerted.
+- If the request could not be scheduled for delivery, tell them to contact the business phone or email directly. Do not claim the team was alerted.
 - Never say "the lead hasn't been sent", "the office hasn't been reached", "handoff failed", or anything about email/SMS delivery.
 - If they ask about price after details are captured, answer the pricing question. Do not repeat delivery/handoff language unless this is the capture/handoff turn.
 
@@ -471,6 +474,7 @@ export async function generateSalesReply(
   const leadDetectionMs = Date.now() - detectStarted;
 
   const handoffStarted = Date.now();
+  const decision = evaluateHandoffReadiness(salesState, latestUser?.content);
   const handoff = await maybeSendLeadHandoff(
     business,
     salesState,
@@ -480,9 +484,16 @@ export async function generateSalesReply(
   const handoffMs = Date.now() - handoffStarted;
   salesState = applyLeadDeliveryResult(salesState, handoff);
   const transport = describeLeadAlertTransport();
+  const decisionLog = publicHandoffDecisionLog({
+    decision,
+    deliveryStatus: toHandoffDeliveryLogStatus(handoff.status),
+  });
 
-  // Success copy only after a handoff task was actually scheduled.
-  // If capture is complete but nothing was queued, use the professional fallback.
+  // Completed-lead turns are deterministic: never call OpenAI just to decide a handoff.
+  // Later questions after a queued/sent alert may still use the model.
+  const alreadyScheduled =
+    previousState?.leadDeliveryStatus === "SENT" ||
+    previousState?.leadDeliveryStatus === "QUEUED";
   let deterministicHandoffReply = resolveWebsiteChatCustomerHandoffReply({
     attempted: handoff.attempted,
     status: handoff.status,
@@ -492,10 +503,13 @@ export async function generateSalesReply(
     business,
     latestUserMessage: latestUser?.content,
   });
-  if (
-    !deterministicHandoffReply &&
-    isWebsiteLeadCaptureComplete(salesState) &&
-    (!handoff.attempted || handoff.status === "NOT_SENT")
+  if (handoff.attempted && !deterministicHandoffReply) {
+    deterministicHandoffReply = buildFailedLeadHandoffCustomerMessage(business);
+  } else if (
+    !handoff.attempted &&
+    decision.handoffReady &&
+    !alreadyScheduled &&
+    !deterministicHandoffReply
   ) {
     deterministicHandoffReply = buildFailedLeadHandoffCustomerMessage(business);
   }
@@ -509,6 +523,7 @@ export async function generateSalesReply(
       totalMs: Date.now() - started,
       handoffAttempted: handoff.attempted,
       handoffStatus: handoff.status,
+      ...decisionLog,
       ...transport,
     });
     return {
@@ -567,6 +582,7 @@ ${extra}`
     totalMs: Date.now() - started,
     handoffAttempted: handoff.attempted,
     handoffStatus: handoff.status,
+    ...decisionLog,
     ...transport,
   });
 

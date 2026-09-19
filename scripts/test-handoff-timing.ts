@@ -998,6 +998,58 @@ async function main() {
     });
   }
 
+  // TEST14 — authoritative first name stays sticky; preferred-time sentence cannot overwrite it.
+  {
+    let flow = createInitialSalesState({
+      conversationId: createConversationId(),
+      businessKey: businessIdentityKey(business),
+    });
+    flow = applyTurn(
+      flow,
+      "I want my central heating system fixed. Can you do it? And how much will it cost?",
+      "👋 Hi! How can I help you today?"
+    );
+    flow = applyTurn(flow, "Raja", "What's your first name?");
+    assert(flow.lead.name === "Raja", `TEST14: Raja captured, got ${flow.lead.name}`);
+    const confirmName = validateSalesReply(
+      "Thanks — is your first name Raja?",
+      flow,
+      business
+    );
+    assert(!confirmName.ok, "TEST14: must not confirm a normal first name");
+
+    flow = applyTurn(flow, "9898989898", "Thanks Raja — what's the best phone number?");
+    flow = applyTurn(
+      flow,
+      "1500 Marilla St, Dallas, TX 75201",
+      "What's the service address?"
+    );
+    const beforeTime = flow.lead.name;
+    flow = applyTurn(
+      flow,
+      "Tomorrow afternoon is good with me",
+      "What day or time would you prefer? The team will confirm availability."
+    );
+    assert(flow.lead.name === "Raja", `TEST14: time must not overwrite name (${beforeTime} -> ${flow.lead.name})`);
+    assert(
+      flow.preferredTiming === "tomorrow afternoon",
+      `TEST14: normalized preferred time, got ${flow.preferredTiming}`
+    );
+    const expected14 =
+      "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will confirm availability.";
+    const final14 = resolveWebsiteChatCustomerHandoffReply({
+      attempted: true,
+      status: "QUEUED",
+      currentObjective: flow.currentObjective,
+      customerName: flow.lead.name,
+      preferredTiming: flow.preferredTiming,
+      business,
+      latestUserMessage: "Tomorrow afternoon is good with me",
+    });
+    assert(final14 === expected14, `TEST14: exact final reply, got ${final14}`);
+    console.log("TEST14 PASS — Raja name sticky / preferred-time isolation");
+  }
+
   // Extra agreement checks
   assert(detectCustomerAgreement("Please proceed."), "extra: please proceed");
   assert(detectCustomerAgreement("Yes, go ahead."), "extra: yes go ahead");

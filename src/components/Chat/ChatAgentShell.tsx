@@ -70,7 +70,10 @@ export default function ChatAgentShell({
         </div>
 
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-[15px] font-semibold leading-5 tracking-tight text-slate-950">
+          <h2
+            data-chat-agent-name
+            className="truncate text-[15px] font-semibold leading-5 tracking-tight text-slate-950"
+          >
             {name}
           </h2>
           <p className="truncate text-xs leading-4 text-slate-500">

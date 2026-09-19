@@ -179,6 +179,9 @@ export function isFieldConfirmationReply(text: string): boolean {
   );
 }
 
+const NAME_TOKEN_BLOCKLIST =
+  /^(your|you|yours|request|preferred|this|that|what|when|where|with|from|have|been|thanks|thank|me|my|our|the|and|for|not|are|was|were|to|of|in|on|at|a|an|is|good)$/i;
+
 function isNameTimePhrase(value: string): boolean {
   const t = value.trim();
   if (!t) return true;
@@ -195,6 +198,9 @@ function isPlausiblePersonName(value: string): boolean {
       cleaned
     )
   ) {
+    return false;
+  }
+  if (cleaned.split(/\s+/).some((token) => NAME_TOKEN_BLOCKLIST.test(token))) {
     return false;
   }
   if (isNameTimePhrase(cleaned)) return false;
@@ -215,6 +221,12 @@ function isPlausiblePersonName(value: string): boolean {
   return true;
 }
 
+/** A normal entered first name — store it; do not ask the visitor to confirm it. */
+function isAuthoritativePersonName(value: string | null | undefined): boolean {
+  const cleaned = (value || "").trim();
+  return cleaned.length >= 2 && isPlausiblePersonName(cleaned);
+}
+
 function extractExplicitPersonName(text: string): string | null {
   const labeled = text.match(
     /(?:my\s+(?:first\s+)?name(?:'s| is)|(?:first\s+)?name(?:'s| is)|this is|call me)\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)/i
@@ -226,12 +238,28 @@ function extractExplicitPersonName(text: string): string | null {
   return isPlausiblePersonName(cleaned) ? cleaned : null;
 }
 
-function extractName(text: string, objective: SalesObjective): string | null {
+function assistantAskedForName(assistantText: string): boolean {
+  const t = assistantText.trim();
+  if (!t) return false;
+  if (assistantAskedToConfirmName(t)) return true;
+  return leadFieldAskPatterns("name").some((re) => re.test(t));
+}
+
+function extractName(
+  text: string,
+  objective: SalesObjective,
+  priorAssistant = ""
+): string | null {
   const explicit = extractExplicitPersonName(text);
   if (explicit) return explicit;
 
-  if (objective === "COLLECT_NAME") {
+  const collectingName =
+    objective === "COLLECT_NAME" || assistantAskedForName(priorAssistant);
+  if (collectingName) {
     const cleaned = text.trim().replace(/^["']|["']$/g, "");
+    if (extractPreferredVisitTimeFromText(cleaned) && !isPlausiblePersonName(cleaned)) {
+      return null;
+    }
     if (isPlausiblePersonName(cleaned)) return cleaned;
   }
 
@@ -249,7 +277,9 @@ function shouldReplaceCapturedName(
   incoming: string,
   text: string
 ): boolean {
+  if (!isPlausiblePersonName(incoming)) return false;
   if (isExplicitNameCorrection(text)) return true;
+  if (isAuthoritativePersonName(existing)) return false;
   const prev = existing.trim();
   const next = incoming.trim();
   return (
@@ -262,17 +292,31 @@ function shouldReplaceCapturedName(
 function assistantAskedToConfirmName(assistantText: string): boolean {
   const t = assistantText.trim();
   if (!t) return false;
+  if (
+    /\bwhat(?:'s| is) your (first )?name\b/i.test(t) &&
+    !/\bis your first name\b/i.test(t)
+  ) {
+    return false;
+  }
   return (
-    /\b(first name|your name|name to use|call you)\b/i.test(t) &&
-    /\b(is\b|confirm|correct|right|did i get|just to (confirm|check)|should i (use|go with)|to use)\b/i.test(
+    /\bis your first name\b/i.test(t) ||
+    /\bis\s+[A-Za-z][A-Za-z.'-]{0,40}\s+(?:the |your )?(?:first )?name(?: i should use)?\b/i.test(
       t
-    )
+    ) ||
+    (/\b(first name|your name|name to use|call you)\b/i.test(t) &&
+      /\b(confirm|correct|right|did i get|just to (confirm|check)|should i (use|go with)|to use)\b/i.test(
+        t
+      ))
   );
 }
 
 function extractNameCandidateFromAssistant(assistantText: string): string | null {
   const quoted = assistantText.match(/["']([A-Za-z](?:[A-Za-z.'-]{0,40})?)["']/);
   if (quoted?.[1] && isPlausiblePersonName(quoted[1])) return quoted[1];
+  const yourFirst = assistantText.match(
+    /\bis your first name\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?)/i
+  );
+  if (yourFirst?.[1] && isPlausiblePersonName(yourFirst[1])) return yourFirst[1];
   const isName = assistantText.match(
     /\bis\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?)\s+(?:the |your )?(?:first )?name/i
   );
@@ -1042,10 +1086,10 @@ export function updateSalesStateFromTurn(
   const priorAssistant = lastAssistantMessage(messages);
   const confirmingName =
     confirmationReply && assistantAskedToConfirmName(priorAssistant);
-  if (confirmingName) {
+  if (confirmingName && !isAuthoritativePersonName(state.lead.name)) {
     const candidate =
-      extractNameCandidateFromAssistant(priorAssistant) ||
       extractName(previousUserMessage(messages), "COLLECT_NAME") ||
+      extractNameCandidateFromAssistant(priorAssistant) ||
       (state.lead.name && isPlausiblePersonName(state.lead.name)
         ? state.lead.name
         : null);
@@ -1100,7 +1144,7 @@ export function updateSalesStateFromTurn(
   }
 
   if (!confirmationReply) {
-    const name = extractName(text, state.currentObjective);
+    const name = extractName(text, state.currentObjective, priorAssistant);
     if (name) {
       if (!state.lead.name || shouldReplaceCapturedName(state.lead.name, name, text)) {
         assignLeadName(state, name);
@@ -1256,6 +1300,11 @@ The Sales Controller decides WHAT to accomplish this turn.
 You decide HOW to say it naturally.
 Do not invent a different objective.
 Do not ask about already-established facts unless there is genuine ambiguity.
+${
+  isAuthoritativePersonName(state.lead.name)
+    ? `Captured customer name (${state.lead.name}) is authoritative. Do not ask the visitor to confirm it.`
+    : ""
+}
 
 Current state:
 - intent: ${state.intent}
@@ -1342,6 +1391,11 @@ function objectiveInstruction(
     case "COLLECT_NAME":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's first name only.
 Respond with about one short sentence + exactly ONE question.
+${
+  isAuthoritativePersonName(state.lead.name)
+    ? `A valid first name is already captured (${state.lead.name}). Do NOT ask the customer to confirm it. Move on — this objective should not re-open name confirmation.`
+    : `If the customer just gave a normal first name (letters, not a sentence), treat it as captured. Do not ask "is your first name ...?". Ask for clarification only when the input is clearly not a name, is a single initial, or contains no usable letters.`
+}
 Do not ask for last name, phone, email, address, availability, or technical details.
 Do not provide DIY instructions or a company brochure.`;
     case "COLLECT_PHONE":
@@ -1603,6 +1657,13 @@ export function validateSalesReply(
       reasons.push(`Asked for already-collected field: ${field}.`);
     }
   });
+
+  if (
+    isAuthoritativePersonName(state.lead.name) &&
+    assistantAskedToConfirmName(reply)
+  ) {
+    reasons.push("Asked to confirm an already-captured name.");
+  }
 
   state.refusedLeadFields.forEach((field) => {
     if (leadFieldAskPatterns(field).some((re) => re.test(reply))) {

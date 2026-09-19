@@ -315,22 +315,41 @@ export function maxUrgency(a: UrgencyLevel, b: UrgencyLevel): UrgencyLevel {
   return rank(a) >= rank(b) ? a : b;
 }
 
+function normalizeTimingPhrase(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export function extractPreferredVisitTimeFromText(text: string): string | null {
-  const relativeWindow = text.match(
+  const source = text.trim();
+  if (!source) return null;
+
+  const relativeWindow = source.match(
     /\b((?:early\s+)?(?:morning|afternoon|evening|night)\s+(?:this|next)\s+(?:weekend|week)|(?:this|next)\s+(?:weekend|week)(?:\s+(?:morning|afternoon|evening|night))?)\b/i
   );
-  if (relativeWindow) return relativeWindow[0].trim();
+  if (relativeWindow) return normalizeTimingPhrase(relativeWindow[0]);
 
-  const asap = text.match(
+  const asap = source.match(
     /\b(as soon as possible|asap|right away|today(?:\s+(?:morning|afternoon|evening))?|tonight)\b/i
   );
-  if (asap && /\b(come|visit|need|arrange|schedule|asap|possible|today|tonight)\b/i.test(text)) {
-    return asap[0].trim();
+  if (asap && /\b(come|visit|need|arrange|schedule|asap|possible|today|tonight)\b/i.test(source)) {
+    return normalizeTimingPhrase(asap[0]);
   }
-  const match = text.match(
-    /\b((today|tomorrow|this (morning|afternoon|evening)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[^.]{0,40}|between\s+\d{1,2}[^.]{0,24}|\d{1,2}\s*(?::\d{2})?\s*[-–]\s*\d{1,2}\s*(?::\d{2})?\s*(am|pm)?|after\s+\d{1,2}\s*(am|pm)?|before\s+\d{1,2}\s*(am|pm)?)\b/i
+
+  const dayAndPart = source.match(
+    /\b((?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s+(?:morning|afternoon|evening|night))?|this\s+(?:morning|afternoon|evening))\b/i
   );
-  return match ? match[0].trim() : null;
+  const clock = source.match(
+    /\b(between\s+\d{1,2}[^.]{0,24}|\d{1,2}\s*(?::\d{2})?\s*[-–]\s*\d{1,2}\s*(?::\d{2})?\s*(am|pm)?|after\s+\d{1,2}\s*(am|pm)?|before\s+\d{1,2}\s*(am|pm)?)\b/i
+  );
+  if (dayAndPart) {
+    const day = normalizeTimingPhrase(dayAndPart[0]);
+    if (clock && !day.includes(normalizeTimingPhrase(clock[0]))) {
+      return normalizeTimingPhrase(`${day} ${clock[0]}`);
+    }
+    return day;
+  }
+
+  return clock ? normalizeTimingPhrase(clock[0]) : null;
 }
 
 export function knowledgeAllowsSameDay(knowledge: string): boolean {

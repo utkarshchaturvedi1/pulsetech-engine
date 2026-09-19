@@ -8,16 +8,17 @@
   --pt-sky: #8ecae6;
   --pt-gold: #ffb701;
   --pt-warm: #fcfcfa;
-  --pt-demo-canvas: linear-gradient(160deg, #023047 0%, #0b7285 58%, #145a70 100%);
+  --pt-canvas: linear-gradient(160deg, #023047 0%, #03485f 42%, #012536 100%);
+  --pt-demo-canvas: var(--pt-canvas);
   color: var(--pt-navy);
   background: var(--pt-demo-canvas);
 }
 
 /* Route wrapper + body are otherwise white from globals/landing — paint them
-   so the navy-teal canvas fills every outer layer behind the chat cards. */
+   so the navy-blue canvas fills every outer layer behind the chat cards. */
 .pt-demo-route {
   min-height: 100%;
-  background: var(--pt-demo-canvas, linear-gradient(160deg, #023047 0%, #0b7285 58%, #145a70 100%));
+  background: var(--pt-demo-canvas);
 }
 
 body:has(.pt-demo) {
@@ -25,7 +26,7 @@ body:has(.pt-demo) {
 }
 
 /* Landing CSS paints .pt-shell / .pt-landing warm white — override every
-   outer canvas layer so the navy-teal page shows behind the chat cards. */
+   outer canvas layer so the navy-blue page shows behind the chat cards. */
 .pt-landing.pt-demo .pt-shell,
 .pt-demo .pt-shell {
   min-height: 100vh;
@@ -338,32 +339,32 @@ body:has(.pt-demo) {
 }
 
 @media (max-width: 1023.98px) {
-  /* Let the page (not nested chat panes) be the primary scroller on phones so
-     users can reach the phone-test card after the customer chat. */
+  /* Keep panel height locked so transcripts scroll inside the message list.
+     The page (not the chat card) remains the outer scroller so phone-test
+     stays reachable — do not grow the card with the transcript. */
   .pt-demo-panel,
   .pt-demo-frame {
-    height: auto;
-    max-height: none;
-    min-height: var(--pt-demo-chat-height, 560px);
-    overflow: visible;
+    height: var(--pt-demo-chat-height, 560px);
+    max-height: var(--pt-demo-chat-height, 560px);
+    overflow: hidden;
   }
 
   .pt-demo-chat,
   .pt-demo-chat [data-customer-widget-shell],
   .pt-demo-chat [data-chat-window] {
-    height: auto;
-    max-height: none;
-    overflow: visible;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .pt-demo .pt-demo-chat [data-chat-messages] {
-    /* Do not set overflow-x:hidden here — with overflow-y:visible it
-       computes back to overflow-y:auto and traps Android page scroll. */
-    overflow: visible;
-    overscroll-behavior: auto;
-    overscroll-behavior-y: auto;
-    flex: 0 0 auto;
-    min-height: 12rem;
+    flex: 1 1 0%;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 }
 

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "fs";
 import path from "path";
 import DemoWorkspace from "../src/components/DemoWorkspace";
-import { DEMO_CHAT_LAYOUT } from "../src/lib/demoChatLayout";
+import { DEMO_CHAT_LAYOUT, HOME_CHAT_LAYOUT, PULSETECH_CANVAS_GRADIENT } from "../src/lib/demoChatLayout";
 import { buildLeadNotificationEmail, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
 import {
   ASK_PREFERRED_DAY_TIME,
@@ -17,6 +17,7 @@ import {
   isSuccessfulLeadHandoffCustomerMessage,
   messageAsksPricingOrBilling,
   resolveWebsiteChatCustomerHandoffReply,
+  extractPreferredVisitTimeFromText,
 } from "../src/lib/schedulingPolicy";
 import {
   TEXAS_SOLAR_LOGO_URL,
@@ -101,6 +102,13 @@ function cssHasRule(css: string, selector: string, needle: RegExp) {
 
 function testLayoutConstraints() {
   assert(DEMO_CHAT_LAYOUT.panelHeightPx === 560, "panel height constant");
+  assert(HOME_CHAT_LAYOUT.desktopPanelHeightPx === 560, "homepage desktop chat 560");
+  assert(HOME_CHAT_LAYOUT.mobilePanelHeightPx === 430, "homepage mobile chat 430");
+  assert(
+    PULSETECH_CANVAS_GRADIENT ===
+      "linear-gradient(160deg, #023047 0%, #03485f 42%, #012536 100%)",
+    "canonical navy-blue canvas token"
+  );
   assert(
     !("customerPanelWidthPx" in DEMO_CHAT_LAYOUT),
     "customer panel must not be width-capped"
@@ -280,12 +288,65 @@ function testLayoutConstraints() {
     "customer label must not use pale gold or light orange"
   );
   assert(
-    css.includes("overscroll-behavior: auto"),
-    "mobile chat transcripts must allow outer-page overscroll"
+    css.includes("overscroll-behavior: contain"),
+    "inner transcripts contain overscroll so the card height stays fixed"
+  );
+  assert(
+    !/@media \(max-width: 1023\.98px\)[\s\S]{0,800}height:\s*auto/.test(css),
+    "mobile demo panels must not grow with height:auto"
+  );
+  assert(
+    css.includes("--pt-canvas: linear-gradient(160deg, #023047 0%, #03485f 42%, #012536 100%)"),
+    "demo canvas uses canonical navy-blue token"
+  );
+  assert(
+    !/--pt-demo-canvas:\s*linear-gradient\([^)]*#0b7285/.test(css),
+    "demo canvas must not use the green/teal stop"
   );
   assert(
     css.includes(".pt-demo .pt-voice-demo"),
     "voice card has demo-scoped contrast styles"
+  );
+
+  assert(
+    landingCss.includes("--pt-canvas: linear-gradient(160deg, #023047 0%, #03485f 42%, #012536 100%)"),
+    "homepage canvas token matches desktop blue"
+  );
+  assert(
+    landingCss.includes("background: var(--pt-canvas)"),
+    "product canvas uses the canonical token on all viewports"
+  );
+  assert(
+    /@media \(max-width: 639px\)[\s\S]*\.pt-product-canvas \{[\s\S]*?background:\s*var\(--pt-canvas\)/.test(
+      landingCss
+    ),
+    "mobile product canvas keeps the same canvas token"
+  );
+  assert(
+    landingCss.includes("[data-chat-agent-name]") &&
+      landingCss.includes("color: #ffffff !important"),
+    "Peter's name uses light text on the dark homepage header"
+  );
+  assert(
+    landingCss.includes("height: 560px") &&
+      landingCss.includes("max-height: 560px"),
+    "desktop homepage chat shell is locked at 560px"
+  );
+  assert(
+    landingCss.includes("height: 430px") &&
+      landingCss.includes("max-height: 430px"),
+    "375px homepage chat shell is locked at 430px"
+  );
+  assert(
+    landingCss.includes(".pt-chat-body [data-chat-messages]") &&
+      /overflow-y:\s*auto/.test(landingCss),
+    "homepage transcripts scroll inside a stable shell"
+  );
+
+  const agentShell = readSrc("src/components/Chat/ChatAgentShell.tsx");
+  assert(
+    agentShell.includes("data-chat-agent-name"),
+    "agent name has a contrast hook for dark homepage headers"
   );
 
   console.log("PASS — demo chat layout CSS + rendered markup");
@@ -1296,10 +1357,124 @@ function testCompoundPriceAndPreferredTime() {
   console.log("PASS — compound price question + preferred time in one message");
 }
 
+function testRajaNameCaptureAndPreferredTime() {
+  let state = createInitialSalesState({
+    conversationId: "conv_raja_name",
+    businessKey: business.website,
+  });
+
+  state = updateSalesStateFromTurn(
+    state,
+    [
+      { role: "assistant", content: "Hi — how can I help today?" },
+      {
+        role: "user",
+        content: "I want my central heating system fixed. Can you do it? And how much will it cost?",
+      },
+    ],
+    business
+  );
+
+  state = updateSalesStateFromTurn(
+    state,
+    [
+      { role: "assistant", content: "I can help with that. What's your first name?" },
+      { role: "user", content: "Raja" },
+    ],
+    business
+  );
+  assert(state.lead.name === "Raja", `Raja must be stored as the name, got ${state.lead.name}`);
+  assert(state.currentObjective !== "COLLECT_NAME", "valid first name must not stay on name capture");
+
+  const confirmAsk = validateSalesReply(
+    "Thanks — is your first name Raja?",
+    state,
+    business
+  );
+  assert(!confirmAsk.ok, "must not ask to confirm a normal entered first name");
+  assert(
+    confirmAsk.reasons.some((r) => /already-captured name|already-collected field: name/i.test(r)),
+    confirmAsk.reasons.join("; ")
+  );
+
+  state = updateSalesStateFromTurn(
+    state,
+    [
+      { role: "assistant", content: "Thanks Raja — what's the best number to reach you?" },
+      { role: "user", content: "9898989898" },
+    ],
+    business
+  );
+  assert(state.lead.name === "Raja", "phone turn must not rewrite the name");
+
+  state = updateSalesStateFromTurn(
+    state,
+    [
+      { role: "assistant", content: "What's the service address?" },
+      { role: "user", content: "1500 Marilla St, Dallas, TX 75201" },
+    ],
+    business
+  );
+  assert(state.lead.name === "Raja", "address turn must not rewrite the name");
+
+  const preferred = "Tomorrow afternoon is good with me";
+  assert(
+    extractPreferredVisitTimeFromText(preferred) === "tomorrow afternoon",
+    `preferred time must normalize to tomorrow afternoon, got ${extractPreferredVisitTimeFromText(preferred)}`
+  );
+
+  const named = {
+    ...state,
+    currentObjective: "COLLECT_NAME" as const,
+  };
+  const afterTime = updateSalesStateFromTurn(
+    named,
+    [
+      { role: "assistant", content: "What day or time would you prefer? The team will confirm availability." },
+      { role: "user", content: preferred },
+    ],
+    business
+  );
+  assert(afterTime.lead.name === "Raja", `preferred time must not overwrite name, got ${afterTime.lead.name}`);
+  assert(
+    afterTime.preferredTiming === "tomorrow afternoon",
+    `preferred time stored cleanly, got ${afterTime.preferredTiming}`
+  );
+
+  const expected =
+    "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will confirm availability.";
+  const finalReply = resolveWebsiteChatCustomerHandoffReply({
+    attempted: true,
+    status: "QUEUED",
+    currentObjective: afterTime.currentObjective,
+    customerName: afterTime.lead.name,
+    preferredTiming: afterTime.preferredTiming,
+    business,
+    latestUserMessage: preferred,
+  });
+  assert(finalReply === expected, `exact final reply, got ${finalReply}`);
+
+  const confirmOverwrite = updateSalesStateFromTurn(
+    afterTime,
+    [
+      { role: "assistant", content: "Thanks — is your first name Raja?" },
+      { role: "user", content: "yes" },
+    ],
+    business
+  );
+  assert(
+    confirmOverwrite.lead.name === "Raja",
+    `confirmation must not replace Raja with a fragment, got ${confirmOverwrite.lead.name}`
+  );
+
+  console.log("PASS — Raja name capture, no confirmation, preferred-time isolation");
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();
+  testRajaNameCaptureAndPreferredTime();
   testCustomerFacingHandoffWording();
   testCompoundPriceAndPreferredTime();
   testSiteVisitFeeOnce();

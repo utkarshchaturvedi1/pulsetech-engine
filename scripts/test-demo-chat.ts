@@ -4,7 +4,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import DemoWorkspace from "../src/components/DemoWorkspace";
 import { DEMO_CHAT_LAYOUT, HOME_CHAT_LAYOUT, PULSETECH_CANVAS_GRADIENT } from "../src/lib/demoChatLayout";
-import { buildLeadNotificationEmail, buildWebsiteLeadSms, formatPrimaryNeedForAlert, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
+import { buildLeadNotificationEmail, buildWebsiteLeadSms, evaluateHandoffReadiness, formatPrimaryNeedForAlert, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
 import {
   ASK_PREFERRED_DAY_TIME,
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
@@ -1155,7 +1155,16 @@ function testCustomerFacingHandoffWording() {
     /We'll note tomorrow morning as your preferred time/i.test(success),
     "success notes preferred time naturally"
   );
-  assert(/team will confirm availability/i.test(success), "success asks team to confirm");
+  assert(
+    /team will contact you at the number you provided to confirm availability/i.test(
+      success
+    ),
+    "success says the team will contact the customer at the number they provided"
+  );
+  assert(
+    !success.includes(business.phone) && !/\bif you prefer to call\b/i.test(success),
+    "success close must not include the business phone number"
+  );
   assert(!/\bnot booked yet\b/i.test(success), "default success copy avoids stiff not-booked-yet");
   assert(!/\bbooked\b/i.test(success), "success must not claim booked");
 
@@ -1470,7 +1479,7 @@ function testRajaNameCaptureAndPreferredTime() {
   );
 
   const expected =
-    "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will confirm availability.";
+    "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will contact you at the number you provided to confirm availability.";
   const finalReply = resolveWebsiteChatCustomerHandoffReply({
     attempted: true,
     status: "QUEUED",
@@ -1576,12 +1585,160 @@ function testStickyPrimaryNeedInAlerts() {
   });
 }
 
+function testGenericPreferredTimeLeadCapture() {
+  assert(
+    extractPreferredVisitTimeFromText("Tomorrow afternoon. How much will it cost?") ===
+      "tomorrow afternoon",
+    "must extract preferred time from a combined time + pricing message"
+  );
+  assert(
+    extractPreferredVisitTimeFromText(
+      "Tomorrow morning works, but what do you charge?"
+    ) === "tomorrow morning",
+    "must extract preferred time when a pricing question follows"
+  );
+  assert(
+    extractPreferredVisitTimeFromText("Tommorow afternoon") === "tomorrow afternoon",
+    "must tolerate the common Tommorow spelling"
+  );
+
+  const proceedAsk =
+    "I can share typical pricing. Would you like me to arrange a site assessment?";
+  const mixed = "Tomorrow afternoon. How much will it cost?";
+  const prior = securedLead({
+    preferredTiming: null,
+    currentObjective: "PRESENT_SOLUTION",
+    leadDeliveryStatus: "NOT_SENT",
+    customerAgreed: false,
+  });
+
+  let state = updateSalesStateFromTurn(
+    prior,
+    [
+      { role: "assistant", content: proceedAsk },
+      { role: "user", content: mixed },
+    ],
+    business
+  );
+  assert(
+    state.preferredTiming === "tomorrow afternoon",
+    `combined message must persist preferredTiming, got ${state.preferredTiming}`
+  );
+
+  state = updateSalesStateFromTurn(
+    state,
+    [
+      { role: "assistant", content: proceedAsk },
+      { role: "user", content: mixed },
+      {
+        role: "assistant",
+        content: "Pricing depends on the scope of work. Would you like me to arrange a site assessment?",
+      },
+      { role: "user", content: "Yes" },
+    ],
+    business
+  );
+  assert(
+    state.preferredTiming === "tomorrow afternoon",
+    `preferredTiming must stay sticky after Yes, got ${state.preferredTiming}`
+  );
+
+  const yesDecision = evaluateHandoffReadiness(state, "Yes");
+  assert(yesDecision.handoffReady === true, "central evaluator must be ready after Yes");
+  assert(
+    yesDecision.missingRequiredFields.length === 0,
+    `no missing fields after Yes, got ${yesDecision.missingRequiredFields.join(",")}`
+  );
+
+  let handoffAttempts = 0;
+  const afterMixed = updateSalesStateFromTurn(
+    prior,
+    [
+      { role: "assistant", content: proceedAsk },
+      { role: "user", content: mixed },
+    ],
+    business
+  );
+  if (shouldAttemptLeadHandoff(afterMixed, "closure", mixed)) {
+    handoffAttempts += 1;
+  }
+  const afterYesState = {
+    ...state,
+    leadDeliveryStatus: (handoffAttempts > 0 ? "QUEUED" : "NOT_SENT") as SalesState["leadDeliveryStatus"],
+  };
+  if (shouldAttemptLeadHandoff(afterYesState, "closure", "Yes")) {
+    handoffAttempts += 1;
+  }
+  assert(
+    handoffAttempts === 1,
+    `combined time + pricing then Yes must queue exactly one handoff, got ${handoffAttempts}`
+  );
+
+  const missingPrior = securedLead({
+    preferredTiming: null,
+    currentObjective: "PRESENT_SOLUTION",
+    leadDeliveryStatus: "NOT_SENT",
+    customerAgreed: false,
+  });
+  const missingTime = updateSalesStateFromTurn(
+    missingPrior,
+    [
+      { role: "assistant", content: proceedAsk },
+      { role: "user", content: "Yes" },
+    ],
+    business
+  );
+  assert(!missingTime.preferredTiming, "Yes must not invent a preferred time");
+  const missingDecision = evaluateHandoffReadiness(missingTime, "Yes");
+  assert(
+    missingDecision.handoffReady === false,
+    "missing preferred time must not be handoff-ready"
+  );
+  assert(
+    missingDecision.missingRequiredFields.includes("preferredTiming"),
+    "central evaluator must report missing preferredTiming"
+  );
+  assert(
+    !shouldAttemptLeadHandoff(missingTime, "closure", "Yes"),
+    "missing preferred time must send no handoff"
+  );
+  const missingAsk = validateSalesReply(
+    SITE_ASSESSMENT_TEAM_ALERT_ASK,
+    missingTime,
+    business
+  );
+  assert(
+    missingAsk.ok,
+    `missing preferred time must ask once: ${missingAsk.reasons.join("; ")}`
+  );
+  const claimedRecorded = validateSalesReply(
+    "Thanks, Maya — I've recorded your request. The team will contact you at the number you provided to confirm availability.",
+    missingTime,
+    business
+  );
+  assert(!claimedRecorded.ok, "must not say the request was recorded without preferred time");
+
+  const success = buildSuccessfulLeadHandoffCustomerMessage(
+    "Maya",
+    "tomorrow afternoon"
+  );
+  assert(
+    !success.includes(business.phone) &&
+      !/\bif you prefer to call\b/i.test(success) &&
+      /contact you at the number you provided/i.test(success),
+    "normal success close must not include the business phone number"
+  );
+
+  console.log("PASS — generic preferred-time capture, sticky Yes handoff, missing-time ask");
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();
   testRajaNameCaptureAndPreferredTime();
   testStickyPrimaryNeedInAlerts();
+  testGenericPreferredTimeLeadCapture();
   testCustomerFacingHandoffWording();
   testCompoundPriceAndPreferredTime();
   testSiteVisitFeeOnce();

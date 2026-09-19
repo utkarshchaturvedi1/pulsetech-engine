@@ -381,6 +381,17 @@ function extractPreferredTiming(text: string): string | null {
   return extractPreferredVisitTimeFromText(text);
 }
 
+function extractPreferredTimingFromHistory(
+  messages: Array<{ role: string; content: string }>
+): string | null {
+  const users = messages.filter((message) => message.role === "user");
+  for (let i = users.length - 1; i >= 0; i -= 1) {
+    const timing = extractPreferredTiming(users[i]?.content || "");
+    if (timing) return timing;
+  }
+  return null;
+}
+
 const DAY_RE =
   /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|this (morning|afternoon|evening|weekend|week)|next (weekend|week)|weekend)\b/i;
 const WINDOW_RE =
@@ -1020,7 +1031,10 @@ export function updateSalesStateFromTurn(
     );
   }
 
-  const timing = confirmationReply ? null : extractPreferredTiming(text);
+  const timing =
+    extractPreferredTiming(text) ||
+    state.preferredTiming ||
+    extractPreferredTimingFromHistory(messages);
   if (timing) {
     const refined = refinePreferredTiming(state.preferredTiming, timing);
     state.preferredTiming = refined;
@@ -1791,13 +1805,32 @@ export function validateSalesReply(
   }
 
   if (
-    (/\bi('ve| have) recorded your request\b/i.test(reply) ||
-      isQueuedLeadHandoffCustomerMessage(reply)) &&
-    (state.leadDeliveryStatus !== "QUEUED" || !state.preferredTiming)
+    (state.leadDeliveryStatus === "QUEUED" ||
+      state.leadDeliveryStatus === "SENT") &&
+    (/\bif you prefer to call\b/i.test(reply) ||
+      (business?.phone &&
+        business.phone.replace(/\D/g, "").length >= 7 &&
+        reply.replace(/\D/g, "").includes(business.phone.replace(/\D/g, ""))))
   ) {
     reasons.push(
-      "Claimed the request was recorded before preferred time was captured and delivery was queued."
+      "Success close must not include the business phone number or invite the customer to call it."
     );
+  }
+
+  if (
+    !state.preferredTiming &&
+    (/\bi('ve| have) recorded your request\b/i.test(reply) ||
+      /\bshared your request with the team\b/i.test(reply))
+  ) {
+    reasons.push("Claimed the request was recorded or shared before preferred time was captured.");
+  }
+
+  if (
+    !state.preferredTiming &&
+    (state.customerAgreed || state.currentObjective === "ADVANCE_TO_NEXT_STEP") &&
+    !/\bwhat day or time would you prefer\b/i.test(reply)
+  ) {
+    reasons.push("Preferred time is missing; ask once for a preferred day or time.");
   }
 
   if (
@@ -1827,7 +1860,10 @@ export function validateSalesReply(
     const allowedFailedFallback =
       state.leadDeliveryStatus === "FAILED" &&
       isFailedLeadHandoffCustomerMessage(reply);
-    if (!allowedFailedFallback) {
+    const allowedQueuedContact =
+      state.leadDeliveryStatus === "QUEUED" &&
+      isQueuedLeadHandoffCustomerMessage(reply);
+    if (!allowedFailedFallback && !allowedQueuedContact) {
       reasons.push(
         "Claimed successful lead handoff/notification when the request was not shared with the team."
       );

@@ -8,6 +8,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import type { BusinessProfile } from "../src/types/business";
 import {
+  applyLeadDeliveryResult,
   buildLeadNotificationEmail,
   evaluateHandoffReadiness,
   formatPrimaryNeedForAlert,
@@ -22,7 +23,10 @@ import {
   buildWebsiteLeadSms,
 } from "../src/lib/leadHandoff";
 import {
+  SITE_ASSESSMENT_TEAM_ALERT_ASK,
   buildQueuedLeadHandoffCustomerMessage,
+  buildSuccessfulLeadHandoffCustomerMessage,
+  extractPreferredVisitTimeFromText,
   resolveWebsiteChatCustomerHandoffReply,
 } from "../src/lib/schedulingPolicy";
 import {
@@ -889,7 +893,7 @@ async function main() {
       "TEST13: estimate agreement is not lead completion"
     );
     const prematureRecorded = validateSalesReply(
-      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will confirm availability.",
+      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will contact you at the number you provided to confirm availability.",
       flow,
       business
     );
@@ -961,7 +965,7 @@ async function main() {
     assert(deliveries13 === 0, "TEST13: visitor is not blocked on provider delivery");
 
     const expectedFinal =
-      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will confirm availability.";
+      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will contact you at the number you provided to confirm availability.";
     const finalReply = resolveWebsiteChatCustomerHandoffReply({
       attempted: send13.attempted,
       status: send13.status,
@@ -1038,7 +1042,7 @@ async function main() {
       `TEST14: normalized preferred time, got ${flow.preferredTiming}`
     );
     const expected14 =
-      "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will confirm availability.";
+      "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will contact you at the number you provided to confirm availability.";
     const final14 = resolveWebsiteChatCustomerHandoffReply({
       attempted: true,
       status: "QUEUED",
@@ -1155,6 +1159,100 @@ async function main() {
       drivewayEmailNeed: drivewayNeed,
       drivewaySms,
     });
+  }
+
+  // TEST16 — mixed preferred-time + pricing, typo, missing-time ask, success close.
+  {
+    assert(
+      extractPreferredVisitTimeFromText("Tommorow afternoon") === "tomorrow afternoon",
+      "TEST16: Tommorow typo is recognized"
+    );
+
+    const proceedAsk =
+      "I can share typical pricing. Would you like me to arrange a site assessment?";
+    const mixed = "Tomorrow afternoon. How much will it cost?";
+    let flow = qualifiedBase({
+      preferredTiming: null,
+      leadDeliveryStatus: "NOT_SENT",
+      customerAgreed: false,
+    });
+    flow = applyTurn(flow, mixed, proceedAsk);
+    assert(
+      flow.preferredTiming === "tomorrow afternoon",
+      `TEST16: combined message stores preferred time, got ${flow.preferredTiming}`
+    );
+
+    let attempts = 0;
+    const first = await maybeSendLeadHandoff(business, flow, "closure", mixed);
+    if (first.attempted) {
+      attempts += 1;
+      flow = applyLeadDeliveryResult(flow, first);
+    }
+
+    flow = applyTurn(
+      flow,
+      "Yes",
+      "Pricing depends on the scope of work. Would you like me to arrange a site assessment?"
+    );
+    assert(
+      flow.preferredTiming === "tomorrow afternoon",
+      `TEST16: preferred time stays sticky after Yes, got ${flow.preferredTiming}`
+    );
+    const second = await maybeSendLeadHandoff(business, flow, "closure", "Yes");
+    if (second.attempted) attempts += 1;
+    assert(attempts === 1, `TEST16: exactly one handoff, got ${attempts}`);
+    assert(
+      evaluateHandoffReadiness(flow, "Yes").handoffReady === true ||
+        flow.leadDeliveryStatus === "QUEUED" ||
+        flow.leadDeliveryStatus === "SENT",
+      "TEST16: central evaluator used for the Yes turn"
+    );
+    const email = buildLeadNotificationEmail(business, {
+      ...flow,
+      preferredTiming: "tomorrow afternoon",
+    });
+    const sms = buildWebsiteLeadSms(business, {
+      ...flow,
+      preferredTiming: "tomorrow afternoon",
+    });
+    assert(
+      /kitchen sink is clogged/i.test(email.text) &&
+        /PREFERRED VISIT TIME/i.test(email.text) &&
+        /tomorrow afternoon/i.test(email.text),
+      "TEST16: email includes primary need and preferred time"
+    );
+    assert(
+      /Need:/i.test(sms) && /tomorrow afternoon/i.test(sms),
+      "TEST16: SMS includes primary need and preferred time"
+    );
+
+    const missing = applyTurn(
+      qualifiedBase({ preferredTiming: null, leadDeliveryStatus: "NOT_SENT" }),
+      "Yes",
+      proceedAsk
+    );
+    assert(!missing.preferredTiming, "TEST16: Yes does not invent preferred time");
+    const missingDecision = evaluateHandoffReadiness(missing, "Yes");
+    assert(
+      missingDecision.handoffReady === false &&
+        missingDecision.missingRequiredFields.includes("preferredTiming"),
+      "TEST16: missing preferred time is not ready"
+    );
+    const missingSend = await maybeSendLeadHandoff(business, missing, "closure", "Yes");
+    assert(missingSend.attempted === false, "TEST16: missing preferred time sends no handoff");
+    const askOnce = validateSalesReply(SITE_ASSESSMENT_TEAM_ALERT_ASK, missing, business);
+    assert(askOnce.ok, `TEST16: ask preferred time once, ${askOnce.reasons.join("; ")}`);
+
+    const successClose = buildSuccessfulLeadHandoffCustomerMessage(
+      flow.lead.name,
+      "tomorrow afternoon"
+    );
+    assert(
+      !successClose.includes(business.phone) &&
+        !/\bif you prefer to call\b/i.test(successClose),
+      "TEST16: success close contains no business phone number"
+    );
+    console.log("TEST16 PASS — mixed timing capture / one handoff / missing-time ask");
   }
 
   // Extra agreement checks

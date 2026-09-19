@@ -12,6 +12,7 @@ import {
 import {
   buildFailedLeadHandoffCustomerMessage,
   resolveWebsiteChatCustomerHandoffReply,
+  SITE_ASSESSMENT_TEAM_ALERT_ASK,
 } from "./schedulingPolicy";
 import {
   buildTurnControlBlock,
@@ -503,7 +504,14 @@ export async function generateSalesReply(
     business,
     latestUserMessage: latestUser?.content,
   });
-  if (handoff.attempted && !deterministicHandoffReply) {
+  if (
+    !deterministicHandoffReply &&
+    !alreadyScheduled &&
+    decision.missingRequiredFields.includes("preferredTiming") &&
+    decision.visitorRequestedProceedOrCompleted
+  ) {
+    deterministicHandoffReply = SITE_ASSESSMENT_TEAM_ALERT_ASK;
+  } else if (handoff.attempted && !deterministicHandoffReply) {
     deterministicHandoffReply = buildFailedLeadHandoffCustomerMessage(business);
   } else if (
     !handoff.attempted &&

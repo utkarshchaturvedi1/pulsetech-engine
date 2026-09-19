@@ -29,9 +29,9 @@ export function buildSuccessfulLeadHandoffCustomerMessage(
   const thanks = first ? `Thanks, ${first}` : "Thanks";
   const timing = preferredTiming?.trim();
   const timingLine = timing
-    ? `We'll note ${timing} as your preferred time, and the team will confirm availability.`
+    ? `We'll note ${timing} as your preferred time.`
     : `They'll contact you to confirm the earliest available appointment.`;
-  return `${thanks} — I've shared your request with the team. ${timingLine}`;
+  return `${thanks} — I've shared your request with the team. ${timingLine} The team will contact you at the number you provided to confirm availability.`;
 }
 
 /** Used while delivery is queued / in progress — never claims the team already received it. */
@@ -45,7 +45,7 @@ export function buildQueuedLeadHandoffCustomerMessage(
   const recorded = timing
     ? `I've recorded your request and noted ${timing} as your preferred time.`
     : `I've recorded your request.`;
-  return `${thanks} — ${recorded} The team will confirm availability.`;
+  return `${thanks} — ${recorded} The team will contact you at the number you provided to confirm availability.`;
 }
 
 export function buildFailedLeadHandoffCustomerMessage(
@@ -59,7 +59,8 @@ export function isSuccessfulLeadHandoffCustomerMessage(reply: string): boolean {
     /\bshared your request with the team\b/i.test(reply) &&
     (/\bpreferred time\b/i.test(reply) ||
       /\bearliest available appointment\b/i.test(reply)) &&
-    /\bteam will confirm\b/i.test(reply)
+    (/\bteam will confirm\b/i.test(reply) ||
+      /\bteam will contact you at the number you provided\b/i.test(reply))
   );
 }
 
@@ -75,7 +76,8 @@ export function isQueuedLeadHandoffCustomerMessage(reply: string): boolean {
   return (
     /\bi('ve| have) recorded your request\b/i.test(reply) &&
     /\bpreferred time\b/i.test(reply) &&
-    /\bteam will confirm availability\b/i.test(reply) &&
+    (/\bteam will confirm availability\b/i.test(reply) ||
+      /\bteam will contact you at the number you provided\b/i.test(reply)) &&
     !/\bshared your request with the team\b/i.test(reply)
   );
 }
@@ -319,8 +321,20 @@ function normalizeTimingPhrase(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-export function extractPreferredVisitTimeFromText(text: string): string | null {
-  const source = text.trim();
+function canonicalizeTimingText(text: string): string {
+  return text.replace(/\btom+or+ow\b/gi, "tomorrow");
+}
+
+function withoutTrailingPricingAsk(text: string): string {
+  return text
+    .replace(
+      /[.?!,]?\s*(but\s+)?(how much|what(?:'s| is) the (cost|price|charge|fee)|what do you charge|how do you charge|how (do|does|are) (you|y'?all|the (company|team|business)) charge)\b[\s\S]*$/i,
+      " "
+    )
+    .trim();
+}
+
+function extractPreferredVisitTimeFromNormalized(source: string): string | null {
   if (!source) return null;
 
   const relativeWindow = source.match(
@@ -350,6 +364,24 @@ export function extractPreferredVisitTimeFromText(text: string): string | null {
   }
 
   return clock ? normalizeTimingPhrase(clock[0]) : null;
+}
+
+export function extractPreferredVisitTimeFromText(text: string): string | null {
+  const source = canonicalizeTimingText(text.trim());
+  if (!source) return null;
+
+  const candidates = [
+    source,
+    withoutTrailingPricingAsk(source),
+    ...source.split(/[.!?]+/).map((part) => part.trim()),
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const hit = extractPreferredVisitTimeFromNormalized(candidate);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 export function knowledgeAllowsSameDay(knowledge: string): boolean {

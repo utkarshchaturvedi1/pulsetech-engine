@@ -278,6 +278,7 @@ export function buildWebsiteLeadSms(
     `Need: ${need}`,
     (state.lead.name || "Unknown") + " | " + (state.lead.phone || "no phone"),
     state.lead.address || "",
+    state.preferredTiming ? `Preferred visit time: ${state.preferredTiming}` : "",
   ]
     .filter(Boolean)
     .join("\n")

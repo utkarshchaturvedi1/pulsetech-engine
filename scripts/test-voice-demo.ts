@@ -288,6 +288,17 @@ function testTwilioSignatureAndNeutralGreeting() {
     "uses the friendly code-entry prompt"
   );
   assert(!/pound key|#/i.test(gather), "code-entry prompt must not require #");
+  const twimlSrc = readSrc("src/lib/twilioVoiceDemo.ts");
+  const voiceRoute = readSrc("src/app/api/twilio/voice-demo/route.ts");
+  assert(
+    !twimlSrc.includes("session.code") && !twimlSrc.includes("${digits}"),
+    "TwiML builders must never speak the access code"
+  );
+  assert(
+    !/<Say[\s\S]{0,200}\$\{digits\}/.test(voiceRoute) &&
+      !voiceRoute.includes("session.code"),
+    "voice demo route must never speak the entered access code"
+  );
   assert(
     !/Texas Solar|business name|your company/i.test(gather),
     "pre-validation greeting must not identify a business"

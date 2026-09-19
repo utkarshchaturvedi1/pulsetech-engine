@@ -910,6 +910,14 @@ function testHomepageDoesNotHardcodeTexasSolar() {
     "analyze API must refuse invitation URLs when save fails"
   );
   assert(
+    analyzeRoute.includes("SETUP_SAVE_FAILED_MESSAGE"),
+    "failed save must return the setup error, not an invitation"
+  );
+  assert(
+    assistant.includes("could not save your demo"),
+    "homepage must show the setup-save error copy"
+  );
+  assert(
     !/texassolar\.pro/i.test(websiteInput),
     "website input must not default to the sample company"
   );
@@ -1623,6 +1631,24 @@ function testGenericPreferredTimeLeadCapture() {
   assert(
     state.preferredTiming === "tomorrow afternoon",
     `combined message must persist preferredTiming, got ${state.preferredTiming}`
+  );
+
+  state = updateSalesStateFromTurn(
+    state,
+    [
+      { role: "assistant", content: proceedAsk },
+      { role: "user", content: mixed },
+      {
+        role: "assistant",
+        content: "Pricing depends on the scope of work. Would you like me to arrange a site assessment?",
+      },
+      { role: "user", content: "How much will it cost?" },
+    ],
+    business
+  );
+  assert(
+    state.preferredTiming === "tomorrow afternoon",
+    `preferredTiming must stay sticky after a later pricing question, got ${state.preferredTiming}`
   );
 
   state = updateSalesStateFromTurn(

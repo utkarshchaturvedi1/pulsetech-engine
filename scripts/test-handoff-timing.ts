@@ -12,6 +12,7 @@ import {
   buildLeadNotificationEmail,
   evaluateHandoffReadiness,
   formatPrimaryNeedForAlert,
+  publicHandoffDecisionLog,
   isClosureHandoffTrigger,
   isLeadHandoffDryRun,
   isLeadQualified,
@@ -789,6 +790,21 @@ async function main() {
       completedLeadTotalMs = leadDetectionMs + handoffMs;
     }
 
+    const salesChatSrc = readFileSync(
+      path.join(process.cwd(), "src/lib/salesChat.ts"),
+      "utf8"
+    );
+    const openaiMsZero = salesChatSrc.indexOf("openaiMs: 0");
+    const openaiCall = salesChatSrc.indexOf("openai.responses.create");
+    assert(
+      openaiMsZero >= 0 && openaiCall > openaiMsZero,
+      "TEST12: completed-lead deterministic path must return before OpenAI"
+    );
+    assert(
+      salesChatSrc.includes("if (deterministicHandoffReply)"),
+      "TEST12: every completed-lead path uses the deterministic handoff reply"
+    );
+
     console.log("TEST12 PASS — generic readiness across three services", {
       completedLeadTurn: {
         leadDetectionMs: completedLeadDetectionMs,
@@ -1166,6 +1182,36 @@ async function main() {
     assert(
       extractPreferredVisitTimeFromText("Tommorow afternoon") === "tomorrow afternoon",
       "TEST16: Tommorow typo is recognized"
+    );
+    assert(
+      extractPreferredVisitTimeFromText(
+        "Tomorrow morning works, but what do you charge?"
+      ) === "tomorrow morning",
+      "TEST16: combined morning + charge question stores preferred time"
+    );
+
+    const safeLog = publicHandoffDecisionLog({
+      decision: evaluateHandoffReadiness(
+        qualifiedBase({ preferredTiming: "tomorrow afternoon" }),
+        "Yes"
+      ),
+      deliveryStatus: "queued",
+    });
+    assert(
+      JSON.stringify(Object.keys(safeLog).sort()) ===
+        JSON.stringify(
+          [
+            "deliveryStatus",
+            "handoffReady",
+            "missingRequiredFields",
+            "visitorRequestedProceedOrCompleted",
+          ].sort()
+        ),
+      "TEST16: safe decision logs must not add customer PII fields"
+    );
+    assert(
+      !/(512|555|Marilla|Jack)/i.test(JSON.stringify(safeLog)),
+      "TEST16: decision log must not include customer PII"
     );
 
     const proceedAsk =

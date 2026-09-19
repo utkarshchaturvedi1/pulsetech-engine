@@ -10,6 +10,7 @@ import type { BusinessProfile } from "../src/types/business";
 import {
   buildLeadNotificationEmail,
   evaluateHandoffReadiness,
+  formatPrimaryNeedForAlert,
   isClosureHandoffTrigger,
   isLeadHandoffDryRun,
   isLeadQualified,
@@ -18,6 +19,7 @@ import {
   scheduleLeadAlertDelivery,
   setLeadHandoffTestDelivery,
   shouldAttemptLeadHandoff,
+  buildWebsiteLeadSms,
 } from "../src/lib/leadHandoff";
 import {
   buildQueuedLeadHandoffCustomerMessage,
@@ -1048,6 +1050,111 @@ async function main() {
     });
     assert(final14 === expected14, `TEST14: exact final reply, got ${final14}`);
     console.log("TEST14 PASS — Raja name sticky / preferred-time isolation");
+  }
+
+  // TEST15 — sticky generic primary need survives lead capture and is in email + SMS.
+  {
+    function completeLead(opening: string) {
+      let flow = createInitialSalesState({
+        conversationId: createConversationId(),
+        businessKey: businessIdentityKey(business),
+      });
+      flow = applyTurn(flow, opening, "Hi — how can I help?");
+      flow = applyTurn(flow, "Alex", "What's your first name?");
+      flow = applyTurn(flow, "2145550199", "What's the best phone number?");
+      flow = applyTurn(
+        flow,
+        "400 Main St, Dallas TX 75201",
+        "What's the service address?"
+      );
+      flow = applyTurn(
+        flow,
+        "tomorrow morning",
+        "What day or time would you prefer? The team will confirm availability."
+      );
+      return flow;
+    }
+
+    const mosquito = completeLead(
+      "I need mosquito treatment/inspection. Can you do it?"
+    );
+    assert(
+      /mosquito treatment/i.test(mosquito.primaryNeed || mosquito.customerNeed || ""),
+      `TEST15: mosquito request persisted, got ${mosquito.primaryNeed || mosquito.customerNeed}`
+    );
+    assert(
+      mosquito.primaryNeed === mosquito.customerNeed,
+      "TEST15: primaryNeed and customerNeed stay aligned"
+    );
+    const mosquitoNeed = formatPrimaryNeedForAlert(mosquito);
+    assert(
+      mosquitoNeed === "Mosquito treatment / inspection",
+      `TEST15: concise mosquito need, got ${mosquitoNeed}`
+    );
+    const mosquitoEmail = buildLeadNotificationEmail(business, mosquito);
+    const mosquitoSms = buildWebsiteLeadSms(business, mosquito);
+    assert(
+      mosquitoEmail.text.includes("PRIMARY CUSTOMER NEED") &&
+        mosquitoEmail.text.includes(mosquitoNeed),
+      "TEST15: email includes mosquito primary need"
+    );
+    assert(
+      !/PRIMARY CUSTOMER NEED\nNot established/i.test(mosquitoEmail.text),
+      "TEST15: email must not say Not established when a need exists"
+    );
+    assert(
+      mosquitoSms.includes(`Need: ${mosquitoNeed}`),
+      `TEST15: SMS includes Need line, got ${mosquitoSms}`
+    );
+
+    const driveway = completeLead("I want my driveway sealed.");
+    assert(
+      /driveway sealed/i.test(driveway.primaryNeed || ""),
+      `TEST15: driveway request persisted, got ${driveway.primaryNeed}`
+    );
+    const drivewayNeed = formatPrimaryNeedForAlert(driveway);
+    assert(
+      drivewayNeed === "Driveway sealed",
+      `TEST15: concise driveway need, got ${drivewayNeed}`
+    );
+    const drivewayEmail = buildLeadNotificationEmail(business, driveway);
+    const drivewaySms = buildWebsiteLeadSms(business, driveway);
+    assert(drivewayEmail.text.includes(drivewayNeed), "TEST15: email includes driveway need");
+    assert(drivewaySms.includes(`Need: ${drivewayNeed}`), "TEST15: SMS includes driveway need");
+    assert(
+      drivewayNeed !== mosquitoNeed,
+      "TEST15: structurally different services stay distinct"
+    );
+
+    let unnamed = createInitialSalesState({
+      conversationId: createConversationId(),
+      businessKey: businessIdentityKey(business),
+    });
+    unnamed = applyTurn(unnamed, "Alex", "What's your first name?");
+    unnamed = applyTurn(unnamed, "2145550199", "What's the best phone number?");
+    unnamed = applyTurn(
+      unnamed,
+      "400 Main St, Dallas TX 75201",
+      "What's the service address?"
+    );
+    unnamed = applyTurn(unnamed, "tomorrow morning", "What day or time would you prefer?");
+    assert(!unnamed.primaryNeed && !unnamed.customerNeed, "TEST15: no invented need");
+    assert(
+      formatPrimaryNeedForAlert(unnamed) === "Not established",
+      "TEST15: Not established only when no service request was given"
+    );
+    const emptyEmail = buildLeadNotificationEmail(business, unnamed);
+    assert(
+      /PRIMARY CUSTOMER NEED\nNot established/.test(emptyEmail.text),
+      "TEST15: email Not established when no need exists"
+    );
+
+    console.log("TEST15 PASS — sticky primary need in email and SMS", {
+      mosquitoEmailNeed: mosquitoNeed,
+      mosquitoSms,
+      drivewayEmailNeed: drivewayNeed,
+      drivewaySms,
+    });
   }
 
   // Extra agreement checks

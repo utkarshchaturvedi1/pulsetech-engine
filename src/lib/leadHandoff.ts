@@ -93,7 +93,8 @@ function buildNextStep(state: SalesState): string {
 
 function buildConversationSummary(state: SalesState): string {
   const name = state.lead.name || "The customer";
-  const need = state.customerNeed || "a service need";
+  const needLabel = formatPrimaryNeedForAlert(state);
+  const need = needLabel === "Not established" ? "a service need" : needLabel;
   const parts: string[] = [];
 
   parts.push(`${name} is interested in: ${need}.`);
@@ -158,7 +159,7 @@ export function buildLeadNotificationEmail(
     `Address: ${state.lead.address || "Not provided"}`,
     "",
     "PRIMARY CUSTOMER NEED",
-    state.customerNeed || "Not established",
+    formatPrimaryNeedForAlert(state),
   ];
 
   sections.push("", "URGENCY", formatUrgency(state));
@@ -241,6 +242,29 @@ export function isLeadEmailConfigured(): boolean {
   return isSmtpLeadAlertConfigured() && isSmsLeadAlertConfigured();
 }
 
+export function formatPrimaryNeedForAlert(state: SalesState): string {
+  const raw = (state.primaryNeed || state.customerNeed || "").trim();
+  if (!raw) return "Not established";
+
+  let t = raw.replace(/\s+/g, " ");
+  t = t.replace(/[?!]+/g, " ");
+  t = t.replace(
+    /\b(and )?(can you do it|how much will it cost|what(?:'s| is) the (cost|price|charge)|and how much will it cost)\b/gi,
+    " "
+  );
+  t = t.replace(
+    /^(hi[, ]+)?((please|um|uh)[, ]+)?(i(?:'d| would) like to |i(?:'m| am) looking for |i(?:'m| am) interested in |looking for |interested in |can you (?:do|fix|repair|treat|inspect|service|handle|help with) (?:a |an |my |the )?|i (?:need|want) )/i,
+    ""
+  );
+  t = t.replace(/^(a|an|some|my|the)\s+/i, "");
+  t = t.replace(/\s*\/\s*/g, " / ");
+  t = t.replace(/\s*[.,;:]+\s*/g, " ");
+  t = t.replace(/\s+/g, " ").trim();
+  if (t.length < 3) return raw;
+  if (t.length > 80) t = `${t.slice(0, 77).trim()}...`;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 export function buildWebsiteLeadSms(
   business: BusinessProfile,
   state: SalesState
@@ -248,10 +272,11 @@ export function buildWebsiteLeadSms(
   const businessName = business.businessName || "Business";
   const urgent = state.urgency === "IMMEDIATE";
   const prefix = urgent ? "URGENT website lead for " : "New website lead for ";
+  const need = formatPrimaryNeedForAlert(state);
   return [
     prefix + businessName,
+    `Need: ${need}`,
     (state.lead.name || "Unknown") + " | " + (state.lead.phone || "no phone"),
-    state.customerNeed || "",
     state.lead.address || "",
   ]
     .filter(Boolean)

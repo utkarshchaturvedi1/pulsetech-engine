@@ -316,8 +316,15 @@ body:has(.pt-demo) {
   background: #ffffff;
 }
 
+.pt-demo-chat [data-chat-message-bubble][data-chat-role="user"],
 .pt-demo-panel-customer .pt-demo-chat [data-chat-message-bubble].bg-blue-600 {
-  background: var(--pt-accent, #209ebb);
+  background: #209ebb !important;
+  color: #ffffff !important;
+}
+
+.pt-demo-chat [data-chat-message-bubble][data-chat-role="assistant"] {
+  background: #ffffff !important;
+  color: #1e293b !important;
 }
 
 .pt-demo-chat [data-chat-window] {

@@ -46,6 +46,8 @@ export type SalesState = {
   salesStage: SalesStage;
   currentObjective: SalesObjective;
   customerNeed: string | null;
+  /** First clear service request; sticky through lead capture and handoff. */
+  primaryNeed: string | null;
   /** Concise useful buying/sales context notes (not a transcript). */
   customerContext: string[];
   lead: LeadFields;
@@ -112,6 +114,7 @@ export function createInitialSalesState(
     salesStage: "DISCOVERY",
     currentObjective: "UNDERSTAND_NEED",
     customerNeed: null,
+    primaryNeed: null,
     customerContext: [],
     lead: {
       name: null,
@@ -178,6 +181,8 @@ export function normalizeSalesState(value: SalesState): SalesState {
     handoffReady: value.handoffReady ?? false,
     preferredTiming: value.preferredTiming ?? null,
     contactPreference: value.contactPreference ?? null,
+    customerNeed: value.customerNeed ?? null,
+    primaryNeed: value.primaryNeed ?? value.customerNeed ?? null,
     leadDeliveryStatus: value.leadDeliveryStatus ?? "NOT_SENT",
     siteVisitFeeMentioned: value.siteVisitFeeMentioned ?? false,
     customerAskedAboutFee: value.customerAskedAboutFee ?? false,

@@ -435,19 +435,26 @@ function refinePreferredTiming(
   return prev;
 }
 
-/** Question / options / sourcing / clarification — not a new primary need. */
-function looksLikeBuyingOrClarifyingQuestion(text: string): boolean {
+function looksLikeServiceRequest(text: string): boolean {
   const t = text.trim();
-  if (!t) return false;
-  if (/\?/.test(t)) return true;
-  if (
-    /\b(do you|will you|can you|should i|is there|are there|what (kind|type|options)|which (one|type|option)|multiple options|one type|bring the|supply|sourc|buy (a|the|one)|cost extra|how much|before that)\b/i.test(
-      t
-    )
-  ) {
-    return true;
+  if (t.length < 8) return false;
+  if (PHONE_RE.test(t) && t.replace(/\D/g, "").length >= 7 && t.split(/\s+/).length <= 3) {
+    return false;
   }
-  return false;
+  if (ADDRESS_HINT_RE.test(t) && !/\b(need|want|repair|service|treatment|inspection)\b/i.test(t)) {
+    return false;
+  }
+  if (extractPreferredVisitTimeFromText(t) && t.split(/\s+/).length <= 8 && !/\b(need|want|repair|service|treatment|inspection)\b/i.test(t)) {
+    return false;
+  }
+  return (
+    /\b(i need|i want|looking for|interested in|help with|problem with|issue with|i have)\b/i.test(
+      t
+    ) ||
+    /\bcan you (do|fix|repair|treat|inspect|service|handle|help)\b/i.test(t) ||
+    /\b(repair|install|replace|service|quote|estimate|treatment|inspection)\b/i.test(t) ||
+    CONCRETE_PROBLEM_RE.test(t)
+  );
 }
 
 function inferCustomerNeed(
@@ -457,48 +464,15 @@ function inferCustomerNeed(
   const t = text.trim();
   if (t.length < 3) return previous;
 
-  // Once a concrete primary need exists, do not replace it with Q&A.
-  if (
-    previous &&
-    isCustomerNeedSpecific(previous) &&
-    looksLikeBuyingOrClarifyingQuestion(t)
-  ) {
+  if (previous) {
     return previous;
   }
 
-  const looksLikeNeedUpdate =
-    /\b(i need|i want|looking for|interested in|help with|problem with|issue with|i have)\b/i.test(
-      t
-    ) ||
-    /\b(repair|install|replace|service|quote|estimate)\b/i.test(t) ||
-    CONCRETE_PROBLEM_RE.test(t);
-
-  if (!looksLikeNeedUpdate) {
+  if (!looksLikeServiceRequest(t)) {
     return previous;
   }
 
-  const next = t.length > 160 ? `${t.slice(0, 157)}...` : t;
-
-  // Prefer keeping a concrete problem description over a later generic/urgency phrase.
-  if (
-    previous &&
-    isCustomerNeedSpecific(previous) &&
-    !isCustomerNeedSpecific(next)
-  ) {
-    return previous;
-  }
-
-  // Prefer keeping an established concrete need over another concrete-looking sentence
-  // that is still primarily a clarification/options question (belt-and-suspenders).
-  if (
-    previous &&
-    isCustomerNeedSpecific(previous) &&
-    looksLikeBuyingOrClarifyingQuestion(t)
-  ) {
-    return previous;
-  }
-
-  return next;
+  return t.length > 160 ? `${t.slice(0, 157)}...` : t;
 }
 
 /** Industry-agnostic concise buying-context notes from a customer turn. */
@@ -571,6 +545,10 @@ function isCustomerNeedSpecific(need: string | null): boolean {
   if (t.length < 8) return false;
 
   const hasConcreteProblem = CONCRETE_PROBLEM_RE.test(t);
+  const hasServiceRequestNoun =
+    /\b(treatment|inspection|repair|install|replace|service|quote|estimate)\b/i.test(
+      t
+    );
 
   const looksLikeGenericProviderRequest =
     /^(hi[,!.]?\s*)?(i\s+)?(need|want|looking for)\s+(a|an|some|someone|help)?\s*[\w\s-]{1,40}\.?$/i.test(
@@ -582,6 +560,11 @@ function isCustomerNeedSpecific(need: string | null): boolean {
     /\bneed help with (my )?(house|home|place|property)\b/i.test(t);
 
   if (hasConcreteProblem) return true;
+  if (hasServiceRequestNoun) return true;
+  if (/\b(i need|i want|can you (do|help|fix)|looking for|help with)\b/i.test(t)) {
+    const wordCount = t.split(/\s+/).filter(Boolean).length;
+    if (wordCount >= 4) return true;
+  }
   if (looksLikeGenericProviderRequest) return false;
 
   const wordCount = t.split(/\s+/).filter(Boolean).length;
@@ -1137,7 +1120,15 @@ export function updateSalesStateFromTurn(
   }
 
   // If customer later volunteers a refused field, clear that refusal.
-  state.customerNeed = inferCustomerNeed(text, state.customerNeed);
+  state.customerNeed = inferCustomerNeed(
+    text,
+    state.primaryNeed || state.customerNeed
+  );
+  if (!state.primaryNeed && state.customerNeed) {
+    state.primaryNeed = state.customerNeed;
+  } else if (state.primaryNeed) {
+    state.customerNeed = state.primaryNeed;
+  }
 
   for (const note of extractCustomerContextNotes(text)) {
     state.customerContext = addFact(state.customerContext, note);

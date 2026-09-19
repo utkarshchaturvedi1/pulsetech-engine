@@ -4,7 +4,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import DemoWorkspace from "../src/components/DemoWorkspace";
 import { DEMO_CHAT_LAYOUT, HOME_CHAT_LAYOUT, PULSETECH_CANVAS_GRADIENT } from "../src/lib/demoChatLayout";
-import { buildLeadNotificationEmail, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
+import { buildLeadNotificationEmail, buildWebsiteLeadSms, formatPrimaryNeedForAlert, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
 import {
   ASK_PREFERRED_DAY_TIME,
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
@@ -243,6 +243,24 @@ function testLayoutConstraints() {
   const chatMessage = readSrc("src/components/Chat/ChatMessage.tsx");
   assert(chatMessage.includes("[overflow-wrap:anywhere]"), "bubble wrap anywhere");
   assert(chatMessage.includes("data-chat-message-bubble"), "bubble marker");
+  assert(chatMessage.includes('data-chat-role={isUser ? "user" : "assistant"}'), "role marker");
+  assert(chatMessage.includes("bg-blue-600 text-white"), "outgoing bubble PulseTech blue + white text");
+  assert(chatMessage.includes("bg-white text-slate-800"), "assistant bubble white + dark text");
+
+  assert(
+    /\[data-chat-role="user"\][\s\S]{0,160}background:\s*#209ebb/.test(css) &&
+      /\[data-chat-role="user"\][\s\S]{0,200}color:\s*#ffffff/.test(css),
+    "demo outgoing bubbles are PulseTech blue with white text"
+  );
+  assert(
+    /\[data-chat-role="assistant"\][\s\S]{0,160}background:\s*#ffffff/.test(css) &&
+      /\[data-chat-role="assistant"\][\s\S]{0,200}color:\s*#1e293b/.test(css),
+    "demo assistant bubbles stay dark text on white"
+  );
+  assert(
+    !/\[data-chat-role="user"\][\s\S]{0,120}background:\s*#fff(?:fff)?\b/.test(css),
+    "outgoing bubbles must not be white"
+  );
 
   const html = renderToStaticMarkup(
     createElement(DemoWorkspace, {
@@ -341,6 +359,16 @@ function testLayoutConstraints() {
     landingCss.includes(".pt-chat-body [data-chat-messages]") &&
       /overflow-y:\s*auto/.test(landingCss),
     "homepage transcripts scroll inside a stable shell"
+  );
+  assert(
+    /\[data-chat-role="user"\][\s\S]{0,160}background:\s*#209ebb/.test(landingCss) &&
+      /\[data-chat-role="user"\][\s\S]{0,220}color:\s*#ffffff/.test(landingCss),
+    "homepage outgoing bubbles are PulseTech blue with white text"
+  );
+  assert(
+    /\[data-chat-role="assistant"\][\s\S]{0,160}background:\s*#ffffff/.test(landingCss) &&
+      /\[data-chat-role="assistant"\][\s\S]{0,200}color:\s*#1e293b/.test(landingCss),
+    "homepage assistant bubbles stay dark text on white"
   );
 
   const agentShell = readSrc("src/components/Chat/ChatAgentShell.tsx");
@@ -1470,11 +1498,90 @@ function testRajaNameCaptureAndPreferredTime() {
   console.log("PASS — Raja name capture, no confirmation, preferred-time isolation");
 }
 
+function testStickyPrimaryNeedInAlerts() {
+  function run(opening: string) {
+    let state = createInitialSalesState({
+      conversationId: "conv_need_" + opening.slice(0, 12),
+      businessKey: business.website,
+    });
+    state = updateSalesStateFromTurn(
+      state,
+      [{ role: "user", content: opening }],
+      business
+    );
+    state = updateSalesStateFromTurn(
+      state,
+      [
+        { role: "assistant", content: "What's your first name?" },
+        { role: "user", content: "Sam" },
+      ],
+      business
+    );
+    state = updateSalesStateFromTurn(
+      state,
+      [
+        { role: "assistant", content: "What's the best phone number?" },
+        { role: "user", content: "5125550100" },
+      ],
+      business
+    );
+    state = updateSalesStateFromTurn(
+      state,
+      [
+        { role: "assistant", content: "What's the service address?" },
+        { role: "user", content: "88 Oak Ave, Austin TX 78701" },
+      ],
+      business
+    );
+    state = updateSalesStateFromTurn(
+      state,
+      [
+        { role: "assistant", content: "What day or time would you prefer?" },
+        { role: "user", content: "tomorrow afternoon" },
+      ],
+      business
+    );
+    return state;
+  }
+
+  const mosquito = run("I need mosquito treatment/inspection. Can you do it?");
+  const mosquitoNeed = formatPrimaryNeedForAlert(mosquito);
+  assert(mosquitoNeed === "Mosquito treatment / inspection", `mosquito label: ${mosquitoNeed}`);
+  const mosquitoEmail = buildLeadNotificationEmail(business, mosquito);
+  const mosquitoSms = buildWebsiteLeadSms(business, mosquito);
+  assert(mosquitoEmail.text.includes(mosquitoNeed), "email has mosquito need");
+  assert(mosquitoSms.includes("Need: Mosquito treatment / inspection"), "SMS has mosquito need");
+
+  const driveway = run("I want my driveway sealed.");
+  const drivewayNeed = formatPrimaryNeedForAlert(driveway);
+  assert(drivewayNeed === "Driveway sealed", `driveway label: ${drivewayNeed}`);
+  assert(buildLeadNotificationEmail(business, driveway).text.includes(drivewayNeed), "email has driveway need");
+  assert(buildWebsiteLeadSms(business, driveway).includes("Need: Driveway sealed"), "SMS has driveway need");
+
+  let none = createInitialSalesState({ conversationId: "conv_need_none", businessKey: business.website });
+  none = updateSalesStateFromTurn(
+    none,
+    [
+      { role: "assistant", content: "What's your first name?" },
+      { role: "user", content: "Sam" },
+    ],
+    business
+  );
+  assert(formatPrimaryNeedForAlert(none) === "Not established", "no request stays Not established");
+
+  console.log("PASS — sticky primary need in website-chat email and SMS", {
+    mosquitoEmailNeed: mosquitoNeed,
+    mosquitoSms,
+    drivewayEmailNeed: drivewayNeed,
+  });
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();
   testRajaNameCaptureAndPreferredTime();
+  testStickyPrimaryNeedInAlerts();
   testCustomerFacingHandoffWording();
   testCompoundPriceAndPreferredTime();
   testSiteVisitFeeOnce();

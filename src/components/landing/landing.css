@@ -681,8 +681,15 @@
   box-shadow: 0 10px 22px -18px rgba(2, 48, 71, 0.5);
 }
 
+.pt-home .pt-chat-body [data-chat-message-bubble][data-chat-role="user"],
 .pt-home .pt-chat-body [data-chat-message-bubble].bg-blue-600 {
-  background: linear-gradient(135deg, #209ebb, #023047) !important;
+  background: #209ebb !important;
+  color: #ffffff !important;
+}
+
+.pt-home .pt-chat-body [data-chat-message-bubble][data-chat-role="assistant"] {
+  background: #ffffff !important;
+  color: #1e293b !important;
 }
 
 @media (max-width: 639px) {

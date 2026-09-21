@@ -18,15 +18,18 @@ import {
   buildTurnControlBlock,
   buildValidationCorrection,
   recordSiteVisitFeeMention,
+  resolveDeterministicPreContactReply,
   updateSalesStateFromTurn,
   validateSalesReply,
 } from "./salesController";
 import { SalesState } from "./salesState";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 60000,
-});
+function getOpenAI() {
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    timeout: 60000,
+  });
+}
 
 export type SalesChatMessage = {
   role: "user" | "assistant";
@@ -507,7 +510,8 @@ export async function generateSalesReply(
   if (
     !deterministicHandoffReply &&
     !alreadyScheduled &&
-    decision.missingRequiredFields.includes("preferredTiming") &&
+    decision.missingRequiredFields.length === 1 &&
+    decision.missingRequiredFields[0] === "preferredTiming" &&
     decision.visitorRequestedProceedOrCompleted
   ) {
     deterministicHandoffReply = SITE_ASSESSMENT_TEAM_ALERT_ASK;
@@ -520,6 +524,13 @@ export async function generateSalesReply(
     !deterministicHandoffReply
   ) {
     deterministicHandoffReply = buildFailedLeadHandoffCustomerMessage(business);
+  }
+  if (!deterministicHandoffReply) {
+    deterministicHandoffReply = resolveDeterministicPreContactReply(
+      salesState,
+      business,
+      latestUser?.content
+    );
   }
   if (deterministicHandoffReply) {
     console.log("[chatTiming]", {
@@ -546,6 +557,7 @@ export async function generateSalesReply(
 ${buildTurnControlBlock(salesState, business)}`;
 
   async function requestReply(extra?: string): Promise<string> {
+    const openai = getOpenAI();
     const response = await openai.responses.create({
       model: "gpt-5-mini",
       instructions: extra
@@ -570,12 +582,31 @@ ${extra}`
 
   const openaiStarted = Date.now();
   let reply = await requestReply();
-  const validation = validateSalesReply(reply, salesState, business);
+  let validation = validateSalesReply(
+    reply,
+    salesState,
+    business,
+    latestUser?.content
+  );
 
   if (!validation.ok) {
     reply = await requestReply(
       buildValidationCorrection(salesState, validation.reasons, business)
     );
+    validation = validateSalesReply(
+      reply,
+      salesState,
+      business,
+      latestUser?.content
+    );
+  }
+  if (!validation.ok) {
+    const fallback = resolveDeterministicPreContactReply(
+      salesState,
+      business,
+      latestUser?.content
+    );
+    if (fallback) reply = fallback;
   }
   const openaiMs = Date.now() - openaiStarted;
 

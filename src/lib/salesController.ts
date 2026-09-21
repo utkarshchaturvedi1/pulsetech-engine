@@ -40,7 +40,19 @@ const ADDRESS_HINT_RE =
   /\b\d{1,6}\s+[A-Za-z0-9.'\- ]+(?:street|st|avenue|ave|road|rd|boulevard|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|place|pl)\b/i;
 
 const CONCRETE_PROBLEM_RE =
-  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty|pipe|hornet|wasp|yellowjacket|bee|pest|rodent|termite|ant|spider|infestation|nest|removed?|removal)\b/i;
+  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|no (heat|cooling|air(?:flow)?)|not (heat(?:ing)?|cool(?:ing)?)|won'?t (heat|cool)|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty|pipe|hornet|wasp|yellowjacket|bee|pest|rodent|termite|ant|spider|infestation|nest|removed?|removal)\b/i;
+
+const PREFERRED_TIME_ASK_RE =
+  /\bwhat day or time would you prefer\b|\bpreferred (day|time|visit)\b|\bwhen (would|do) you (like|prefer|want) (us|someone|a technician)?\b|\bwhat time (works|would you like)\b/i;
+
+const PROPERTY_TYPE_ASK_RE =
+  /\b(residential or commercial|commercial or residential|home or (a )?business|house or (a )?(business|commercial)|property type)\b/i;
+
+const TROUBLESHOOT_ASK_RE =
+  /\b(have you tried|did you (already )?check|check the (filter|thermostat|breaker)|reset (the )?(unit|system)|how long has (it|this) been|is it making (a )?noise|what error (code|message))\b/i;
+
+const PREMATURE_SUCCESS_CLOSE_RE =
+  /\b(i('ve| have) recorded your request|shared your request with the team|i('ll| will) alert the team|alert(ed)? the team|the team will (confirm|contact|call|reach)|our team will confirm)\b/i;
 
 const FAKE_CAPABILITY_RE =
   /\b(i('ll| will)?\s+(dispatch|schedule|book)|i('ve| have)\s+(scheduled|booked|dispatched|sent this to dispatch|confirmed (your )?appointment)|check(ing)?\s+(live\s+)?availability|contact(ed|ing)?\s+(a\s+)?technician|we (can|will) (send|dispatch) (someone|a technician)|you(?:'re| are) (all )?set|confirmed for)\b/i;
@@ -143,6 +155,13 @@ function detectIntent(text: string): SalesIntent {
     /\b(i need|i want|need help|need a|need an|needs? to be|fix this|repair|estimate|quote)\b/.test(
       t
     )
+  ) {
+    return "HIGH";
+  }
+
+  if (
+    /\b(can you help|please help)\b/.test(t) &&
+    (CONCRETE_PROBLEM_RE.test(t) || looksLikeServiceRequest(t))
   ) {
     return "HIGH";
   }
@@ -704,6 +723,64 @@ function detectCustomerFinished(text: string): boolean {
   );
 }
 
+function isLeadContactComplete(state: SalesState): boolean {
+  return Boolean(
+    state.lead.name?.trim() &&
+      state.lead.phone?.trim() &&
+      state.lead.address?.trim()
+  );
+}
+
+export const PRE_CONTACT_ASK_FIRST_NAME = "What's your first name?";
+export const PRE_CONTACT_ASK_PHONE =
+  "What's the best phone number to reach you?";
+export const PRE_CONTACT_ASK_ADDRESS = "What's the service address?";
+
+export function resolveDeterministicPreContactReply(
+  state: SalesState,
+  business?: BusinessProfile,
+  latestUserMessage?: string
+): string | null {
+  if (state.leadCapturePaused) return null;
+  if (
+    state.leadDeliveryStatus === "QUEUED" ||
+    state.leadDeliveryStatus === "SENT"
+  ) {
+    return null;
+  }
+  const highIntent =
+    state.intent === "HIGH" ||
+    state.intent === "READY_TO_ACT" ||
+    state.leadStatus === "SECURING";
+  if (!highIntent || isLeadContactComplete(state)) return null;
+
+  const missing = missingLeadFields(state);
+  const first = state.lead.name?.trim().split(/\s+/)[0];
+  let prefix = "We can help with that.";
+  let ask = PRE_CONTACT_ASK_FIRST_NAME;
+  if (missing[0] === "phone") {
+    prefix = first ? `Thanks, ${first}.` : "Thanks.";
+    ask = PRE_CONTACT_ASK_PHONE;
+  } else if (missing[0] === "address") {
+    prefix = first ? `Thanks, ${first}.` : "Thanks.";
+    ask = PRE_CONTACT_ASK_ADDRESS;
+  } else if (missing[0] && missing[0] !== "name") {
+    return null;
+  }
+
+  let reply = `${prefix} ${ask}`;
+  if (
+    visitorAllowsBusinessPhone(
+      latestUserMessage,
+      state.leadDeliveryStatus === "FAILED"
+    ) &&
+    business?.phone?.trim()
+  ) {
+    reply = `You can reach us at ${business.phone.trim()}. ${reply}`;
+  }
+  return reply;
+}
+
 function isV1LeadComplete(state: SalesState): boolean {
   return (
     state.leadStatus === "SECURED" &&
@@ -711,6 +788,36 @@ function isV1LeadComplete(state: SalesState): boolean {
     isCustomerNeedSpecific(state.customerNeed) &&
     missingLeadFields(state).length === 0
   );
+}
+
+function visitorAllowsBusinessPhone(
+  latestUserMessage: string | undefined,
+  deliveryFailed: boolean
+): boolean {
+  if (deliveryFailed) return true;
+  const t = (latestUserMessage || "").toLowerCase();
+  if (!t) return false;
+  if (
+    /\b(what(?:'s| is) (your|the) (phone )?number|your (phone )?number|number to (call|reach)|give me (your|the) number|can i (have|get) (your|the) number)\b/.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  return /\b(emergency|danger|dangerous|immediate help|life[- ]threat|gas leak|carbon monoxide|on fire)\b/.test(
+    t
+  );
+}
+
+function replyExposesBusinessPhone(
+  reply: string,
+  business?: BusinessProfile
+): boolean {
+  if (/\bif you prefer to call\b/i.test(reply)) return true;
+  if (!business?.phone) return false;
+  const digits = business.phone.replace(/\D/g, "");
+  if (digits.length < 7) return false;
+  return reply.replace(/\D/g, "").includes(digits);
 }
 
 /**
@@ -1401,7 +1508,9 @@ ${
     ? `A valid first name is already captured (${state.lead.name}). Do NOT ask the customer to confirm it. Move on — this objective should not re-open name confirmation.`
     : `If the customer just gave a normal first name (letters, not a sentence), treat it as captured. Do not ask "is your first name ...?". Ask for clarification only when the input is clearly not a name, is a single initial, or contains no usable letters.`
 }
-Do not ask for last name, phone, email, address, availability, or technical details.
+Respond with about one short sentence + exactly ONE question.
+Do not ask for last name, phone, email, address, availability, property type, or technical details.
+Do not diagnose, interrogate, or sell the service first.
 Do not provide DIY instructions or a company brochure.`;
     case "COLLECT_PHONE":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's phone number.
@@ -1502,7 +1611,7 @@ Do NOT ask another timing/refinement question.`
 Never say the request was recorded or shared with the team until preferred time is captured and delivery is queued or sent.
 Never say "we'll arrange a site assessment" or otherwise imply the appointment is already confirmed or booked.
 Do not offer arbitrary future options.`
-      : "If useful, ask at most ONE open preference question (e.g. preferred day/time) without inventing windows."
+      : `Name, customer phone, and service address are not all captured yet. Ask exactly ONE question for the next missing field only (${missingLeadFields(state)[0] || "name"}). Do not diagnose, interrogate, or sell the service. Do not ask property type or preferred time. Do not give the business phone number. Do not say the request was recorded or that the team will contact them.`
 }
 Do NOT ask for gate codes, pets, parking, or access instructions.
 Capture the customer's preference for the team — you do not have live scheduling.`;
@@ -1530,6 +1639,14 @@ ${
       ? `"${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}"`
     : state.leadDeliveryStatus === "FAILED"
       ? `"${failedFallback}"`
+      : !isLeadContactComplete(state)
+        ? `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. ${
+            missingLeadFields(state)[0] === "phone"
+              ? "What's the best phone number to reach you?"
+              : missingLeadFields(state)[0] === "address"
+                ? "What's the service address?"
+                : "What's your name?"
+          }"`
       : !state.preferredTiming
         ? `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. What day or time would you prefer? The team will confirm availability."`
       : `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I have your details${state.preferredTiming ? ` and preferred time (${state.preferredTiming})` : ""}. Our team will confirm the earliest available appointment. Nothing is booked yet."`
@@ -1620,7 +1737,8 @@ function replyInventedPrice(
 export function validateSalesReply(
   reply: string,
   state: SalesState,
-  business?: BusinessProfile
+  business?: BusinessProfile,
+  latestUserMessage?: string
 ): ValidationResult {
   const reasons: string[] = [];
 
@@ -1804,16 +1922,54 @@ export function validateSalesReply(
     reasons.push("Exposed internal lead-handoff delivery status to the customer.");
   }
 
+  const contactComplete = isLeadContactComplete(state);
+  const allowsBusinessPhone = visitorAllowsBusinessPhone(
+    latestUserMessage,
+    state.leadDeliveryStatus === "FAILED"
+  );
+
   if (
     (state.leadDeliveryStatus === "QUEUED" ||
       state.leadDeliveryStatus === "SENT") &&
-    (/\bif you prefer to call\b/i.test(reply) ||
-      (business?.phone &&
-        business.phone.replace(/\D/g, "").length >= 7 &&
-        reply.replace(/\D/g, "").includes(business.phone.replace(/\D/g, ""))))
+    replyExposesBusinessPhone(reply, business)
   ) {
     reasons.push(
       "Success close must not include the business phone number or invite the customer to call it."
+    );
+  }
+
+  if (
+    replyExposesBusinessPhone(reply, business) &&
+    state.leadDeliveryStatus !== "QUEUED" &&
+    state.leadDeliveryStatus !== "SENT" &&
+    !allowsBusinessPhone
+  ) {
+    reasons.push(
+      "Must not expose the business phone unless the customer asked for it, stated emergency/danger/immediate help, or delivery failed."
+    );
+  }
+
+  if (!contactComplete && PROPERTY_TYPE_ASK_RE.test(reply)) {
+    reasons.push(
+      "Asked property type before name, customer phone, and service address were captured."
+    );
+  }
+
+  if (!contactComplete && TROUBLESHOOT_ASK_RE.test(reply)) {
+    reasons.push(
+      "Asked a troubleshooting question before name, customer phone, and service address were captured."
+    );
+  }
+
+  if (!contactComplete && PREFERRED_TIME_ASK_RE.test(reply)) {
+    reasons.push(
+      "Asked for preferred time before name, customer phone, and service address were captured."
+    );
+  }
+
+  if (!contactComplete && PREMATURE_SUCCESS_CLOSE_RE.test(reply)) {
+    reasons.push(
+      "Claimed the request was recorded, shared, or that the team will follow up before name, customer phone, and service address were captured."
     );
   }
 
@@ -1827,6 +1983,7 @@ export function validateSalesReply(
 
   if (
     !state.preferredTiming &&
+    contactComplete &&
     (state.customerAgreed || state.currentObjective === "ADVANCE_TO_NEXT_STEP") &&
     !/\bwhat day or time would you prefer\b/i.test(reply)
   ) {
@@ -1992,7 +2149,9 @@ ${
       ? `If acknowledging the captured request, use this meaning: "${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}" Do not say the request was shared with the team.`
     : state.leadDeliveryStatus === "FAILED"
       ? `If acknowledging the captured request, use this meaning: "${failedFallback}" Do not claim the team was alerted.`
-      : `Do not claim the request was already shared with the team. If the customer just said yes to a site assessment and no preferred time is known yet, reply with this meaning: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"`
+      : isLeadContactComplete(state) && !state.preferredTiming
+        ? `Do not claim the request was already shared with the team. If the customer just said yes to a site assessment and no preferred time is known yet, reply with this meaning: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"`
+        : `Do not claim the request was recorded, shared, or that the team will contact them. Ask only for the next missing field among name, customer phone, and service address. Do not ask preferred time, property type, or troubleshooting. Do not give the business phone number.`
 }
 Do not give DIY tutorials or technician dumps.
 If objective is CLOSE: give the final message then STOP. No questions. No access asks. No "anything else?".

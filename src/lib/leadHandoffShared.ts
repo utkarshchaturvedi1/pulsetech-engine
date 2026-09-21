@@ -144,7 +144,7 @@ export function isHandoffAlreadyScheduled(state: SalesState): boolean {
 }
 
 const GENERIC_NEED_RE =
-  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty)\b/i;
+  /\b(clogged|broken|leaking|leak|damaged|flooding|not working|isn'?t working|won'?t|stopped|out of|making (a )?noise|no (hot )?water|no (heat|cooling|air(?:flow)?)|not (heat(?:ing)?|cool(?:ing)?)|too (hot|cold)|overheating|repair|fix|install|replace|cracked|missing|failed|faulty)\b/i;
 
 export function hasConcreteNeed(need: string | null): boolean {
   if (!need || need.trim().length < 8) return false;

@@ -42,11 +42,15 @@ import {
   shouldCollectLeadAlertSetup,
 } from "../src/lib/leadAlertRecipients";
 import { maybeSendLeadHandoff } from "../src/lib/leadHandoff";
+import { generateSalesReply } from "../src/lib/salesChat";
 import {
   commitSharedProfile,
   loadSharedProfile,
 } from "../src/lib/sharedProfileStore";
 import {
+  PRE_CONTACT_ASK_ADDRESS,
+  PRE_CONTACT_ASK_FIRST_NAME,
+  PRE_CONTACT_ASK_PHONE,
   recordSiteVisitFeeMention,
   updateSalesStateFromTurn,
   validateSalesReply,
@@ -1758,6 +1762,321 @@ function testGenericPreferredTimeLeadCapture() {
   console.log("PASS — generic preferred-time capture, sticky Yes handoff, missing-time ask");
 }
 
+function testHighIntentLeadCaptureOrder() {
+  const highIntentRequests = [
+    "Our unit has no heat and no cooling. Can you help?",
+    "The drain is clogged and I need it fixed.",
+  ];
+
+  for (const request of highIntentRequests) {
+    const started = updateSalesStateFromTurn(
+      createInitialSalesState({
+        conversationId: "conv_high_intent_order",
+        businessKey: business.website,
+      }),
+      [{ role: "user", content: request }],
+      business
+    );
+    assert(
+      started.intent === "HIGH" || started.intent === "READY_TO_ACT",
+      `high-intent request must raise intent, got ${started.intent} for: ${request}`
+    );
+    assert(
+      started.currentObjective === "COLLECT_NAME",
+      `next question must be name, got ${started.currentObjective} for: ${request}`
+    );
+
+    const nameAsk = validateSalesReply(
+      "Absolutely, we can help with that. What's your name?",
+      started,
+      business,
+      request
+    );
+    assert(nameAsk.ok, `name ask must pass: ${nameAsk.reasons.join("; ")}`);
+
+    const propertyType = validateSalesReply(
+      "Is this for a residential or commercial property?",
+      started,
+      business,
+      request
+    );
+    assert(!propertyType.ok, "must not ask property type before name, phone, and address");
+
+    const troubleshooting = validateSalesReply(
+      "Have you tried checking the thermostat or filter?",
+      started,
+      business,
+      request
+    );
+    assert(
+      !troubleshooting.ok,
+      "must not ask troubleshooting questions before name, phone, and address"
+    );
+
+    const servicePitch = validateSalesReply(
+      `We offer 24/7 emergency service. You can call us at ${business.phone} anytime.`,
+      started,
+      business,
+      request
+    );
+    assert(
+      !servicePitch.ok,
+      "must not expose the business phone or pitch service before the lead is secured"
+    );
+
+    const earlyTime = validateSalesReply(
+      SITE_ASSESSMENT_TEAM_ALERT_ASK,
+      started,
+      business,
+      request
+    );
+    assert(!earlyTime.ok, "must not ask preferred time before name, phone, and address");
+  }
+
+  let afterNamePhone = updateSalesStateFromTurn(
+    createInitialSalesState({
+      conversationId: "conv_missing_address_close",
+      businessKey: business.website,
+    }),
+    [
+      {
+        role: "user",
+        content: "Our unit has no heat and no cooling. Can you help?",
+      },
+    ],
+    business
+  );
+  afterNamePhone = updateSalesStateFromTurn(
+    afterNamePhone,
+    [
+      { role: "assistant", content: "Absolutely, we can help with that. What's your name?" },
+      { role: "user", content: "Jordan" },
+    ],
+    business
+  );
+  afterNamePhone = updateSalesStateFromTurn(
+    afterNamePhone,
+    [
+      { role: "assistant", content: "Thanks, Jordan. What's the best number to reach you?" },
+      { role: "user", content: "5125550198. Tomorrow morning works." },
+    ],
+    business
+  );
+  assert(afterNamePhone.lead.name === "Jordan", "name stays sticky");
+  assert(!!afterNamePhone.lead.phone, "customer phone stays sticky");
+  assert(!afterNamePhone.lead.address, "address must still be missing");
+  assert(
+    afterNamePhone.currentObjective === "COLLECT_ADDRESS",
+    `missing address must collect address, got ${afterNamePhone.currentObjective}`
+  );
+  const missingAddressDecision = evaluateHandoffReadiness(
+    afterNamePhone,
+    "Tomorrow morning works."
+  );
+  assert(
+    missingAddressDecision.handoffReady === false,
+    "missing address must not be handoff-ready"
+  );
+  assert(
+    missingAddressDecision.missingRequiredFields.includes("address"),
+    "central evaluator must report missing address"
+  );
+  assert(
+    !shouldAttemptLeadHandoff(afterNamePhone, "closure", "Tomorrow morning works."),
+    "missing address must send no handoff"
+  );
+  const falseRecorded = validateSalesReply(
+    "Thanks, Jordan — I've recorded your request and noted tomorrow morning as your preferred time. The team will confirm availability.",
+    afterNamePhone,
+    business,
+    "5125550198. Tomorrow morning works."
+  );
+  assert(
+    !falseRecorded.ok,
+    "must not use recorded/team-confirm wording while address is missing"
+  );
+  const askAddress = validateSalesReply(
+    "Thanks, Jordan. What's the service address?",
+    afterNamePhone,
+    business,
+    "5125550198. Tomorrow morning works."
+  );
+  assert(askAddress.ok, `next field must be address: ${askAddress.reasons.join("; ")}`);
+
+  const askedForNumber = validateSalesReply(
+    `Our number is ${business.phone}. What's your name?`,
+    updateSalesStateFromTurn(
+      createInitialSalesState({
+        conversationId: "conv_asked_number",
+        businessKey: business.website,
+      }),
+      [{ role: "user", content: "What's your phone number? The drain is clogged." }],
+      business
+    ),
+    business,
+    "What's your phone number? The drain is clogged."
+  );
+  assert(
+    askedForNumber.ok,
+    `business phone is allowed when the customer asked: ${askedForNumber.reasons.join("; ")}`
+  );
+
+  const complete = securedLead({
+    preferredTiming: "tomorrow morning",
+    customerAgreed: true,
+    currentObjective: "CLOSE",
+    leadDeliveryStatus: "NOT_SENT",
+  });
+  const completeDecision = evaluateHandoffReadiness(complete, "Yes");
+  assert(completeDecision.handoffReady === true, "complete agreed lead must be handoff-ready");
+  assert(
+    shouldAttemptLeadHandoff(complete, "closure", "Yes") === true,
+    "complete agreed lead must attempt exactly one handoff path"
+  );
+  const email = buildLeadNotificationEmail(business, complete);
+  const sms = buildWebsiteLeadSms(business, complete);
+  assert(
+    /Kitchen sink is clogged/i.test(email.text) && /tomorrow morning/i.test(email.text),
+    "email must include primary need and preferred time"
+  );
+  assert(
+    /Kitchen sink is clogged/i.test(sms) && /tomorrow morning/i.test(sms),
+    "SMS must include primary need and preferred time"
+  );
+
+  console.log("PASS — high-intent capture order, no false close without address");
+}
+
+function assertNoPreContactLeak(reply: string, allowBusinessPhone = false) {
+  assert(
+    !/residential or commercial|commercial or residential|property type|have you tried|thermostat|filter|breaker|recorded your request|shared your request|alert the team|team will confirm|preferred time|how much|we offer|maintenance plan|book(ed|ing)? appointment|pricing/i.test(
+      reply
+    ),
+    `pre-contact reply leaked sales/discovery/close wording: ${reply}`
+  );
+  if (!allowBusinessPhone) {
+    assert(
+      !reply.includes(business.phone) && !/\bif you prefer to call\b/i.test(reply),
+      `pre-contact reply exposed business phone: ${reply}`
+    );
+  }
+}
+
+async function testDeterministicPreContactChatReplies() {
+  const highIntentRequests = [
+    "Our unit has no heat and no cooling. Can you help?",
+    "The drain is clogged and I need it fixed.",
+  ];
+
+  for (const request of highIntentRequests) {
+    const first = await generateSalesReply(business, [
+      { role: "user", content: request },
+    ]);
+    assert(
+      first.reply === `We can help with that. ${PRE_CONTACT_ASK_FIRST_NAME}`,
+      `final chat reply must be the deterministic name question, got: ${first.reply}`
+    );
+    assert(
+      first.reply.includes(PRE_CONTACT_ASK_FIRST_NAME) &&
+        !first.reply.includes("? ") &&
+        (first.reply.match(/\?/g) || []).length === 1,
+      "name step asks exactly one question"
+    );
+    assertNoPreContactLeak(first.reply);
+
+    const afterName = await generateSalesReply(
+      business,
+      [
+        { role: "user", content: request },
+        { role: "assistant", content: first.reply },
+        { role: "user", content: "Jordan" },
+      ],
+      first.salesState
+    );
+    assert(
+      afterName.reply === `Thanks, Jordan. ${PRE_CONTACT_ASK_PHONE}`,
+      `final chat reply must ask for customer phone, got: ${afterName.reply}`
+    );
+    assertNoPreContactLeak(afterName.reply);
+
+    const afterPhone = await generateSalesReply(
+      business,
+      [
+        { role: "user", content: request },
+        { role: "assistant", content: first.reply },
+        { role: "user", content: "Jordan" },
+        { role: "assistant", content: afterName.reply },
+        { role: "user", content: "5125550198" },
+      ],
+      afterName.salesState
+    );
+    assert(
+      afterPhone.reply === `Thanks, Jordan. ${PRE_CONTACT_ASK_ADDRESS}`,
+      `final chat reply must ask for service address, got: ${afterPhone.reply}`
+    );
+    assertNoPreContactLeak(afterPhone.reply);
+    assert(
+      !shouldAttemptLeadHandoff(afterPhone.salesState, "closure", "5125550198"),
+      "no handoff before service address"
+    );
+  }
+
+  const askedNumber = await generateSalesReply(business, [
+    {
+      role: "user",
+      content: "What's your phone number? The drain is clogged.",
+    },
+  ]);
+  assert(
+    askedNumber.reply.startsWith(`You can reach us at ${business.phone}.`) &&
+      askedNumber.reply.endsWith(PRE_CONTACT_ASK_FIRST_NAME),
+    `number request may include business phone then still ask name, got: ${askedNumber.reply}`
+  );
+  assertNoPreContactLeak(askedNumber.reply, true);
+
+  const completeState = securedLead({
+    preferredTiming: "tomorrow morning",
+    customerAgreed: true,
+    currentObjective: "CLOSE",
+    leadDeliveryStatus: "NOT_SENT",
+    conversationId: "conv_precontact_complete_handoff",
+  });
+  const alertBusiness: BusinessProfile = {
+    ...business,
+    leadNotificationEmail: "alerts@summit.test",
+    leadNotificationPhone: "+15125550198",
+  };
+  const previousDryRun = process.env.LEAD_HANDOFF_DRY_RUN;
+  process.env.LEAD_HANDOFF_DRY_RUN = "true";
+  try {
+    const completeChat = await generateSalesReply(
+      alertBusiness,
+      [{ role: "user", content: "Yes" }],
+      completeState
+    );
+    assert(
+      /shared your request with the team|recorded your request/i.test(
+        completeChat.reply
+      ),
+      `complete lead must use the existing close path, got: ${completeChat.reply}`
+    );
+    assert(
+      completeChat.salesState.leadDeliveryStatus === "QUEUED" ||
+        completeChat.salesState.leadDeliveryStatus === "SENT",
+      `complete lead must queue/send once, got ${completeChat.salesState.leadDeliveryStatus}`
+    );
+    assert(
+      !shouldAttemptLeadHandoff(completeChat.salesState, "closure", "Yes"),
+      "replay after queued/sent must not attempt another handoff"
+    );
+  } finally {
+    if (previousDryRun === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+    else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun;
+  }
+
+  console.log("PASS — deterministic pre-contact chat replies; complete lead still one handoff");
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
@@ -1765,6 +2084,8 @@ async function main() {
   testRajaNameCaptureAndPreferredTime();
   testStickyPrimaryNeedInAlerts();
   testGenericPreferredTimeLeadCapture();
+  testHighIntentLeadCaptureOrder();
+  await testDeterministicPreContactChatReplies();
   testCustomerFacingHandoffWording();
   testCompoundPriceAndPreferredTime();
   testSiteVisitFeeOnce();

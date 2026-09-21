@@ -19,6 +19,7 @@ import {
   buildValidationCorrection,
   recordSiteVisitFeeMention,
   resolveDeterministicPreContactReply,
+  resolvePostContactConversationReply,
   updateSalesStateFromTurn,
   validateSalesReply,
 } from "./salesController";
@@ -378,7 +379,9 @@ Never imply that a visit is booked or confirmed.
 Do not promise same-day service unless BusinessProfile explicitly includes that promise.
 
 After name, phone, address, and the service need are captured:
-- If the customer says yes to a site assessment / next step and has not given a preferred time yet, reply with this meaning only: "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability."
+- Return to a warm, helpful sales conversation. Do not stay in form-field mode.
+- If the customer asks a direct question, especially about price, answer it first using BusinessProfile facts only. If no verified price exists, say the exact cost depends on the diagnosis — never invent amounts.
+- If they have not given a preferred time yet, then naturally ask what day or time they would prefer. Do not say "I'll alert the team", "recorded", "shared", or that the team will contact them until a handoff is actually queued.
 - Never say "we'll arrange a site assessment" or otherwise imply an appointment is already confirmed or booked.
 - Once name, phone, service address, and preferred time are captured and the visitor has asked to proceed or finished, the system queues an alert. While that is only queued, say the request has been recorded and the preferred time noted — never that it was already shared.
 - Say you have shared the request with the team only if delivery status is actually SENT.
@@ -507,6 +510,13 @@ export async function generateSalesReply(
     business,
     latestUserMessage: latestUser?.content,
   });
+  if (!deterministicHandoffReply) {
+    deterministicHandoffReply = resolvePostContactConversationReply(
+      salesState,
+      business,
+      latestUser?.content
+    );
+  }
   if (
     !deterministicHandoffReply &&
     !alreadyScheduled &&

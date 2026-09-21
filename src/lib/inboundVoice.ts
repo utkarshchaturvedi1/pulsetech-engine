@@ -5,6 +5,7 @@ import { StoredDemo } from "./demoStore";
 import { BusinessProfile } from "../types/business";
 import {
   ASK_PREFERRED_DAY_TIME,
+  CALLBACK_REQUEST_VOICE_ACK,
   PREFERRED_TIME_TEAM_ALERT_ACK,
 } from "./schedulingPolicy";
 import { isVoiceDemoPublicNumber } from "./voiceDemoNumbers";
@@ -225,7 +226,7 @@ PHONE LEAD RULES
 - When the caller has a genuine high-intent need this business can serve, secure the lead in this order only: need already known, then name, then phone, then service address where relevant — still one field at a time.
 - Do not ask about appointment times, dates, or preferred visit slots until name, phone, and service address (where relevant) are captured.
 - After the lead is secured, keep helping. Do not end the call just because contact details were captured.
-- If the caller explicitly asks to be called back, acknowledge it, capture name and phone (and address if relevant), and tell them the team will call them. Do not place an outbound call. Do not send the customer a text or SMS.
+- If the caller explicitly asks to be called back, acknowledge it, capture name and phone (and address if relevant), and reply with this meaning only: "${CALLBACK_REQUEST_VOICE_ACK}" Do not promise a callback, a booking, an alert, confirmation, or delivery. Do not place an outbound call. Do not send the customer a text or SMS.
 - Never send automatic customer confirmation messages.
 
 APPOINTMENT / VISIT TIME
@@ -234,9 +235,11 @@ APPOINTMENT / VISIT TIME
 - Never promise same-day service unless that exact promise is in the BusinessProfile facts below.
 - Do not ask about appointment times until name, phone, and service address (where relevant) are captured.
 - After the lead is secured:
+  - Never promise during this call that an alert is going out, that a request is already logged for delivery, or that someone from the office will follow up. The internal alert is queued after the call, not during it.
   - If the caller says tomorrow morning, today, as soon as possible, or asks when you can come: capture preferred_visit_time when they give one, mark urgency when they sound urgent, and use this meaning only:
     "${PREFERRED_TIME_TEAM_ALERT_ACK}"
   - For a standard non-urgent request, ask once: "${ASK_PREFERRED_DAY_TIME}"
+  - If preferred time is known but they have not agreed to proceed, ask only whether they would like to proceed. Do not promise an alert.
 - Capture preferred_visit_time and urgency for the internal business alert. Do not place an outbound call. Do not send the customer a text or SMS.
 
 SITE VISIT FEE

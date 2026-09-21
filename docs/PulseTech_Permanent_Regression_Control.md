@@ -12,6 +12,8 @@ Do not redesign the UI, change landing-page content, change business logic delib
 
 Preserve all existing chat functionality, business logic, recipient routing, after() background delivery, Twilio, and ElevenLabs behavior unless the approved change explicitly requires it.
 
+Lead capture must not turn the AI Sales Employee into a robotic form. After name + customer phone + service address are secured, the conversation must return to helpful, warm, sales-oriented service guidance. Direct customer questions—especially price—must be answered first, truthfully and without invented facts. Do not promise an alert/team contact before a ready handoff has actually queued.
+
 ---
 
 ## Canonical lead sequence (website chat and inbound voice)
@@ -31,7 +33,7 @@ Protect the opportunity first. A genuine high-intent need must not be lost to HV
 
 **Hard bans on this path:**
 
-- No “recorded”, “shared”, or “team alerted” (or equivalent) unless a handoff is actually queued or scheduled. SENT vs QUEUED wording must stay truthful. Never imply the request was already delivered when status is only queued.
+- No “recorded”, “shared”, “I’ll alert,” “team will contact,” or equivalent unless a handoff is actually queued or scheduled. SENT vs QUEUED wording must stay truthful. Never imply the request was already delivered when status is only queued.
 - No business phone unless the visitor explicitly asks for the number, explicitly states emergency / danger / immediate help, or delivery **failed**. Normal success close must never expose a scraped business phone or say “if you prefer to call”.
 - No preferred-time question before name, customer phone, and service address are captured.
 - Missing preferred time → queue **no** handoff; ask **once** for day/time.
@@ -70,13 +72,14 @@ ANSWER FIRST: if the customer asks a direct question, answer it; do not refuse s
 - Confirm preferred time stays saved after a pricing response and “Yes”.
 - High-intent / ready-to-act: need already known → name → customer phone → service address, one field at a time. Do not discuss the service, diagnose, or ask residential/commercial or troubleshooting questions before those three fields are stored.
 - Preferred time is asked only after name, customer phone, and service address.
+- After those three fields, resume a human sales conversation: acknowledge the need, answer questions (price first), then guide to preferred time and agreement. Do not stay in form-field mode.
 
 ### C. Handoff and customer wording
 
 - Required details plus agreement must queue exactly one handoff.
 - Required details include name, customer phone, service address, preferred time, and explicit agreement, following the canonical sequence above.
 - Missing preferred time must queue none and ask only once for day/time.
-- No response may say “recorded”, “shared”, or imply alert delivery unless handoff is actually queued/scheduled.
+- No response may say “recorded”, “shared”, “I’ll alert,” “team will contact,” or imply alert delivery unless handoff is actually queued/scheduled.
 - Use “shared with the team” only when delivery status is SENT. QUEUED wording must never imply completed delivery.
 - On failed delivery, direct the visitor to contact the business by phone/email if appropriate; never expose internal delivery status.
 - Normal success close must never expose scraped business phone or say “if you prefer to call”.

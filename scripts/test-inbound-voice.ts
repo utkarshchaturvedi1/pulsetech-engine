@@ -15,10 +15,51 @@ import {
   evaluatePhoneLeadAlert,
   extractPhoneLead,
 } from "../src/lib/phoneLead";
-import { PREFERRED_TIME_TEAM_ALERT_ACK } from "../src/lib/schedulingPolicy";
+import { PREFERRED_TIME_TEAM_ALERT_ACK, PRE_QUEUE_ALERT_PROMISE_RE, ASK_PREFERRED_DAY_TIME, CALLBACK_REQUEST_VOICE_ACK } from "../src/lib/schedulingPolicy";
 
 function assert(condition: boolean, message: string) {
   if (!condition) throw new Error(message);
+}
+
+function assertVoicePreQueueSpeakableCopy() {
+  const speakable = [
+    CALLBACK_REQUEST_VOICE_ACK,
+    PREFERRED_TIME_TEAM_ALERT_ACK,
+    ASK_PREFERRED_DAY_TIME,
+  ].join("\n");
+  for (const banned of [
+    "team will call",
+    "I'll alert",
+    "we'll alert",
+    "recorded",
+    "shared",
+    "team will confirm",
+    "team will contact",
+  ]) {
+    assert(
+      !speakable.toLowerCase().includes(banned.toLowerCase()),
+      `voice speakable copy must not include "${banned}" before a real handoff`
+    );
+  }
+  assert(
+    !PRE_QUEUE_ALERT_PROMISE_RE.test(CALLBACK_REQUEST_VOICE_ACK) &&
+      !PRE_QUEUE_ALERT_PROMISE_RE.test(PREFERRED_TIME_TEAM_ALERT_ACK) &&
+      !PRE_QUEUE_ALERT_PROMISE_RE.test(ASK_PREFERRED_DAY_TIME),
+    "voice speakable copy must not promise a call, alert, or delivery before queue"
+  );
+}
+
+function assertVoicePromptHasNoPreQueueDeliveryPromise(prompt: string) {
+  assert(
+    prompt.includes(CALLBACK_REQUEST_VOICE_ACK),
+    "explicit callback uses the neutral include-for-the-team acknowledgement"
+  );
+  assert(
+    !/\bthe team will call them\b/i.test(prompt) &&
+      !/\bI'll alert the team now\b/i.test(prompt),
+    "voice prompt must not tell the caller the team will call or that an alert is happening now"
+  );
+  assertVoicePreQueueSpeakableCopy();
 }
 
 async function testNumberMapping() {
@@ -103,6 +144,9 @@ async function testNumberMapping() {
         PREFERRED_TIME_TEAM_ALERT_ACK
       ),
       "voice and website must share no-confirmation immediate-response wording"
+    );
+    assertVoicePromptHasNoPreQueueDeliveryPromise(
+      payload.conversation_config_override.agent.prompt.prompt
     );
   }
 
@@ -328,6 +372,19 @@ function testLeadFlowUnchanged() {
   assert(
     prompt.includes(PREFERRED_TIME_TEAM_ALERT_ACK),
     "same immediate-response wording as website chat"
+  );
+  assertVoicePromptHasNoPreQueueDeliveryPromise(prompt);
+  assert(
+    !PRE_QUEUE_ALERT_PROMISE_RE.test(PREFERRED_TIME_TEAM_ALERT_ACK),
+    "voice preferred-time ack must not promise an alert before the post-call queue"
+  );
+  assert(
+    !PRE_QUEUE_ALERT_PROMISE_RE.test(ASK_PREFERRED_DAY_TIME),
+    "voice preferred-time ask must not promise team confirm before queue"
+  );
+  assert(
+    prompt.includes("The internal alert is queued after the call, not during it."),
+    "voice prompt must ban pre-queue alert wording"
   );
   assert(
     prompt.includes("at most once"),

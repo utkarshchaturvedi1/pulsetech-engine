@@ -6,7 +6,10 @@ import DemoWorkspace from "../src/components/DemoWorkspace";
 import { DEMO_CHAT_LAYOUT, HOME_CHAT_LAYOUT, PULSETECH_CANVAS_GRADIENT } from "../src/lib/demoChatLayout";
 import { buildLeadNotificationEmail, buildWebsiteLeadSms, evaluateHandoffReadiness, formatPrimaryNeedForAlert, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
 import {
+  ASK_EXPLICIT_AGREEMENT,
   ASK_PREFERRED_DAY_TIME,
+  PRE_QUEUE_ALERT_PROMISE_RE,
+  PREFERRED_TIME_TEAM_ALERT_ACK,
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
   buildFailedLeadHandoffCustomerMessage,
   buildPricingApproachAnswer,
@@ -475,7 +478,13 @@ function testVisitPreferenceNoDuplicateAddress() {
   );
   assert(
     yesAck.ok,
-    `yes → site-assessment team alert should pass: ${yesAck.reasons.join("; ")}`
+    `yes → preferred-time ask should pass: ${yesAck.reasons.join("; ")}`
+  );
+  assert(
+    !/\bi('ll| will) alert the team\b/i.test(SITE_ASSESSMENT_TEAM_ALERT_ASK) &&
+      !/\brecorded your request\b/i.test(SITE_ASSESSMENT_TEAM_ALERT_ASK) &&
+      !/\bshared your request\b/i.test(SITE_ASSESSMENT_TEAM_ALERT_ASK),
+    "preferred-time ask must not promise an alert before handoff is queued"
   );
 
   const afterSent = { ...after, leadDeliveryStatus: "SENT" as const };
@@ -579,6 +588,12 @@ function testVisitPreferenceNoDuplicateAddress() {
   assert(
     ASK_PREFERRED_DAY_TIME.includes("What day or time would you prefer?"),
     "short preferred-day ask remains available for voice"
+  );
+  assert(
+    !PRE_QUEUE_ALERT_PROMISE_RE.test(ASK_PREFERRED_DAY_TIME) &&
+      !PRE_QUEUE_ALERT_PROMISE_RE.test(SITE_ASSESSMENT_TEAM_ALERT_ASK) &&
+      !PRE_QUEUE_ALERT_PROMISE_RE.test(ASK_EXPLICIT_AGREEMENT),
+    "preferred-time and agreement asks must not promise an alert before queue"
   );
 
   const urgentTurn = updateSalesStateFromTurn(
@@ -1350,7 +1365,9 @@ function testCompoundPriceAndPreferredTime() {
 
   const pricingOnly = buildPricingApproachAnswer(roofingBusiness);
   assert(
-    /scope of work|site assessment|fixtures or materials/i.test(pricingOnly),
+    /depends on the diagnosis|verified price to quote|scope of work|site assessment|fixtures or materials/i.test(
+      pricingOnly
+    ),
     "without profile pricing rules, answer must be scope-dependent and not invent hourly/fixed"
   );
   assert(
@@ -1358,6 +1375,31 @@ function testCompoundPriceAndPreferredTime() {
       !/\btypically charges hourly\b/i.test(pricingOnly) &&
       !/\btypically prices the full job\b/i.test(pricingOnly),
     "must not invent hourly or fixed pricing when profile is silent"
+  );
+  assert(
+    !/\bteam can confirm\b/i.test(pricingOnly) &&
+      !PRE_QUEUE_ALERT_PROMISE_RE.test(pricingOnly),
+    "unverified pricing must not defer to a team confirm before handoff"
+  );
+
+  const hourlyApproach = buildPricingApproachAnswer({
+    ...roofingBusiness,
+    pricingRules: "",
+    systemPrompt: "Labor is billed hourly.",
+  });
+  assert(
+    /typically charges hourly/i.test(hourlyApproach),
+    "when the profile establishes hourly billing, say that accurately"
+  );
+  assert(
+    /depends on the diagnosis/i.test(hourlyApproach),
+    "hourly approach without a quoted rate must still say the exact amount depends on diagnosis"
+  );
+  assert(
+    !/\bteam can confirm\b/i.test(hourlyApproach) &&
+      !PRE_QUEUE_ALERT_PROMISE_RE.test(hourlyApproach) &&
+      !/\$\s?\d/.test(hourlyApproach),
+    "hourly fallback must not invent an amount or promise a team confirm"
   );
 
   const reply = resolveWebsiteChatCustomerHandoffReply({
@@ -1371,7 +1413,9 @@ function testCompoundPriceAndPreferredTime() {
   });
   assert(!!reply, "compound handoff reply must be produced");
   assert(
-    /scope of work|site assessment/i.test(reply!),
+    /depends on the diagnosis|verified price to quote|scope of work|site assessment/i.test(
+      reply!
+    ),
     "compound reply must answer the pricing question"
   );
   assert(
@@ -2077,6 +2121,191 @@ async function testDeterministicPreContactChatReplies() {
   console.log("PASS — deterministic pre-contact chat replies; complete lead still one handoff");
 }
 
+async function testPostContactSalesConversation() {
+  const secured = securedLead({
+    preferredTiming: null,
+    customerAgreed: false,
+    currentObjective: "PRESENT_SOLUTION",
+    leadDeliveryStatus: "NOT_SENT",
+    conversationId: "conv_post_contact_price",
+  });
+
+  const priceTurn = await generateSalesReply(
+    business,
+    [{ role: "user", content: "How much will it cost?" }],
+    secured
+  );
+  const priceIdx = priceTurn.reply.toLowerCase().indexOf("cost");
+  const timeIdx = priceTurn.reply.toLowerCase().indexOf("what day or time");
+  assert(priceIdx >= 0, `price must be answered first, got: ${priceTurn.reply}`);
+  assert(timeIdx > priceIdx, `time guide must follow the price answer, got: ${priceTurn.reply}`);
+  assert(
+    /depends on the diagnosis|verified price|pricingRules/i.test(priceTurn.reply) ||
+      /exact cost depends/i.test(priceTurn.reply),
+    `unverified price must not invent an amount, got: ${priceTurn.reply}`
+  );
+  assert(!/\$\s?\d/.test(priceTurn.reply), `must not invent a dollar amount, got: ${priceTurn.reply}`);
+  assert(
+    !/\bi('ll| will) alert the team\b/i.test(priceTurn.reply) &&
+      !/\brecorded your request\b/i.test(priceTurn.reply) &&
+      !/\bshared your request\b/i.test(priceTurn.reply) &&
+      !/\bteam will contact\b/i.test(priceTurn.reply),
+    `must not promise team alert before queued handoff, got: ${priceTurn.reply}`
+  );
+
+  const pricedBusiness: BusinessProfile = {
+    ...business,
+    pricingRules: "Diagnostic visit is $89 before any repair work.",
+  };
+  const verified = await generateSalesReply(
+    pricedBusiness,
+    [{ role: "user", content: "How much will it cost?" }],
+    secured
+  );
+  assert(
+    verified.reply.includes("$89"),
+    `verified pricing must be used when configured, got: ${verified.reply}`
+  );
+  assert(
+    /what day or time would you prefer/i.test(verified.reply),
+    "after a price answer, still guide naturally to preferred time"
+  );
+
+  const completeState = securedLead({
+    preferredTiming: "tomorrow morning",
+    customerAgreed: true,
+    currentObjective: "CLOSE",
+    leadDeliveryStatus: "NOT_SENT",
+    conversationId: "conv_post_contact_complete_handoff",
+  });
+  const alertBusiness: BusinessProfile = {
+    ...business,
+    leadNotificationEmail: "alerts@summit.test",
+    leadNotificationPhone: "+15125550198",
+  };
+  const email = buildLeadNotificationEmail(alertBusiness, completeState);
+  const sms = buildWebsiteLeadSms(alertBusiness, completeState);
+  assert(
+    /Kitchen sink is clogged/i.test(email.text) && /tomorrow morning/i.test(email.text),
+    "complete-lead email must include need and preferred time"
+  );
+  assert(
+    /Kitchen sink is clogged/i.test(sms) && /tomorrow morning/i.test(sms),
+    "complete-lead SMS must include need and preferred time"
+  );
+  const previousDryRun = process.env.LEAD_HANDOFF_DRY_RUN;
+  process.env.LEAD_HANDOFF_DRY_RUN = "true";
+  try {
+    const completeChat = await generateSalesReply(
+      alertBusiness,
+      [{ role: "user", content: "Yes" }],
+      completeState
+    );
+    assert(
+      /shared your request with the team|recorded your request/i.test(
+        completeChat.reply
+      ),
+      `complete lead must use truthful close wording, got: ${completeChat.reply}`
+    );
+    assert(
+      completeChat.salesState.leadDeliveryStatus === "QUEUED" ||
+        completeChat.salesState.leadDeliveryStatus === "SENT",
+      `complete lead must queue/send once, got ${completeChat.salesState.leadDeliveryStatus}`
+    );
+    assert(
+      !shouldAttemptLeadHandoff(completeChat.salesState, "closure", "Yes"),
+      "replay after queued/sent must not attempt another handoff"
+    );
+  } finally {
+    if (previousDryRun === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+    else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun;
+  }
+
+  const early = await generateSalesReply(business, [
+    { role: "user", content: "The drain is clogged and I need it fixed." },
+  ]);
+  assert(
+    early.reply === `We can help with that. ${PRE_CONTACT_ASK_FIRST_NAME}`,
+    `early capture must stay deterministic, got: ${early.reply}`
+  );
+
+  console.log("PASS — post-contact price-first sales conversation; no premature alert");
+}
+
+function testPreQueueAlertWordingBan() {
+  const afterAddress = securedLead({
+    preferredTiming: null,
+    customerAgreed: false,
+    leadDeliveryStatus: "NOT_SENT",
+    currentObjective: "PRESENT_SOLUTION",
+  });
+  const prematureAlert = validateSalesReply(
+    "I'll alert the team now so they can contact you.",
+    afterAddress,
+    business
+  );
+  assert(!prematureAlert.ok, "I'll alert after address must fail before queued handoff");
+  assert(
+    prematureAlert.reasons.some((r) => /before a handoff was queued/i.test(r)),
+    prematureAlert.reasons.join("; ")
+  );
+
+  const timeAsk = validateSalesReply(
+    SITE_ASSESSMENT_TEAM_ALERT_ASK,
+    afterAddress,
+    business
+  );
+  assert(timeAsk.ok, `missing time must allow a warm time question: ${timeAsk.reasons.join("; ")}`);
+
+  const afterTime = securedLead({
+    preferredTiming: "tomorrow morning",
+    customerAgreed: false,
+    leadDeliveryStatus: "NOT_SENT",
+    currentObjective: "ADVANCE_TO_NEXT_STEP",
+  });
+  const alertAfterTime = validateSalesReply(
+    "I've recorded your request. The team will confirm availability.",
+    afterTime,
+    business
+  );
+  assert(!alertAfterTime.ok, "recorded/team-confirm after time must fail before agreement and queue");
+  const agreementAsk = validateSalesReply(ASK_EXPLICIT_AGREEMENT, afterTime, business);
+  assert(
+    agreementAsk.ok,
+    `missing agreement must allow an agreement ask: ${agreementAsk.reasons.join("; ")}`
+  );
+
+  const queued = validateSalesReply(
+    buildQueuedLeadHandoffCustomerMessage("Maya", "tomorrow morning"),
+    securedLead({
+      preferredTiming: "tomorrow morning",
+      customerAgreed: true,
+      leadDeliveryStatus: "QUEUED",
+      currentObjective: "CLOSE",
+    }),
+    business
+  );
+  assert(queued.ok, `queued close must still be allowed: ${queued.reasons.join("; ")}`);
+
+  const sent = validateSalesReply(
+    buildSuccessfulLeadHandoffCustomerMessage("Maya", "tomorrow morning"),
+    securedLead({
+      preferredTiming: "tomorrow morning",
+      customerAgreed: true,
+      leadDeliveryStatus: "SENT",
+      currentObjective: "CLOSE",
+    }),
+    business
+  );
+  assert(sent.ok, `sent close must still be allowed: ${sent.reasons.join("; ")}`);
+  assert(
+    !PRE_QUEUE_ALERT_PROMISE_RE.test(PREFERRED_TIME_TEAM_ALERT_ACK),
+    "voice preferred-time ack must follow the same pre-queue ban"
+  );
+
+  console.log("PASS — pre-queue alert/recorded/shared/team-contact wording banned");
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
@@ -2086,6 +2315,8 @@ async function main() {
   testGenericPreferredTimeLeadCapture();
   testHighIntentLeadCaptureOrder();
   await testDeterministicPreContactChatReplies();
+  await testPostContactSalesConversation();
+  testPreQueueAlertWordingBan();
   testCustomerFacingHandoffWording();
   testCompoundPriceAndPreferredTime();
   testSiteVisitFeeOnce();

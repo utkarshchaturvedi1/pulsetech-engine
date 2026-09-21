@@ -922,7 +922,7 @@ async function main() {
     flow = applyTurn(
       flow,
       "ok",
-      "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability."
+      SITE_ASSESSMENT_TEAM_ALERT_ASK
     );
     assert(flow.lead.name === "Victor", "TEST13: ok does not become a name");
     assert(!flow.preferredTiming, "TEST13: ok is not preferred time");

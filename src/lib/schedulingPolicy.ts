@@ -2,15 +2,27 @@ import type { BusinessProfile } from "../types/business";
 import type { SalesObjective, UrgencyLevel } from "./salesState";
 
 /**
- * Website chat: after the customer says yes to a site assessment / next step,
- * acknowledge team alert + ask preference. Never imply the visit is already arranged.
+ * Website chat: after contact fields are in, ask preferred time without
+ * promising that an alert has already been sent.
  */
 export const SITE_ASSESSMENT_TEAM_ALERT_ASK =
-  "I'll alert the team to arrange a site assessment. What day or time would you prefer? The team will confirm availability.";
+  "Thanks. We can help with that. What day or time would you prefer for the visit?";
 
-/** Shared preferred-time acknowledgement (inbound voice). Website chat uses lead-handoff copy. */
+/** Ban delivery/booking promises until a handoff is actually queued or sent. */
+export const PRE_QUEUE_ALERT_PROMISE_RE =
+  /\b(i('ll| will) alert|we('ll| will) alert|alert(ed)? the team|i('ve| have) recorded your request|recorded your request|shared your request|(the |our )?team will (confirm|contact|call|reach)|they('ll| will) contact you)\b/i;
+
+/** Shared preferred-time acknowledgement (inbound voice). No alert claim — post-call queues the handoff. */
 export const PREFERRED_TIME_TEAM_ALERT_ACK =
-  "I've noted your preference for tomorrow morning. I'll alert the team now; they'll contact you as soon as possible to confirm the earliest available appointment.";
+  "I've noted your preference for tomorrow morning. Would you like me to proceed with that?";
+
+/** After preferred time is known, ask for explicit agreement without claiming an alert. */
+export const ASK_EXPLICIT_AGREEMENT =
+  "Would you like me to proceed with that visit time?";
+
+/** Inbound voice: explicit callback request — no callback/alert/delivery promise. */
+export const CALLBACK_REQUEST_VOICE_ACK =
+  "I'll make sure your request is included for the team.";
 
 export function formatBusinessDirectContact(business: BusinessProfile): string {
   const phone = business.phone?.trim();
@@ -31,7 +43,7 @@ export function buildSuccessfulLeadHandoffCustomerMessage(
   const timingLine = timing
     ? `We'll note ${timing} as your preferred time.`
     : `They'll contact you to confirm the earliest available appointment.`;
-  return `${thanks} — I've shared your request with the team. ${timingLine} The team will contact you at the number you provided to confirm availability.`;
+  return `${thanks} — I've shared your request with the team so they can help with your visit. ${timingLine} The team will contact you at the number you provided to confirm availability.`;
 }
 
 /** Used while delivery is queued / in progress — never claims the team already received it. */
@@ -93,7 +105,7 @@ export function messageAsksPricingOrBilling(text: string): boolean {
 }
 
 const SCOPE_DEPENDENT_PRICING_ANSWER =
-  "Pricing depends on the scope of work, the fixtures or materials involved, and what the team finds during the site assessment — they'll confirm the applicable pricing approach.";
+  "The exact cost depends on the diagnosis and the work needed — I don't have a verified price to quote from here.";
 
 /**
  * Answer hourly-vs-fixed (or similar) from BusinessProfile only.
@@ -124,19 +136,19 @@ export function buildPricingApproachAnswer(
     const rules = business.pricingRules?.trim();
     return rules
       ? rules
-      : "This business typically charges hourly. The team can confirm the rate and what is included for your request.";
+      : "This business typically charges hourly. The exact rate depends on the diagnosis and what the work includes.";
   }
   if (hasFixed && !hasHourly) {
     const rules = business.pricingRules?.trim();
     return rules
       ? rules
-      : "This business typically prices the full job rather than by the hour. The team can confirm the applicable price for your request.";
+      : "This business typically prices the full job rather than by the hour. The exact price depends on the diagnosis and scope.";
   }
   if (hasHourly && hasFixed) {
     const rules = business.pricingRules?.trim();
     return rules
       ? rules
-      : "Depending on the work, pricing may be hourly or for the full job. The team will confirm which approach applies after reviewing the scope.";
+      : "Depending on the work, pricing may be hourly or for the full job. The applicable approach depends on the scope.";
   }
 
   const rules = business.pricingRules?.trim();
@@ -209,8 +221,7 @@ export function resolveWebsiteChatCustomerHandoffReply(params: {
 }
 
 /** Shorter preferred-day ask used when no site-assessment framing is needed (e.g. voice). */
-export const ASK_PREFERRED_DAY_TIME =
-  "What day or time would you prefer? The team will confirm availability.";
+export const ASK_PREFERRED_DAY_TIME = "What day or time would you prefer?";
 
 export const INVENTED_SCHEDULE_RANGE_RE =
   /\b(next week,\s*(2|two)|2\s*[-–]\s*4\s*weeks|two to four weeks|or later|this month or next|next month or the month after|would you (prefer|like) next week)\b/i;
@@ -247,9 +258,9 @@ export function impliesConfirmedSiteAssessment(reply: string): boolean {
 
 export function isSiteAssessmentTeamAlertAsk(reply: string): boolean {
   return (
-    /\bi('ll| will) alert the team to arrange a site assessment\b/i.test(reply) &&
+    /\bwe can help with that\b/i.test(reply) &&
     /\bwhat day or time would you prefer\b/i.test(reply) &&
-    /\bteam will confirm availability\b/i.test(reply)
+    !PRE_QUEUE_ALERT_PROMISE_RE.test(reply)
   );
 }
 

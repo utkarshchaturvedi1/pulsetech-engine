@@ -5,6 +5,8 @@ import {
   INTERNAL_HANDOFF_STATUS_RE,
   SAME_DAY_PROMISE_RE,
   SITE_ASSESSMENT_TEAM_ALERT_ASK,
+  ASK_EXPLICIT_AGREEMENT,
+  PRE_QUEUE_ALERT_PROMISE_RE,
   buildFailedLeadHandoffCustomerMessage,
   buildQueuedLeadHandoffCustomerMessage,
   buildSuccessfulLeadHandoffCustomerMessage,
@@ -18,6 +20,7 @@ import {
   knowledgeAllowsSameDay,
   maxUrgency,
   messageAsksPricingOrBilling,
+  buildPricingApproachAnswer,
 } from "./schedulingPolicy";
 import {
   LeadFields,
@@ -50,9 +53,6 @@ const PROPERTY_TYPE_ASK_RE =
 
 const TROUBLESHOOT_ASK_RE =
   /\b(have you tried|did you (already )?check|check the (filter|thermostat|breaker)|reset (the )?(unit|system)|how long has (it|this) been|is it making (a )?noise|what error (code|message))\b/i;
-
-const PREMATURE_SUCCESS_CLOSE_RE =
-  /\b(i('ve| have) recorded your request|shared your request with the team|i('ll| will) alert the team|alert(ed)? the team|the team will (confirm|contact|call|reach)|our team will confirm)\b/i;
 
 const FAKE_CAPABILITY_RE =
   /\b(i('ll| will)?\s+(dispatch|schedule|book)|i('ve| have)\s+(scheduled|booked|dispatched|sent this to dispatch|confirmed (your )?appointment)|check(ing)?\s+(live\s+)?availability|contact(ed|ing)?\s+(a\s+)?technician|we (can|will) (send|dispatch) (someone|a technician)|you(?:'re| are) (all )?set|confirmed for)\b/i;
@@ -781,6 +781,30 @@ export function resolveDeterministicPreContactReply(
   return reply;
 }
 
+export function resolvePostContactConversationReply(
+  state: SalesState,
+  business: BusinessProfile,
+  latestUserMessage?: string
+): string | null {
+  if (!isLeadContactComplete(state)) return null;
+  if (
+    state.leadDeliveryStatus === "QUEUED" ||
+    state.leadDeliveryStatus === "SENT"
+  ) {
+    return null;
+  }
+  if (!latestUserMessage?.trim()) return null;
+  if (!messageAsksPricingOrBilling(latestUserMessage)) return null;
+
+  const price = buildPricingApproachAnswer(business);
+  const first = state.lead.name?.trim().split(/\s+/)[0];
+  const thanks = first ? `Thanks, ${first}. ` : "";
+  if (state.preferredTiming) {
+    return `${thanks}${price}`.trim();
+  }
+  return `${thanks}${price} If you'd like someone to come out, what day or time would you prefer?`.trim();
+}
+
 function isV1LeadComplete(state: SalesState): boolean {
   return (
     state.leadStatus === "SECURED" &&
@@ -1483,7 +1507,7 @@ HARD RULES FOR THIS RESPONSE:
 8. Do not provide DIY repair tutorials when the customer wants professional service. Brief safety-while-waiting guidance is allowed only for genuine hazards.
 9. Do not dump the full BusinessProfile or unrelated services.
 10. Sales mode is not technician mode — do not give long technical procedure dumps unless needed for the buying decision.
-11. If customerAgreed is true / objective is CLOSE: stop overselling, no questionnaire, no extra questions — deliver the positive final handoff message only (request captured; team will confirm availability). Never use "I can't book / can't complete the booking" language. Do NOT ask "Anything else?", "One quick question...", or "Would you like me to...".
+11. If customerAgreed is true / objective is CLOSE and delivery is QUEUED or SENT: stop overselling and deliver the truthful handoff message only. Never use "I can't book / can't complete the booking" language. If delivery is not queued or sent, do not say I'll alert, recorded, shared, or that the team will contact them. Do NOT ask "Anything else?" or "One quick question...".
 12. Prefer preserving the opportunity over forcing lead capture.
 13. For COLLECT_* and UNDERSTAND_NEED: roughly one short sentence + one question.
 14. Never expose internal delivery status. Never claim an appointment is booked.
@@ -1550,7 +1574,7 @@ Do NOT offer invented timing menus such as next week / 2–4 weeks / later.
 ${
   state.preferredTiming
     ? `preferredTiming is already known (${state.preferredTiming}). Do NOT ask another timing/refinement question.`
-    : "Do not ask for a preferred visit time here unless the Sales Controller objective is ADVANCE_TO_NEXT_STEP."
+    : "Do not ask for a preferred visit time until you have answered any direct customer question (especially price). Then invite a preferred visit time naturally. Do not say I'll alert, recorded, shared, or that the team will contact them."
 }
 If the lead is already complete (name/phone/address/need) and the customer is not raising a new issue, prefer advancing toward natural closure rather than inventing another "quick question".`;
     case "EXPLAIN_VALUE":
@@ -1558,17 +1582,16 @@ If the lead is already complete (name/phone/address/need) and the customer is no
 Use only BusinessProfile-supported differentiators. Ask at most ONE question if needed.
 Do NOT invent brands, catalogs, prices, or warranties. Do NOT ask access/pet/parking questions.`;
     case "HANDLE_PRICE_OBJECTION":
-      return `YOUR ONLY OBJECTIVE: handle the price/fee concern.
-Acknowledge → answer honestly from BusinessProfile/owner knowledge only.
-Never invent prices.
-If the BusinessProfile does not establish hourly versus fixed/project pricing, say pricing depends on scope, fixtures/materials, and site assessment — the team will confirm the applicable approach. Do not invent hourly or fixed pricing.
+      return `YOUR ONLY OBJECTIVE: answer the pricing question FIRST, then continue the sales conversation.
+Answer honestly from BusinessProfile/owner knowledge only. Never invent amounts, hourly rates, or fixed prices the profile does not contain.
+If the profile has no verified price, say the exact cost depends on the diagnosis and do not invent a number.
+Do NOT say I'll alert, recorded, shared, or that the team will contact them unless delivery is already queued or sent.
 ${
   state.preferredTiming
-    ? `Also acknowledge the preferred visit time (${state.preferredTiming}) naturally: note it for the team and that they will confirm availability. Do not claim the appointment is booked.`
-    : ""
+    ? `preferredTiming is already known (${state.preferredTiming}). Do not re-ask timing. Do not claim the appointment is booked.`
+    : `After the price answer, naturally ask what day or time they would prefer for a visit. Do not jump to timing before the price answer.`
 }
 If leadCapturePaused, do NOT ask for refused lead fields.
-Continue selling the value of the next step. Ask at most ONE clarifying question if needed.
 Do not mention whether a request was shared, emailed, texted, or delivered unless this turn is the successful handoff acknowledgement.`;
     case "HANDLE_COMPETITOR_OBJECTION":
       return `YOUR ONLY OBJECTIVE: handle competitor/price comparison.
@@ -1606,6 +1629,8 @@ Do NOT ask another timing/refinement question.`
       ? `Do NOT claim the request was shared with the team. Reply with this meaning only: "${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}"`
     : needsTeamAck && state.leadDeliveryStatus === "FAILED"
       ? `Do NOT claim the team was alerted. Reply with this meaning only: "${failedFallback}"`
+    : needsTeamAck
+      ? `Preferred time is known (${state.preferredTiming}). Do not say I'll alert, recorded, shared, or that the team will contact or confirm. Ask once for agreement: "${ASK_EXPLICIT_AGREEMENT}"`
     : leadComplete
       ? `Lead is captured. Preferred time is still missing, so this is not a completed handoff. After the customer agrees to a site assessment / next step, reply with this meaning only: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
 Never say the request was recorded or shared with the team until preferred time is captured and delivery is queued or sent.
@@ -1648,8 +1673,10 @@ ${
                 : "What's your name?"
           }"`
       : !state.preferredTiming
-        ? `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. What day or time would you prefer? The team will confirm availability."`
-      : `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I have your details${state.preferredTiming ? ` and preferred time (${state.preferredTiming})` : ""}. Our team will confirm the earliest available appointment. Nothing is booked yet."`
+        ? `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. What day or time would you prefer?"`
+      : !state.customerAgreed
+        ? `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. ${ASK_EXPLICIT_AGREEMENT}"`
+      : `"Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I have your details and preferred time (${state.preferredTiming}). ${ASK_EXPLICIT_AGREEMENT}"`
 }
 Then STOP.`;
     }
@@ -1961,15 +1988,19 @@ export function validateSalesReply(
     );
   }
 
-  if (!contactComplete && PREFERRED_TIME_ASK_RE.test(reply)) {
+  if (
+    state.leadDeliveryStatus !== "QUEUED" &&
+    state.leadDeliveryStatus !== "SENT" &&
+    PRE_QUEUE_ALERT_PROMISE_RE.test(reply)
+  ) {
     reasons.push(
-      "Asked for preferred time before name, customer phone, and service address were captured."
+      "Promised an alert, recording, share, or team contact before a handoff was queued."
     );
   }
 
-  if (!contactComplete && PREMATURE_SUCCESS_CLOSE_RE.test(reply)) {
+  if (!contactComplete && PREFERRED_TIME_ASK_RE.test(reply)) {
     reasons.push(
-      "Claimed the request was recorded, shared, or that the team will follow up before name, customer phone, and service address were captured."
+      "Asked for preferred time before name, customer phone, and service address were captured."
     );
   }
 
@@ -2150,7 +2181,9 @@ ${
     : state.leadDeliveryStatus === "FAILED"
       ? `If acknowledging the captured request, use this meaning: "${failedFallback}" Do not claim the team was alerted.`
       : isLeadContactComplete(state) && !state.preferredTiming
-        ? `Do not claim the request was already shared with the team. If the customer just said yes to a site assessment and no preferred time is known yet, reply with this meaning: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"`
+        ? `Do not claim an alert, recording, or team contact. Ask once for preferred time: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"`
+        : isLeadContactComplete(state) && !state.customerAgreed
+          ? `Do not claim an alert, recording, or team contact. Preferred time is known. Ask once for agreement: "${ASK_EXPLICIT_AGREEMENT}"`
         : `Do not claim the request was recorded, shared, or that the team will contact them. Ask only for the next missing field among name, customer phone, and service address. Do not ask preferred time, property type, or troubleshooting. Do not give the business phone number.`
 }
 Do not give DIY tutorials or technician dumps.

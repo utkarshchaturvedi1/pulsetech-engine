@@ -9,6 +9,7 @@ import {
   InquiryProtectStory,
   SetupExperience,
 } from "./LandingVisuals";
+import SiteFooter from "./SiteFooter";
 import "./landing.css";
 
 const PulseTechSalesAssistant = dynamic(
@@ -289,18 +290,7 @@ export default function LandingPage() {
             </section>
           </main>
 
-          <footer className="pt-footer">
-            <div className="pt-footer-inner">
-              <div>
-                <BrandLogo onDark />
-                <p className="pt-footer-tag">AI Sales Employees for high-intent businesses</p>
-              </div>
-              <nav className="pt-footer-nav">
-                <a href="https://pulsetechlabs.com/privacy-policy/">Privacy</a>
-                <a href="https://pulsetechlabs.com/terms-of-service/">Terms</a>
-              </nav>
-            </div>
-          </footer>
+          <SiteFooter />
         </div>
       </div>
     </div>

@@ -3,10 +3,12 @@ import { evaluateHandoffReadiness } from "./leadHandoffShared";
 import {
   agreedToArrange,
   buildAgreedPreferredTimeAsk,
+  buildCostOptionsHesitationReply,
   buildPostContactNextStepReply,
   buildPostContactPriceReply,
   buildTimeWithoutAgreementReply,
   classifyConversationNeedTone,
+  isCostOptionsHesitation,
   nextStepArticleNoun,
   replyAsksToArrangeNextStep,
   resolveWarmPreContactReply,
@@ -797,7 +799,8 @@ export function resolveDeterministicPreContactReply(
 export function resolvePostContactConversationReply(
   state: SalesState,
   business: BusinessProfile,
-  latestUserMessage?: string
+  latestUserMessage?: string,
+  recentAssistantMessage?: string
 ): string | null {
   if (!isLeadContactComplete(state)) return null;
   if (
@@ -827,6 +830,13 @@ export function resolvePostContactConversationReply(
   }
 
   if (!agreedToArrange(state) && !state.preferredTiming) {
+    if (isCostOptionsHesitation(latestUserMessage)) {
+      return buildCostOptionsHesitationReply(
+        state,
+        business,
+        recentAssistantMessage
+      );
+    }
     if (
       /\?/.test(latestUserMessage) &&
       !messageAsksPricingOrBilling(latestUserMessage)
@@ -906,9 +916,10 @@ function detectSalesObjective(text: string): SalesObjective | null {
   }
 
   if (
-    /\b(not sure|need to think|think about it|hesitat|why (should|would) i (choose|go with)|worth it)\b/.test(
+    /\b(not sure|need to think|think about it|hesitat|why (should|would) i (choose|go with)|worth it|financial implication|decid(?:e|ing) after|after seeing)\b/.test(
       t
-    )
+    ) ||
+    isCostOptionsHesitation(t)
   ) {
     if (/\bwhy (should|would) i (choose|go with)\b/.test(t)) {
       return "EXPLAIN_VALUE";
@@ -1625,8 +1636,8 @@ Do not start every sentence with the customer's name.
 ${
   agreedToArrange(state) && !state.preferredTiming
     ? `The customer already agreed to arrange the next step. Ask once what day or time they would prefer. Do not say I'll alert, recorded, shared, or that the team will contact them.`
-    : !agreedToArrange(state)
-      ? `Name, customer phone, and service address are secured. Give a short, helpful, need-aware explanation of the sensible next step using profile-appropriate language (visit/assessment only if the profile is field service; otherwise consultation, appointment, or follow-up). Then ask whether they would like to arrange it. Do NOT ask preferred day/time yet. Do not say I'll alert, recorded, shared, or that the team will contact them.`
+      : !agreedToArrange(state)
+      ? `Name, customer phone, and service address are secured. Briefly explain the tangible customer benefit of the next step (visit for field-service problems; consultation for projects, celebrations, and professional advice), then ask whether they would like to arrange it. Be confident and natural — not a bare "Would you like to arrange a consultation?" with no benefit. Do NOT invent free consultations, estimates, bookings, availability, or no-obligation promises unless BusinessProfile explicitly states them. Do NOT ask preferred day/time yet. Do not say I'll alert, recorded, shared, or that the team will contact them.`
       : state.preferredTiming
         ? `preferredTiming is already known (${state.preferredTiming}). Do NOT ask another timing/refinement question.`
         : "Do not ask for a preferred visit time until the customer has agreed to arrange the next step."
@@ -1656,7 +1667,10 @@ Do not mention whether a request was shared, emailed, texted, or delivered unles
 No invented superiority. Use BusinessProfile-supported facts only. Ask at most ONE clarifying question if needed.`;
     case "HANDLE_HESITATION":
       return `YOUR ONLY OBJECTIVE: handle hesitation without pressure.
-Ask at most ONE clarifying question if needed.`;
+Acknowledge briefly (for example "That makes sense"), then explain the tangible benefit of the next step and ask whether they would like to arrange it.
+Do not replay the original post-contact invitation or mechanically repeat earlier enthusiasm lines such as "That sounds like a great project".
+Do not invent free consultations, estimates, bookings, availability, outcomes, or no-obligation promises unless BusinessProfile explicitly states them.
+Ask at most ONE clarifying question if needed. Do NOT ask preferred day/time until they agree to arrange.`;
     case "CROSS_SELL":
       return `YOUR ONLY OBJECTIVE: introduce ONE naturally relevant additional BusinessProfile offering only if useful and timely.
 Do not ambush before the primary need is handled.`;

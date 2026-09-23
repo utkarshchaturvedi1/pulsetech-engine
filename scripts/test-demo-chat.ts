@@ -55,17 +55,26 @@ import {
   PRE_CONTACT_ASK_FIRST_NAME,
   PRE_CONTACT_ASK_PHONE,
   recordSiteVisitFeeMention,
+  resolvePostContactConversationReply,
   updateSalesStateFromTurn,
   validateSalesReply,
 } from "../src/lib/salesController";
 import {
+  buildCostOptionsHesitationReply,
   buildEmpatheticNameAsk,
   buildIntentAwarePriceAnswer,
+  buildPersuasiveArrangeInvitation,
   buildPostContactNextStepReply,
   classifyConversationNeedTone,
+  isCostOptionsHesitation,
   isFieldServiceProfile,
   replyUsesFieldServiceJargon,
 } from "../src/lib/salesConversation";
+import {
+  CHAT_AVATAR_SURFACE,
+  PULSETECH_CHAT_ICON,
+  chatAvatarMonogram,
+} from "../src/lib/chatAvatar";
 import {
   createInitialSalesState,
   type SalesState,
@@ -390,6 +399,33 @@ function testLayoutConstraints() {
   assert(
     agentShell.includes("data-chat-agent-name"),
     "agent name has a contrast hook for dark homepage headers"
+  );
+  assert(
+    agentShell.includes("data-compact-avatar") &&
+      agentShell.includes("data-compact-avatar-fallback") &&
+      agentShell.includes("CHAT_AVATAR_SURFACE") &&
+      agentShell.includes("object-contain") &&
+      agentShell.includes("fallbackLabel"),
+    "chat headers use adaptive avatar surface + monogram fallback"
+  );
+
+  const demoWorkspace = readSrc("src/components/DemoWorkspace.tsx");
+  assert(
+    demoWorkspace.includes("PULSETECH_CHAT_ICON") ||
+      demoWorkspace.includes("/branding/pulsetech-icon-color.svg"),
+    "two-panel demo uses the tracked PulseTech identity icon for Peter"
+  );
+  assert(
+    !/pulsetechlabs\.com\/wp-content\/uploads\/2026\/07\/PulseTech-Labs-Logo-icon/i.test(
+      demoWorkspace
+    ),
+    "two-panel demo must not depend on the remote webp avatar URL"
+  );
+
+  const customerAi = readSrc("src/components/CustomerAI.tsx");
+  assert(
+    customerAi.includes("fallbackLabel={business.businessName"),
+    "customer chat monogram falls back to the business name"
   );
 
   console.log("PASS — demo chat layout CSS + rendered markup");
@@ -2378,7 +2414,7 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Clearflow Plumbing",
@@ -2395,7 +2431,7 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Northwind HVAC",
@@ -2412,7 +2448,7 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Brightline Electrical",
@@ -2429,7 +2465,7 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Ridgeview Roofing",
@@ -2446,7 +2482,8 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "ASPIRATIONAL",
       nameAck: /that sounds like a great project/i,
       forbidSorry: true,
-      postContactHint: /short consultation|what you have in mind|arrange a consultation/i,
+      postContactHint:
+        /consultation lets the team understand the space|before you commit|arrange a consultation/i,
       profile: {
         ...business,
         businessName: "Bluewater Outdoor Living",
@@ -2463,7 +2500,8 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "CELEBRATION",
       nameAck: /how exciting|congratulations/i,
       forbidSorry: true,
-      postContactHint: /sounds wonderful|consultation|occasion|arrange a consultation/i,
+      postContactHint:
+        /short consultation lets the team understand the occasion|prepare options that fit|arrange a consultation/i,
       profile: {
         ...business,
         businessName: "Gardenview Events",
@@ -2480,7 +2518,8 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "CONSULTATION",
       nameAck: /absolutely, i'?d be glad to help/i,
       forbidSorry: true,
-      postContactHint: /consultation is the best way|arrange a consultation/i,
+      postContactHint:
+        /short conversation lets the team understand your goals|recommend the right next step|arrange a consultation/i,
       profile: {
         ...business,
         businessName: "Northline Advisory",
@@ -2860,6 +2899,191 @@ function testVerifiedPricingNeverLeaksFieldServiceJargon() {
   );
 }
 
+function testPersuasivePostContactInvitations() {
+  const fieldBusiness: BusinessProfile = {
+    ...business,
+    services: ["Heating repair"],
+    systemPrompt: "Field technicians handle on-site service visits.",
+  };
+  const projectBusiness: BusinessProfile = {
+    ...business,
+    services: ["Outdoor installation"],
+    systemPrompt: "We install outdoor living features.",
+  };
+  const eventBusiness: BusinessProfile = {
+    ...business,
+    services: ["Event venues"],
+    systemPrompt:
+      "We host celebrations and provide venue consultations. We do not send technicians on site.",
+  };
+  const consultBusiness: BusinessProfile = {
+    ...business,
+    services: ["Business strategy consultation"],
+    systemPrompt:
+      "We provide consultations and recommendations. We do not send technicians on site.",
+  };
+
+  const repair = buildPersuasiveArrangeInvitation(
+    fieldBusiness,
+    "PROBLEM"
+  );
+  assert(
+    /visit lets the professional identify the cause/i.test(repair) &&
+      /explain the options/i.test(repair) &&
+      /clear quote before any work begins/i.test(repair) &&
+      /would you like to arrange a visit/i.test(repair),
+    `repair invitation, got ${repair}`
+  );
+
+  const project = buildPersuasiveArrangeInvitation(
+    projectBusiness,
+    "ASPIRATIONAL"
+  );
+  assert(
+    /understand the space/i.test(project) &&
+      /before you commit to anything/i.test(project) &&
+      /would you like to arrange a consultation/i.test(project),
+    `project invitation, got ${project}`
+  );
+
+  const event = buildPersuasiveArrangeInvitation(
+    eventBusiness,
+    "CELEBRATION"
+  );
+  assert(
+    /understand the occasion and your plans/i.test(event) &&
+      /prepare options that fit/i.test(event) &&
+      /would you like to arrange a consultation/i.test(event),
+    `event invitation, got ${event}`
+  );
+
+  const consult = buildPersuasiveArrangeInvitation(
+    consultBusiness,
+    "CONSULTATION"
+  );
+  assert(
+    /understand your goals/i.test(consult) &&
+      /recommend the right next step/i.test(consult) &&
+      /would you like to arrange a consultation/i.test(consult),
+    `consultation invitation, got ${consult}`
+  );
+
+  for (const reply of [repair, project, event, consult]) {
+    assert(
+      !/\bfree\b/i.test(reply) &&
+        !/\bno obligation\b/i.test(reply) &&
+        !/\bbooked\b/i.test(reply) &&
+        !/\bavailable (today|tomorrow|now)\b/i.test(reply) &&
+        !/\$\s?\d/.test(reply),
+      `must not invent promises or prices, got ${reply}`
+    );
+  }
+
+  const projectState = securedLead({
+    customerNeed: "I'd like to install an outdoor upgrade for our patio.",
+    preferredTiming: null,
+    customerAgreed: false,
+  });
+  assert(
+    buildPostContactNextStepReply(projectState, projectBusiness) === project,
+    "post-contact next step uses persuasive project invitation"
+  );
+
+  const hesitationMessage =
+    "I will decide after seeing the financial implication and options.";
+  assert(
+    isCostOptionsHesitation(hesitationMessage),
+    "cost/options hesitation must be detected"
+  );
+  const hesitation = resolvePostContactConversationReply(
+    projectState,
+    projectBusiness,
+    hesitationMessage,
+    "We can review fixture options during a consultation."
+  );
+  assert(!!hesitation, "cost/options hesitation must get a deterministic reply");
+  assert(
+    /^that makes sense\./i.test(hesitation!),
+    `hesitation must acknowledge naturally, got ${hesitation}`
+  );
+  assert(
+    /review the options and likely cost before deciding on fixtures/i.test(
+      hesitation!
+    ),
+    `hesitation must continue the product conversation, got ${hesitation}`
+  );
+  assert(
+    /would you like to arrange one/i.test(hesitation!),
+    `hesitation must invite arrangement, got ${hesitation}`
+  );
+  assert(
+    !/that sounds like a great project/i.test(hesitation!) &&
+      !/understand the space, discuss the options, and give you a clear quote before you commit/i.test(
+        hesitation!
+      ),
+    `hesitation must not replay the original invitation, got ${hesitation}`
+  );
+  assert(
+    buildCostOptionsHesitationReply(
+      projectState,
+      projectBusiness,
+      "We can review fixture options during a consultation."
+    ) === hesitation,
+    "hesitation helper must match resolvePostContactConversationReply"
+  );
+
+  console.log(
+    "PASS — persuasive post-contact invitations + cost/options hesitation"
+  );
+}
+
+function testChatAvatarIdentityVisibility() {
+  assert(
+    chatAvatarMonogram("Gardenview Events") === "GE",
+    "business-name monogram uses two initials"
+  );
+  assert(
+    chatAvatarMonogram("PulseTech") === "PU",
+    "single-word monogram uses two letters"
+  );
+  assert(
+    chatAvatarMonogram("  ") === "A",
+    "empty label falls back to A"
+  );
+  assert(
+    /linear-gradient/i.test(CHAT_AVATAR_SURFACE),
+    "avatar surface uses a neutral adaptive gradient"
+  );
+  assert(
+    PULSETECH_CHAT_ICON === "/branding/pulsetech-icon-color.svg",
+    "PulseTech chat icon points at the tracked branding asset"
+  );
+
+  const markup = renderToStaticMarkup(
+    createElement(DemoWorkspace, {
+      initialProfile: {
+        ...business,
+        businessName: "Northline Advisory",
+        logo: "",
+        agentName: "Ava",
+        leadNotificationEmail: "alerts@northline.test",
+        leadNotificationPhone: "+15125550115",
+      },
+      demoId: "demo_avatar_visibility",
+    })
+  );
+  assert(
+    markup.includes(PULSETECH_CHAT_ICON),
+    "rendered two-panel demo includes the PulseTech identity icon"
+  );
+  assert(
+    markup.includes("Northline Advisory"),
+    "customer header keeps business-name personalization"
+  );
+
+  console.log("PASS — chat avatar identity visibility helpers");
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
@@ -2872,6 +3096,8 @@ async function main() {
   await testPostContactSalesConversation();
   await testProfileAwareSalesConversationQuality();
   testVerifiedPricingNeverLeaksFieldServiceJargon();
+  testPersuasivePostContactInvitations();
+  testChatAvatarIdentityVisibility();
   testPreQueueAlertWordingBan();
   testCustomerFacingHandoffWording();
   testCompoundPriceAndPreferredTime();

@@ -9,14 +9,14 @@ import { BusinessProfile } from "../types/business";
 import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
 import { DEMO_CHAT_LAYOUT } from "../lib/demoChatLayout";
 import { hasConfiguredWebsiteChatLeadAlerts } from "../lib/leadAlertRecipients";
+import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
 
 type DemoWorkspaceProps = {
   initialProfile: BusinessProfile;
   demoId?: string;
 };
 
-const PETER_AVATAR =
-  "https://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
+const PETER_AVATAR = PULSETECH_CHAT_ICON;
 const PULSETECH_LOGO = "/branding/pulsetech-logo-color.svg";
 
 async function persistDemo(id: string, profile: BusinessProfile) {

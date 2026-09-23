@@ -7,6 +7,7 @@ import AnalysisProgressIndicator from "./AnalysisProgressIndicator";
 import { analyzeWebsite } from "../lib/websiteAnalyzer";
 import { saveDemoLocal } from "../lib/demoStore";
 import { BusinessProfile } from "../types/business";
+import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
 
 type Props = {
   agentName?: string;
@@ -18,8 +19,7 @@ type Phase = "intake" | "analyzing" | "error";
 
 const DEFAULT_AGENT_NAME = "Peter";
 const DEFAULT_AGENT_ROLE = "AI Sales Agent";
-const DEFAULT_AGENT_AVATAR =
-  "http://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
+const DEFAULT_AGENT_AVATAR = PULSETECH_CHAT_ICON;
 
 const CREATING_MESSAGE =
   "I'm creating your AI Sales Employee around your business. Give me a moment...";
@@ -228,6 +228,7 @@ You can reply "retry" to try again.`,
       name={agentName}
       role={agentRole}
       avatar={agentAvatar}
+      fallbackLabel="PulseTech"
       className="h-full min-h-0"
     >
       <ChatWindow

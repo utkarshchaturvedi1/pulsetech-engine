@@ -514,10 +514,14 @@ export async function generateSalesReply(
     latestUserMessage: latestUser?.content,
   });
   if (!deterministicHandoffReply) {
+    const recentAssistant = [...messages]
+      .reverse()
+      .find((message) => message.role === "assistant");
     deterministicHandoffReply = resolvePostContactConversationReply(
       salesState,
       business,
-      latestUser?.content
+      latestUser?.content,
+      recentAssistant?.content
     );
   }
   if (

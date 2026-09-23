@@ -14,6 +14,7 @@ import {
   normalizeLeadAlertSms,
   shouldCollectLeadAlertSetup,
 } from "../lib/leadAlertRecipients";
+import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
 
 type PulseTechEngineChatProps = {
   website: string;
@@ -40,8 +41,7 @@ type ChatPhase =
 
 const DEFAULT_AGENT_NAME = "Peter";
 const DEFAULT_AGENT_ROLE = "AI Sales Agent";
-const DEFAULT_AGENT_AVATAR =
-  "http://pulsetechlabs.com/wp-content/uploads/2026/07/PulseTech-Labs-Logo-icon-2.webp";
+const DEFAULT_AGENT_AVATAR = PULSETECH_CHAT_ICON;
 
 const ANALYZING_MESSAGE =
   "Give me a moment... I'm analyzing your website.";
@@ -391,6 +391,7 @@ You can reply "retry" to try analyzing again.`
       name={agentName}
       role={agentRole}
       avatar={agentAvatar}
+      fallbackLabel="PulseTech"
       className={className}
     >
       <ChatWindow

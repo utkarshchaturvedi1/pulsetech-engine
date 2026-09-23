@@ -188,37 +188,43 @@ function needToneFromState(
   );
 }
 
+/**
+ * Persuasive post-contact invitation: tangible benefit + confident arrange ask.
+ * No free/booking/availability promises unless verified elsewhere in profile facts.
+ */
+export function buildPersuasiveArrangeInvitation(
+  business: BusinessProfile,
+  tone?: ConversationNeedTone
+): string {
+  const resolved = tone || "CONSULTATION";
+  const step = nextStepArticleNoun(business, resolved);
+  const fieldProblem =
+    resolved === "PROBLEM" && isFieldServiceProfile(business);
+
+  switch (resolved) {
+    case "PROBLEM":
+      if (fieldProblem) {
+        return `A visit lets the professional identify the cause, explain the options, and give you a clear quote before any work begins. Would you like to arrange ${step}?`;
+      }
+      return `A short conversation lets the team understand your goals and recommend the right next step. Would you like to arrange ${step}?`;
+    case "ASPIRATIONAL":
+      return `A consultation lets the team understand the space, discuss the options, and give you a clear quote before you commit to anything. Would you like to arrange ${step}?`;
+    case "CELEBRATION":
+      return `A short consultation lets the team understand the occasion and your plans, then prepare options that fit. Would you like to arrange ${step}?`;
+    case "CONSULTATION":
+    default:
+      return `A short conversation lets the team understand your goals and recommend the right next step. Would you like to arrange ${step}?`;
+  }
+}
+
 export function buildPostContactNextStepReply(
   state: SalesState,
   business: BusinessProfile
 ): string {
-  const tone = needToneFromState(state, business);
-  const step = nextStepArticleNoun(business, tone);
-  const fieldProblem = tone === "PROBLEM" && isFieldServiceProfile(business);
-
-  let body: string;
-  switch (tone) {
-    case "PROBLEM":
-      body = fieldProblem
-        ? "I'm sorry—that's frustrating. There can be different causes, so a professional assessment is the best way to identify the issue and give you a clear quote before work begins."
-        : "I'm sorry—that's frustrating. A short consultation is the best way to understand the issue and recommend a clear next step.";
-      break;
-    case "ASPIRATIONAL":
-      body =
-        "That sounds like a great project. A short consultation is the best way to understand what you have in mind, discuss options, and prepare a clear quote.";
-      break;
-    case "CELEBRATION":
-      body =
-        "That sounds wonderful. A quick consultation will help the team understand the occasion, guest count, and what you have in mind before they prepare options.";
-      break;
-    case "CONSULTATION":
-    default:
-      body =
-        "A consultation is the best way to understand what you need and recommend a clear next step.";
-      break;
-  }
-
-  return `${body} Would you like to arrange ${step}?`.replace(/\s+/g, " ").trim();
+  return buildPersuasiveArrangeInvitation(
+    business,
+    needToneFromState(state, business)
+  );
 }
 
 export function buildAgreedPreferredTimeAsk(
@@ -228,16 +234,69 @@ export function buildAgreedPreferredTimeAsk(
   return `What day or time would you prefer for the ${nextStepNoun(business, tone)}?`;
 }
 
+/** Short arrange ask for appending after a price/scope answer that already explained benefit. */
 export function buildArrangeDecisionAsk(
   business: BusinessProfile,
   tone?: ConversationNeedTone
 ): string {
   const resolved = tone || "CONSULTATION";
-  const step = nextStepArticleNoun(business, resolved);
-  if (resolved === "PROBLEM" && isFieldServiceProfile(business)) {
-    return `Would you like to arrange ${step} so they can assess it and give you a clear quote?`;
+  return `Would you like to arrange ${nextStepArticleNoun(business, resolved)}?`;
+}
+
+/** Cost/options hesitation after product detail — acknowledge, do not replay the first invite. */
+export function isCostOptionsHesitation(
+  message: string | null | undefined
+): boolean {
+  const t = (message || "").toLowerCase();
+  if (!t.trim()) return false;
+  if (/\bfinancial implication/.test(t)) return true;
+  if (
+    /\b(decid(?:e|ing)|see(?:ing)?|review(?:ing)?|look(?:ing)? at)\b/.test(t) &&
+    /\b(cost|price|pricing|financial|options?|implication|quote)\b/.test(t)
+  ) {
+    return true;
   }
-  return `Would you like to arrange ${step}?`;
+  return /\bafter seeing\b/.test(t) && /\b(options?|cost|price|financial)\b/.test(t);
+}
+
+function extractDecisionTopic(
+  ...texts: Array<string | null | undefined>
+): string | null {
+  const blob = texts.filter(Boolean).join(" ");
+  if (!blob) return null;
+  const match = blob.match(
+    /\b(fixtures?|materials?|finishes?|packages?|models?|designs?|layouts?)\b/i
+  );
+  if (!match) return null;
+  const raw = match[1].toLowerCase();
+  // Prefer natural plural customer-facing phrasing when detected.
+  if (raw === "fixture") return "fixtures";
+  return raw;
+}
+
+export function buildCostOptionsHesitationReply(
+  state: SalesState,
+  business: BusinessProfile,
+  recentContext?: string | null
+): string {
+  const tone = needToneFromState(state, business);
+  const topic = extractDecisionTopic(
+    recentContext,
+    state.customerNeed,
+    state.primaryNeed
+  );
+  const beforeDeciding = topic
+    ? ` before deciding on ${topic}`
+    : " before deciding";
+  const fieldProblem = tone === "PROBLEM" && isFieldServiceProfile(business);
+
+  if (fieldProblem) {
+    return `That makes sense. A visit lets you review the options and likely cost${beforeDeciding}. Would you like to arrange one?`;
+  }
+  if (tone === "CELEBRATION") {
+    return `That makes sense. A short consultation lets you review the options and likely cost${beforeDeciding}. Would you like to arrange one?`;
+  }
+  return `That makes sense. A consultation lets you review the options and likely cost${beforeDeciding}. Would you like to arrange one?`;
 }
 
 /** Verified hourly/fixed approach line without diagnosis or work jargon. */

@@ -86,6 +86,7 @@ export default function CustomerAI({
       name={business.agentName || business.businessName || "AI Sales Employee"}
       role="AI Sales Employee"
       avatar={business.logo || undefined}
+      fallbackLabel={business.businessName || business.agentName || "AI"}
       className={`min-h-0 min-w-0 w-full ${className}`.trim()}
     >
       <ChatWindow

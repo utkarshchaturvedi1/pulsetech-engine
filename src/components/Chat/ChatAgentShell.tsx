@@ -1,11 +1,17 @@
 "use client";
 
 import { useState, type CSSProperties, type ReactNode } from "react";
+import {
+  CHAT_AVATAR_SURFACE,
+  chatAvatarMonogram,
+} from "../../lib/chatAvatar";
 
 type ChatAgentShellProps = {
   name: string;
   role: string;
   avatar?: string;
+  /** Used for fallback monogram when the logo is missing or fails to load. */
+  fallbackLabel?: string;
   className?: string;
   statusLabel?: string;
   themeStyle?: CSSProperties;
@@ -17,6 +23,7 @@ export default function ChatAgentShell({
   name,
   role,
   avatar,
+  fallbackLabel,
   className = "",
   statusLabel = "Online",
   themeStyle,
@@ -26,6 +33,7 @@ export default function ChatAgentShell({
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const avatarSrc = avatar?.trim() || "";
   const showImage = Boolean(avatarSrc) && failedSrc !== avatarSrc;
+  const monogram = chatAvatarMonogram(fallbackLabel || name);
 
   return (
     <div
@@ -49,18 +57,20 @@ export default function ChatAgentShell({
               src={avatarSrc}
               alt=""
               onError={() => setFailedSrc(avatarSrc)}
-              className="h-10 w-10 rounded-full bg-white object-contain p-0.5 ring-1 ring-slate-200"
+              className="h-10 w-10 rounded-full object-contain p-1.5 ring-1 ring-slate-200/90"
+              style={{ background: CHAT_AVATAR_SURFACE }}
             />
           ) : (
             <div
               data-compact-avatar-fallback
-              className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold ring-1 ring-slate-200"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-semibold tracking-tight ring-1 ring-slate-200/90"
               style={{
-                background: "var(--pt-accent-soft, #dbeafe)",
-                color: "var(--pt-accent, #2563eb)",
+                background: CHAT_AVATAR_SURFACE,
+                color: "var(--pt-accent, #0f172a)",
               }}
+              aria-hidden
             >
-              {name.slice(0, 1).toUpperCase() || "A"}
+              {monogram}
             </div>
           )}
           <span

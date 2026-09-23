@@ -105,7 +105,7 @@ export function messageAsksPricingOrBilling(text: string): boolean {
 }
 
 const SCOPE_DEPENDENT_PRICING_ANSWER =
-  "The exact cost depends on the diagnosis and the work needed — I don't have a verified price to quote from here.";
+  "The final amount depends on the diagnosis and the scope of work.";
 
 /**
  * Answer hourly-vs-fixed (or similar) from BusinessProfile only.
@@ -273,7 +273,7 @@ export function detectVisitPreferenceRequest(text: string): boolean {
     return true;
   }
   if (
-    /\b(arrange|schedule|appointment|come out|come by|come over|come tomorrow|come today|visit me|send someone)\b/.test(
+    /\b(arrange|schedule|appointment|come out|come by|come over|come tomorrow|come today|visit me|send someone|need someone)\b/.test(
       t
     )
   ) {
@@ -289,9 +289,7 @@ export function detectVisitPreferenceRequest(text: string): boolean {
   }
   return (
     extractPreferredVisitTimeFromText(text) !== null &&
-    /\b(arrange|come|visit|schedule|appointment|morning|afternoon|evening|asap)\b/.test(
-      t
-    )
+    /\b(arrange|come|visit|schedule|appointment|asap)\b/.test(t)
   );
 }
 

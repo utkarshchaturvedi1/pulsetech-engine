@@ -59,6 +59,14 @@ import {
   validateSalesReply,
 } from "../src/lib/salesController";
 import {
+  buildEmpatheticNameAsk,
+  buildIntentAwarePriceAnswer,
+  buildPostContactNextStepReply,
+  classifyConversationNeedTone,
+  isFieldServiceProfile,
+  replyUsesFieldServiceJargon,
+} from "../src/lib/salesConversation";
+import {
   createInitialSalesState,
   type SalesState,
 } from "../src/lib/salesState";
@@ -473,7 +481,11 @@ function testVisitPreferenceNoDuplicateAddress() {
 
   const yesAck = validateSalesReply(
     SITE_ASSESSMENT_TEAM_ALERT_ASK,
-    securedLead({ currentObjective: "ADVANCE_TO_NEXT_STEP", preferredTiming: null }),
+    securedLead({
+      currentObjective: "ADVANCE_TO_NEXT_STEP",
+      preferredTiming: null,
+      appointmentIntent: true,
+    }),
     business
   );
   assert(
@@ -578,7 +590,11 @@ function testVisitPreferenceNoDuplicateAddress() {
 
   const askPreferred = validateSalesReply(
     SITE_ASSESSMENT_TEAM_ALERT_ASK,
-    securedLead({ currentObjective: "ADVANCE_TO_NEXT_STEP", preferredTiming: null }),
+    securedLead({
+      currentObjective: "ADVANCE_TO_NEXT_STEP",
+      preferredTiming: null,
+      appointmentIntent: true,
+    }),
     business
   );
   assert(
@@ -1831,12 +1847,19 @@ function testHighIntentLeadCaptureOrder() {
     );
 
     const nameAsk = validateSalesReply(
-      "Absolutely, we can help with that. What's your name?",
+      buildEmpatheticNameAsk(request),
       started,
       business,
       request
     );
     assert(nameAsk.ok, `name ask must pass: ${nameAsk.reasons.join("; ")}`);
+    const coldName = validateSalesReply(
+      `We can help with that. ${PRE_CONTACT_ASK_FIRST_NAME}`,
+      started,
+      business,
+      request
+    );
+    assert(!coldName.ok, "cold form name ask must fail when a problem was stated");
 
     const propertyType = validateSalesReply(
       "Is this for a residential or commercial property?",
@@ -1940,12 +1963,19 @@ function testHighIntentLeadCaptureOrder() {
     "must not use recorded/team-confirm wording while address is missing"
   );
   const askAddress = validateSalesReply(
-    "Thanks, Jordan. What's the service address?",
+    PRE_CONTACT_ASK_ADDRESS,
     afterNamePhone,
     business,
     "5125550198. Tomorrow morning works."
   );
   assert(askAddress.ok, `next field must be address: ${askAddress.reasons.join("; ")}`);
+  const mechanicalName = validateSalesReply(
+    "Thanks, Jordan. What's the service address?",
+    afterNamePhone,
+    business,
+    "5125550198. Tomorrow morning works."
+  );
+  assert(!mechanicalName.ok, "must not start the address ask with Thanks, {name}");
 
   const askedForNumber = validateSalesReply(
     `Our number is ${business.phone}. What's your name?`,
@@ -2017,8 +2047,8 @@ async function testDeterministicPreContactChatReplies() {
       { role: "user", content: request },
     ]);
     assert(
-      first.reply === `We can help with that. ${PRE_CONTACT_ASK_FIRST_NAME}`,
-      `final chat reply must be the deterministic name question, got: ${first.reply}`
+      first.reply === buildEmpatheticNameAsk(request),
+      `final chat reply must be the empathetic name question, got: ${first.reply}`
     );
     assert(
       first.reply.includes(PRE_CONTACT_ASK_FIRST_NAME) &&
@@ -2038,7 +2068,7 @@ async function testDeterministicPreContactChatReplies() {
       first.salesState
     );
     assert(
-      afterName.reply === `Thanks, Jordan. ${PRE_CONTACT_ASK_PHONE}`,
+      afterName.reply === PRE_CONTACT_ASK_PHONE,
       `final chat reply must ask for customer phone, got: ${afterName.reply}`
     );
     assertNoPreContactLeak(afterName.reply);
@@ -2055,7 +2085,7 @@ async function testDeterministicPreContactChatReplies() {
       afterName.salesState
     );
     assert(
-      afterPhone.reply === `Thanks, Jordan. ${PRE_CONTACT_ASK_ADDRESS}`,
+      afterPhone.reply === PRE_CONTACT_ASK_ADDRESS,
       `final chat reply must ask for service address, got: ${afterPhone.reply}`
     );
     assertNoPreContactLeak(afterPhone.reply);
@@ -2135,14 +2165,25 @@ async function testPostContactSalesConversation() {
     [{ role: "user", content: "How much will it cost?" }],
     secured
   );
-  const priceIdx = priceTurn.reply.toLowerCase().indexOf("cost");
-  const timeIdx = priceTurn.reply.toLowerCase().indexOf("what day or time");
+  const priceIdx = priceTurn.reply.toLowerCase().indexOf("cost") >= 0
+    ? priceTurn.reply.toLowerCase().indexOf("cost")
+    : priceTurn.reply.toLowerCase().indexOf("amount");
+  const arrangeIdx = priceTurn.reply.toLowerCase().indexOf("would you like to arrange");
   assert(priceIdx >= 0, `price must be answered first, got: ${priceTurn.reply}`);
-  assert(timeIdx > priceIdx, `time guide must follow the price answer, got: ${priceTurn.reply}`);
+  assert(arrangeIdx > priceIdx, `arrange ask must follow the price answer, got: ${priceTurn.reply}`);
   assert(
-    /depends on the diagnosis|verified price|pricingRules/i.test(priceTurn.reply) ||
-      /exact cost depends/i.test(priceTurn.reply),
+    !/what day or time would you prefer/i.test(priceTurn.reply),
+    `price must not force a preferred-time question, got: ${priceTurn.reply}`
+  );
+  assert(
+    /depends on (what the assessment finds|the diagnosis)|scope of work|exact cost depends|final cost depends/i.test(
+      priceTurn.reply
+    ),
     `unverified price must not invent an amount, got: ${priceTurn.reply}`
+  );
+  assert(
+    !/i don't have a verified price to quote from here/i.test(priceTurn.reply),
+    `must not use the old verified-price refusal, got: ${priceTurn.reply}`
   );
   assert(!/\$\s?\d/.test(priceTurn.reply), `must not invent a dollar amount, got: ${priceTurn.reply}`);
   assert(
@@ -2167,8 +2208,12 @@ async function testPostContactSalesConversation() {
     `verified pricing must be used when configured, got: ${verified.reply}`
   );
   assert(
-    /what day or time would you prefer/i.test(verified.reply),
-    "after a price answer, still guide naturally to preferred time"
+    /would you like to arrange/i.test(verified.reply),
+    "after a price answer, ask whether to arrange the next step"
+  );
+  assert(
+    !/what day or time would you prefer/i.test(verified.reply),
+    "verified price must not jump to preferred time before agreement"
   );
 
   const completeState = securedLead({
@@ -2225,7 +2270,7 @@ async function testPostContactSalesConversation() {
     { role: "user", content: "The drain is clogged and I need it fixed." },
   ]);
   assert(
-    early.reply === `We can help with that. ${PRE_CONTACT_ASK_FIRST_NAME}`,
+    early.reply === buildEmpatheticNameAsk("The drain is clogged and I need it fixed."),
     `early capture must stay deterministic, got: ${early.reply}`
   );
 
@@ -2255,7 +2300,16 @@ function testPreQueueAlertWordingBan() {
     afterAddress,
     business
   );
-  assert(timeAsk.ok, `missing time must allow a warm time question: ${timeAsk.reasons.join("; ")}`);
+  assert(!timeAsk.ok, "preferred time before agreement must fail after contacts");
+  const nextStepAsk = validateSalesReply(
+    buildPostContactNextStepReply(afterAddress, business),
+    afterAddress,
+    business
+  );
+  assert(
+    nextStepAsk.ok,
+    `missing agreement must allow a next-step explanation: ${nextStepAsk.reasons.join("; ")}`
+  );
 
   const afterTime = securedLead({
     preferredTiming: "tomorrow morning",
@@ -2306,6 +2360,506 @@ function testPreQueueAlertWordingBan() {
   console.log("PASS — pre-queue alert/recorded/shared/team-contact wording banned");
 }
 
+async function testProfileAwareSalesConversationQuality() {
+  const cases: Array<{
+    label: string;
+    opening: string;
+    profile: BusinessProfile;
+    fieldService: boolean;
+    tone: "PROBLEM" | "ASPIRATIONAL" | "CELEBRATION" | "CONSULTATION";
+    nameAck: RegExp;
+    forbidSorry: boolean;
+    postContactHint: RegExp;
+  }> = [
+    {
+      label: "plumbing",
+      opening: "My kitchen sink is clogged and water is backing up.",
+      fieldService: true,
+      tone: "PROBLEM",
+      nameAck: /i'm sorry you're dealing with/i,
+      forbidSorry: false,
+      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      profile: {
+        ...business,
+        businessName: "Clearflow Plumbing",
+        services: ["Drain clearing", "Pipe repair"],
+        systemPrompt: "We send technicians for on-site plumbing repairs.",
+        leadNotificationEmail: "alerts@clearflow.test",
+        leadNotificationPhone: "+15125550111",
+      },
+    },
+    {
+      label: "HVAC",
+      opening: "Our unit has no heat and no cooling.",
+      fieldService: true,
+      tone: "PROBLEM",
+      nameAck: /i'm sorry you're dealing with/i,
+      forbidSorry: false,
+      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      profile: {
+        ...business,
+        businessName: "Northwind HVAC",
+        services: ["Heating repair", "Cooling repair"],
+        systemPrompt: "Field technicians handle on-site heating and cooling service visits.",
+        leadNotificationEmail: "alerts@northwind.test",
+        leadNotificationPhone: "+15125550112",
+      },
+    },
+    {
+      label: "electrical",
+      opening: "An outlet has no power and I need it checked.",
+      fieldService: true,
+      tone: "PROBLEM",
+      nameAck: /i'm sorry you're dealing with/i,
+      forbidSorry: false,
+      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      profile: {
+        ...business,
+        businessName: "Brightline Electrical",
+        services: ["Outlet repair", "Electrical inspection"],
+        systemPrompt: "Licensed electricians visit the property to inspect power issues.",
+        leadNotificationEmail: "alerts@brightline.test",
+        leadNotificationPhone: "+15125550113",
+      },
+    },
+    {
+      label: "roofing",
+      opening: "There is a leak in the roof.",
+      fieldService: true,
+      tone: "PROBLEM",
+      nameAck: /i'm sorry you're dealing with/i,
+      forbidSorry: false,
+      postContactHint: /professional assessment|clear quote|arrange a visit/i,
+      profile: {
+        ...business,
+        businessName: "Ridgeview Roofing",
+        services: ["Roof leak repair", "Roof inspection"],
+        systemPrompt: "We inspect roofs on site and repair leaks.",
+        leadNotificationEmail: "alerts@ridgeview.test",
+        leadNotificationPhone: "+15125550114",
+      },
+    },
+    {
+      label: "aspirational-jacuzzi",
+      opening: "I'd like to install a jacuzzi in my backyard.",
+      fieldService: true,
+      tone: "ASPIRATIONAL",
+      nameAck: /that sounds like a great project/i,
+      forbidSorry: true,
+      postContactHint: /short consultation|what you have in mind|arrange a consultation/i,
+      profile: {
+        ...business,
+        businessName: "Bluewater Outdoor Living",
+        services: ["Jacuzzi installation", "Patio upgrades"],
+        systemPrompt: "We install outdoor living features and send technicians for installation visits.",
+        leadNotificationEmail: "alerts@bluewater.test",
+        leadNotificationPhone: "+15125550116",
+      },
+    },
+    {
+      label: "celebration-wedding",
+      opening: "We're looking for a wedding venue for our celebration.",
+      fieldService: false,
+      tone: "CELEBRATION",
+      nameAck: /how exciting|congratulations/i,
+      forbidSorry: true,
+      postContactHint: /sounds wonderful|consultation|occasion|arrange a consultation/i,
+      profile: {
+        ...business,
+        businessName: "Gardenview Events",
+        services: ["Wedding venues", "Anniversary celebrations"],
+        systemPrompt: "We host celebrations and provide venue consultations. We do not send technicians on site.",
+        leadNotificationEmail: "alerts@gardenview.test",
+        leadNotificationPhone: "+15125550117",
+      },
+    },
+    {
+      label: "consultation",
+      opening: "I need a consultation to improve our sales process.",
+      fieldService: false,
+      tone: "CONSULTATION",
+      nameAck: /absolutely, i'?d be glad to help/i,
+      forbidSorry: true,
+      postContactHint: /consultation is the best way|arrange a consultation/i,
+      profile: {
+        ...business,
+        businessName: "Northline Advisory",
+        services: ["Business strategy consultation", "Growth planning"],
+        systemPrompt: "We provide consultations and recommendations. We do not send technicians on site.",
+        leadNotificationEmail: "alerts@northline.test",
+        leadNotificationPhone: "+15125550115",
+      },
+    },
+  ];
+
+  const previousDryRun = process.env.LEAD_HANDOFF_DRY_RUN;
+  process.env.LEAD_HANDOFF_DRY_RUN = "true";
+  try {
+    for (const sample of cases) {
+      assert(
+        isFieldServiceProfile(sample.profile) === sample.fieldService,
+        `${sample.label}: field-service profile detection`
+      );
+      assert(
+        classifyConversationNeedTone(sample.opening, sample.profile) ===
+          sample.tone,
+        `${sample.label}: tone classification`
+      );
+
+      const first = await generateSalesReply(sample.profile, [
+        { role: "user", content: sample.opening },
+      ]);
+      assert(
+        first.reply === buildEmpatheticNameAsk(sample.opening, sample.profile),
+        `${sample.label}: intent-aware acknowledgement before name, got ${first.reply}`
+      );
+      assert(
+        sample.nameAck.test(first.reply),
+        `${sample.label}: expected tone acknowledgement, got ${first.reply}`
+      );
+      assert(
+        first.reply.includes(PRE_CONTACT_ASK_FIRST_NAME),
+        `${sample.label}: still asks first name`
+      );
+      assert(
+        !/^we can help with that\.\s*what's your first name/i.test(first.reply),
+        `${sample.label}: must not use the cold form`
+      );
+      if (sample.forbidSorry) {
+        assert(
+          !/\bi'?m sorry\b/i.test(first.reply),
+          `${sample.label}: must not use problem empathy for this intent, got ${first.reply}`
+        );
+      }
+
+      const afterName = await generateSalesReply(
+        sample.profile,
+        [
+          { role: "user", content: sample.opening },
+          { role: "assistant", content: first.reply },
+          { role: "user", content: "Alex" },
+        ],
+        first.salesState
+      );
+      assert(
+        afterName.reply === PRE_CONTACT_ASK_PHONE,
+        `${sample.label}: phone after name, got ${afterName.reply}`
+      );
+      assert(
+        !/^thanks, alex/i.test(afterName.reply),
+        `${sample.label}: must not mechanically thank the name`
+      );
+
+      const afterPhone = await generateSalesReply(
+        sample.profile,
+        [
+          { role: "user", content: sample.opening },
+          { role: "assistant", content: first.reply },
+          { role: "user", content: "Alex" },
+          { role: "assistant", content: afterName.reply },
+          { role: "user", content: "5125550198" },
+        ],
+        afterName.salesState
+      );
+      assert(
+        afterPhone.reply === PRE_CONTACT_ASK_ADDRESS,
+        `${sample.label}: address after phone, got ${afterPhone.reply}`
+      );
+      assert(
+        !/^thanks, alex/i.test(afterPhone.reply),
+        `${sample.label}: address ask must not thank the name`
+      );
+
+      const afterAddress = await generateSalesReply(
+        sample.profile,
+        [
+          { role: "user", content: sample.opening },
+          { role: "assistant", content: first.reply },
+          { role: "user", content: "Alex" },
+          { role: "assistant", content: afterName.reply },
+          { role: "user", content: "5125550198" },
+          { role: "assistant", content: afterPhone.reply },
+          { role: "user", content: "400 Main St, Dallas TX 75201" },
+        ],
+        afterPhone.salesState
+      );
+      assert(
+        /would you like to arrange/i.test(afterAddress.reply),
+        `${sample.label}: post-contact must ask to arrange, got ${afterAddress.reply}`
+      );
+      assert(
+        sample.postContactHint.test(afterAddress.reply),
+        `${sample.label}: profile-aware next-step wording, got ${afterAddress.reply}`
+      );
+      assert(
+        !/what day or time would you prefer/i.test(afterAddress.reply),
+        `${sample.label}: must not jump to preferred time after address, got ${afterAddress.reply}`
+      );
+      if (sample.tone !== "PROBLEM" || !sample.fieldService) {
+        assert(
+          !replyUsesFieldServiceJargon(afterAddress.reply),
+          `${sample.label}: must not use field-service jargon, got ${afterAddress.reply}`
+        );
+      }
+
+      const priceTurn = await generateSalesReply(
+        sample.profile,
+        [{ role: "user", content: "How much will it cost?" }],
+        afterAddress.salesState
+      );
+      assert(
+        !/i don't have a verified price to quote from here/i.test(priceTurn.reply),
+        `${sample.label}: no verified-price refusal`
+      );
+      assert(
+        !/\bteam can confirm (the )?rate\b/i.test(priceTurn.reply),
+        `${sample.label}: must not defer to team-confirm rate`
+      );
+      assert(!/\$\s?\d/.test(priceTurn.reply), `${sample.label}: must not invent a price`);
+      if (sample.tone !== "PROBLEM" || !sample.fieldService) {
+        assert(
+          !replyUsesFieldServiceJargon(priceTurn.reply) &&
+            !/\bdiagnosis\b/i.test(priceTurn.reply),
+          `${sample.label}: price must not use diagnosis/technician jargon, got ${priceTurn.reply}`
+        );
+      }
+      const pIdx =
+        priceTurn.reply.toLowerCase().indexOf("cost") >= 0
+          ? priceTurn.reply.toLowerCase().indexOf("cost")
+          : priceTurn.reply.toLowerCase().indexOf("depend");
+      const aIdx = priceTurn.reply.toLowerCase().indexOf("would you like to arrange");
+      assert(
+        pIdx >= 0 && aIdx > pIdx,
+        `${sample.label}: price first then arrange, got ${priceTurn.reply}`
+      );
+      assert(
+        !/what day or time would you prefer/i.test(priceTurn.reply),
+        `${sample.label}: price must not force preferred time`
+      );
+
+      const unagreedTime = await generateSalesReply(
+        sample.profile,
+        [
+          { role: "assistant", content: afterAddress.reply },
+          { role: "user", content: "tomorrow morning" },
+        ],
+        afterAddress.salesState
+      );
+      assert(
+        unagreedTime.salesState.leadDeliveryStatus !== "QUEUED" &&
+          unagreedTime.salesState.leadDeliveryStatus !== "SENT",
+        `${sample.label}: time without agreement must not hand off`
+      );
+      assert(
+        !shouldAttemptLeadHandoff(
+          unagreedTime.salesState,
+          "closure",
+          "tomorrow morning"
+        ),
+        `${sample.label}: no handoff when time exists without agreement`
+      );
+      assert(
+        /would you like to arrange/i.test(unagreedTime.reply),
+        `${sample.label}: time without agreement must ask to arrange, got ${unagreedTime.reply}`
+      );
+      assert(
+        !PRE_QUEUE_ALERT_PROMISE_RE.test(unagreedTime.reply),
+        `${sample.label}: no recorded/shared/alert claim before agreement`
+      );
+
+      const agreed = await generateSalesReply(
+        sample.profile,
+        [
+          { role: "assistant", content: afterAddress.reply },
+          { role: "user", content: "yes" },
+        ],
+        afterAddress.salesState
+      );
+      assert(
+        /what day or time would you prefer/i.test(agreed.reply),
+        `${sample.label}: agreement then preferred time, got ${agreed.reply}`
+      );
+
+      const timed = await generateSalesReply(
+        sample.profile,
+        [
+          { role: "assistant", content: agreed.reply },
+          { role: "user", content: "tomorrow morning" },
+        ],
+        agreed.salesState
+      );
+      assert(
+        timed.salesState.leadDeliveryStatus === "QUEUED" ||
+          timed.salesState.leadDeliveryStatus === "SENT",
+        `${sample.label}: complete agreed lead queues one handoff, got ${timed.salesState.leadDeliveryStatus}`
+      );
+      assert(
+        /recorded your request|shared your request/i.test(timed.reply),
+        `${sample.label}: truthful completion only after queued handoff, got ${timed.reply}`
+      );
+      assert(
+        !shouldAttemptLeadHandoff(timed.salesState, "closure", "tomorrow morning"),
+        `${sample.label}: replay must not send a second handoff`
+      );
+      const email = buildLeadNotificationEmail(sample.profile, timed.salesState);
+      const sms = buildWebsiteLeadSms(sample.profile, timed.salesState);
+      assert(
+        /tomorrow morning/i.test(email.text) && /tomorrow morning/i.test(sms),
+        `${sample.label}: email and SMS include preferred time`
+      );
+    }
+  } finally {
+    if (previousDryRun === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+    else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun;
+  }
+
+  console.log(
+    "PASS — profile-aware sales conversation quality across problem, project, celebration, and consultation intents"
+  );
+}
+
+function testVerifiedPricingNeverLeaksFieldServiceJargon() {
+  const hourlyPrompt = "Labor is billed hourly.";
+
+  const fieldProblem = securedLead({
+    customerNeed: "The heating unit is broken and needs repair.",
+    preferredTiming: null,
+    customerAgreed: false,
+  });
+  const fieldBusiness: BusinessProfile = {
+    ...business,
+    services: ["Heating repair"],
+    systemPrompt: `${hourlyPrompt} Field technicians handle on-site service visits.`,
+    pricingRules: "",
+  };
+  const fieldPrice = buildIntentAwarePriceAnswer(fieldProblem, fieldBusiness);
+  assert(/hourly/i.test(fieldPrice), `field-service verified approach, got ${fieldPrice}`);
+  assert(
+    /assessment|visit|professional/i.test(fieldPrice),
+    `field-service problem may use visit/assessment wording, got ${fieldPrice}`
+  );
+  assert(
+    !/\bdiagnosis\b/i.test(fieldPrice) &&
+      !/\bwhat the work includes\b/i.test(fieldPrice),
+    `field-service path must not use diagnosis fallback, got ${fieldPrice}`
+  );
+
+  const projectState = securedLead({
+    customerNeed: "I'd like to install an outdoor upgrade for our patio.",
+    preferredTiming: null,
+    customerAgreed: false,
+  });
+  const projectBusiness: BusinessProfile = {
+    ...business,
+    services: ["Outdoor installation"],
+    systemPrompt: `${hourlyPrompt} We install outdoor living features.`,
+    pricingRules: "",
+  };
+  assert(
+    classifyConversationNeedTone(projectState.customerNeed) === "ASPIRATIONAL",
+    "generic install/upgrade phrasing is ASPIRATIONAL"
+  );
+  const projectPrice = buildIntentAwarePriceAnswer(projectState, projectBusiness);
+  assert(/hourly/i.test(projectPrice), `project verified approach, got ${projectPrice}`);
+  assert(
+    /design|materials|scope of the project/i.test(projectPrice),
+    `project price uses design/materials/scope, got ${projectPrice}`
+  );
+  assert(
+    !replyUsesFieldServiceJargon(projectPrice) &&
+      !/\bdiagnosis\b|\bassessment\b|\btechnician\b|\bsite visit\b|\bwork required\b|\bwhat the work includes\b/i.test(
+        projectPrice
+      ),
+    `project price must not use field-service jargon, got ${projectPrice}`
+  );
+
+  const eventState = securedLead({
+    customerNeed: "We're planning a celebration event for our family.",
+    preferredTiming: null,
+    customerAgreed: false,
+  });
+  const eventBusiness: BusinessProfile = {
+    ...business,
+    services: ["Event venues"],
+    systemPrompt: `${hourlyPrompt} We host celebrations and provide venue consultations.`,
+    pricingRules: "",
+  };
+  assert(
+    classifyConversationNeedTone(eventState.customerNeed) === "CELEBRATION",
+    "generic celebration/event phrasing is CELEBRATION"
+  );
+  const eventPrice = buildIntentAwarePriceAnswer(eventState, eventBusiness);
+  assert(/hourly/i.test(eventPrice), `event verified approach, got ${eventPrice}`);
+  assert(
+    /date|guest count|options/i.test(eventPrice),
+    `event price uses date/guest/options, got ${eventPrice}`
+  );
+  assert(
+    !replyUsesFieldServiceJargon(eventPrice) &&
+      !/\bdiagnosis\b|\bassessment\b|\btechnician\b|\bsite visit\b|\bwork required\b|\bwhat the work includes\b/i.test(
+        eventPrice
+      ),
+    `event price must not use field-service jargon, got ${eventPrice}`
+  );
+
+  const consultState = securedLead({
+    customerNeed: "I need advice on improving our sales strategy.",
+    preferredTiming: null,
+    customerAgreed: false,
+  });
+  const consultBusiness: BusinessProfile = {
+    ...business,
+    services: ["Business strategy consultation"],
+    systemPrompt: `${hourlyPrompt} We provide consultations and recommendations. We do not send technicians on site.`,
+    pricingRules: "",
+  };
+  assert(
+    classifyConversationNeedTone(consultState.customerNeed) === "CONSULTATION",
+    "generic advice/strategy phrasing is CONSULTATION"
+  );
+  assert(
+    classifyConversationNeedTone("I'd be glad to learn more about your services.") ===
+      "CONSULTATION",
+    "neutral fallback is confident consultation, not problem sympathy"
+  );
+  const consultPrice = buildIntentAwarePriceAnswer(consultState, consultBusiness);
+  assert(/hourly/i.test(consultPrice), `consultation verified approach, got ${consultPrice}`);
+  assert(
+    /requirements|scope of the consultation/i.test(consultPrice),
+    `consultation price uses requirements/scope, got ${consultPrice}`
+  );
+  assert(
+    !replyUsesFieldServiceJargon(consultPrice) &&
+      !/\bdiagnosis\b|\bassessment\b|\btechnician\b|\bsite visit\b|\bwork required\b|\bwhat the work includes\b/i.test(
+        consultPrice
+      ),
+    `consultation price must not use field-service jargon, got ${consultPrice}`
+  );
+
+  assert(
+    !/\bi'm sorry\b/i.test(
+      buildEmpatheticNameAsk("I'd like to install an outdoor upgrade for our patio.")
+    ),
+    "project tone must not use problem sympathy"
+  );
+  assert(
+    !/\bi'm sorry\b/i.test(
+      buildEmpatheticNameAsk("We're planning a celebration event for our family.")
+    ),
+    "celebration tone must not use problem sympathy"
+  );
+  assert(
+    /absolutely, i'?d be glad to help/i.test(
+      buildEmpatheticNameAsk("I need advice on improving our sales strategy.")
+    ),
+    "consultation tone stays confident and helpful"
+  );
+
+  console.log(
+    "PASS — verified hourly/fixed pricing stays tone-aware; no diagnosis/work leak on project/event/consultation"
+  );
+}
+
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
@@ -2316,6 +2870,8 @@ async function main() {
   testHighIntentLeadCaptureOrder();
   await testDeterministicPreContactChatReplies();
   await testPostContactSalesConversation();
+  await testProfileAwareSalesConversationQuality();
+  testVerifiedPricingNeverLeaksFieldServiceJargon();
   testPreQueueAlertWordingBan();
   testCustomerFacingHandoffWording();
   testCompoundPriceAndPreferredTime();

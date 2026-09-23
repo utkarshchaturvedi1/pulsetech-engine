@@ -1,6 +1,18 @@
 import { BusinessProfile } from "../types/business";
 import { evaluateHandoffReadiness } from "./leadHandoffShared";
 import {
+  agreedToArrange,
+  buildAgreedPreferredTimeAsk,
+  buildPostContactNextStepReply,
+  buildPostContactPriceReply,
+  buildTimeWithoutAgreementReply,
+  classifyConversationNeedTone,
+  nextStepArticleNoun,
+  replyAsksToArrangeNextStep,
+  resolveWarmPreContactReply,
+  startsWithMechanicalNameThanks,
+} from "./salesConversation";
+import {
   INVENTED_SCHEDULE_RANGE_RE,
   INTERNAL_HANDOFF_STATUS_RE,
   SAME_DAY_PROMISE_RE,
@@ -20,7 +32,6 @@ import {
   knowledgeAllowsSameDay,
   maxUrgency,
   messageAsksPricingOrBilling,
-  buildPricingApproachAnswer,
 } from "./schedulingPolicy";
 import {
   LeadFields,
@@ -152,7 +163,7 @@ function detectIntent(text: string): SalesIntent {
   }
 
   if (
-    /\b(i need|i want|need help|need a|need an|needs? to be|fix this|repair|estimate|quote)\b/.test(
+    /\b(i need|i want|i'?d like|i would like|we(?:'d| would) like|need help|need a|need an|needs? to be|fix this|repair|estimate|quote|looking for|want to (install|build|add|upgrade|book)|interested in (a |an |the )?(wedding|venue|consultation|install|project))\b/.test(
       t
     )
   ) {
@@ -731,10 +742,15 @@ function isLeadContactComplete(state: SalesState): boolean {
   );
 }
 
-export const PRE_CONTACT_ASK_FIRST_NAME = "What's your first name?";
-export const PRE_CONTACT_ASK_PHONE =
-  "What's the best phone number to reach you?";
-export const PRE_CONTACT_ASK_ADDRESS = "What's the service address?";
+export {
+  PRE_CONTACT_ASK_ADDRESS,
+  PRE_CONTACT_ASK_FIRST_NAME,
+  PRE_CONTACT_ASK_PHONE,
+} from "./salesConversation";
+
+function assistantAskedForPreferredTime(text: string): boolean {
+  return PREFERRED_TIME_ASK_RE.test(text);
+}
 
 export function resolveDeterministicPreContactReply(
   state: SalesState,
@@ -755,20 +771,17 @@ export function resolveDeterministicPreContactReply(
   if (!highIntent || isLeadContactComplete(state)) return null;
 
   const missing = missingLeadFields(state);
-  const first = state.lead.name?.trim().split(/\s+/)[0];
-  let prefix = "We can help with that.";
-  let ask = PRE_CONTACT_ASK_FIRST_NAME;
-  if (missing[0] === "phone") {
-    prefix = first ? `Thanks, ${first}.` : "Thanks.";
-    ask = PRE_CONTACT_ASK_PHONE;
-  } else if (missing[0] === "address") {
-    prefix = first ? `Thanks, ${first}.` : "Thanks.";
-    ask = PRE_CONTACT_ASK_ADDRESS;
-  } else if (missing[0] && missing[0] !== "name") {
+  const field = missing[0];
+  if (field !== "name" && field !== "phone" && field !== "address") {
     return null;
   }
 
-  let reply = `${prefix} ${ask}`;
+  let reply = resolveWarmPreContactReply(
+    state,
+    field,
+    latestUserMessage,
+    business
+  );
   if (
     visitorAllowsBusinessPhone(
       latestUserMessage,
@@ -794,15 +807,36 @@ export function resolvePostContactConversationReply(
     return null;
   }
   if (!latestUserMessage?.trim()) return null;
-  if (!messageAsksPricingOrBilling(latestUserMessage)) return null;
 
-  const price = buildPricingApproachAnswer(business);
-  const first = state.lead.name?.trim().split(/\s+/)[0];
-  const thanks = first ? `Thanks, ${first}. ` : "";
-  if (state.preferredTiming) {
-    return `${thanks}${price}`.trim();
+  if (messageAsksPricingOrBilling(latestUserMessage)) {
+    return buildPostContactPriceReply(state, business);
   }
-  return `${thanks}${price} If you'd like someone to come out, what day or time would you prefer?`.trim();
+
+  if (agreedToArrange(state) && !state.preferredTiming) {
+    return buildAgreedPreferredTimeAsk(
+      business,
+      classifyConversationNeedTone(
+        state.customerNeed || state.primaryNeed,
+        business
+      )
+    );
+  }
+
+  if (!agreedToArrange(state) && state.preferredTiming) {
+    return buildTimeWithoutAgreementReply(state, business);
+  }
+
+  if (!agreedToArrange(state) && !state.preferredTiming) {
+    if (
+      /\?/.test(latestUserMessage) &&
+      !messageAsksPricingOrBilling(latestUserMessage)
+    ) {
+      return null;
+    }
+    return buildPostContactNextStepReply(state, business);
+  }
+
+  return null;
 }
 
 function isV1LeadComplete(state: SalesState): boolean {
@@ -1055,7 +1089,7 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
 
   if (looksLikeLeadFieldOnlyReply(latestUserText)) {
     if (isV1LeadComplete(state) && !state.preferredTiming) {
-      return "ADVANCE_TO_NEXT_STEP";
+      return agreedToArrange(state) ? "ADVANCE_TO_NEXT_STEP" : "PRESENT_SOLUTION";
     }
     return isCustomerNeedSpecific(state.customerNeed)
       ? "PRESENT_SOLUTION"
@@ -1063,10 +1097,13 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   }
 
   if (isV1LeadComplete(state) && !state.preferredTiming) {
+    if (agreedToArrange(state)) {
+      return "ADVANCE_TO_NEXT_STEP";
+    }
     if (/\?/.test(latestUserText) && !detectVisitPreferenceRequest(latestUserText)) {
       return "ANSWER";
     }
-    return "ADVANCE_TO_NEXT_STEP";
+    return "PRESENT_SOLUTION";
   }
 
   return "PRESENT_SOLUTION";
@@ -1205,13 +1242,24 @@ export function updateSalesStateFromTurn(
   }
 
   if (
-    /\b(schedule|book|come out|send someone|appointment)\b/i.test(text) &&
-    state.appointmentIntent !== false
+    state.appointmentIntent !== false &&
+    (detectVisitPreferenceRequest(text) ||
+      /\b(schedule|book|come out|send someone|need someone|appointment|arrange)\b/i.test(
+        text
+      ))
   ) {
     state.appointmentIntent = true;
   }
 
   const priorAssistant = lastAssistantMessage(messages);
+  if (
+    state.preferredTiming &&
+    extractPreferredTiming(text) &&
+    state.appointmentIntent !== false &&
+    assistantAskedForPreferredTime(priorAssistant)
+  ) {
+    state.appointmentIntent = true;
+  }
   const confirmingName =
     confirmationReply && assistantAskedToConfirmName(priorAssistant);
   if (confirmingName && !isAuthoritativePersonName(state.lead.name)) {
@@ -1527,18 +1575,20 @@ function objectiveInstruction(
     case "COLLECT_NAME":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's first name only.
 Respond with about one short sentence + exactly ONE question.
+Before asking for the name, briefly acknowledge the customer's stated problem with genuine empathy. Use their stated need naturally when possible. Do not invent facts.
+Do not reply with a cold form such as "We can help with that. What's your first name?"
 ${
   isAuthoritativePersonName(state.lead.name)
     ? `A valid first name is already captured (${state.lead.name}). Do NOT ask the customer to confirm it. Move on — this objective should not re-open name confirmation.`
     : `If the customer just gave a normal first name (letters, not a sentence), treat it as captured. Do not ask "is your first name ...?". Ask for clarification only when the input is clearly not a name, is a single initial, or contains no usable letters.`
 }
-Respond with about one short sentence + exactly ONE question.
 Do not ask for last name, phone, email, address, availability, property type, or technical details.
-Do not diagnose, interrogate, or sell the service first.
+Do not diagnose, interrogate, sell, ask price, ask preferred time, or promise a handoff.
 Do not provide DIY instructions or a company brochure.`;
     case "COLLECT_PHONE":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's phone number.
 Respond with about one short sentence + exactly ONE question.
+Do not start with "Thanks, {name}".
 Do not ask any other question. No brochure. No DIY.`;
     case "COLLECT_EMAIL":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's email.
@@ -1548,7 +1598,7 @@ Respond with about one short sentence + exactly ONE question.`;
 ${
   state.preferredTiming
     ? `The customer already gave a preferred visit time (${state.preferredTiming}). Acknowledge it briefly without confirming availability and without claiming you already alerted the team. Then ask exactly ONE question for the service address. Do not re-ask name or phone.`
-    : "Respond with about one short sentence + exactly ONE question."
+    : "Respond with about one short sentence + exactly ONE question. Do not start with Thanks, {name}."
 }
 Do not ask apartment number unless the customer volunteers ambiguity.
 No brochure. No DIY. No solution pitch.
@@ -1566,15 +1616,20 @@ Keep it concise — no huge brochure.`;
     case "PRESENT_SOLUTION":
       return `YOUR ONLY OBJECTIVE: connect THIS customer's established need to the single most relevant BusinessProfile-supported solution.
 Make it feel personalized ("based on what you've described...").
-Explain benefit and a logical next step.
+Explain benefit and a logical next step using only verified BusinessProfile facts.
 Do NOT list all services or dump technical procedure details.
 Do NOT invent operational claims, brands, catalogs, prices, warranties, or discounts not in BusinessProfile.
 Do NOT proactively ask about gate codes, pets, parking, or access instructions.
 Do NOT offer invented timing menus such as next week / 2–4 weeks / later.
+Do not start every sentence with the customer's name.
 ${
-  state.preferredTiming
-    ? `preferredTiming is already known (${state.preferredTiming}). Do NOT ask another timing/refinement question.`
-    : "Do not ask for a preferred visit time until you have answered any direct customer question (especially price). Then invite a preferred visit time naturally. Do not say I'll alert, recorded, shared, or that the team will contact them."
+  agreedToArrange(state) && !state.preferredTiming
+    ? `The customer already agreed to arrange the next step. Ask once what day or time they would prefer. Do not say I'll alert, recorded, shared, or that the team will contact them.`
+    : !agreedToArrange(state)
+      ? `Name, customer phone, and service address are secured. Give a short, helpful, need-aware explanation of the sensible next step using profile-appropriate language (visit/assessment only if the profile is field service; otherwise consultation, appointment, or follow-up). Then ask whether they would like to arrange it. Do NOT ask preferred day/time yet. Do not say I'll alert, recorded, shared, or that the team will contact them.`
+      : state.preferredTiming
+        ? `preferredTiming is already known (${state.preferredTiming}). Do NOT ask another timing/refinement question.`
+        : "Do not ask for a preferred visit time until the customer has agreed to arrange the next step."
 }
 If the lead is already complete (name/phone/address/need) and the customer is not raising a new issue, prefer advancing toward natural closure rather than inventing another "quick question".`;
     case "EXPLAIN_VALUE":
@@ -1584,12 +1639,15 @@ Do NOT invent brands, catalogs, prices, or warranties. Do NOT ask access/pet/par
     case "HANDLE_PRICE_OBJECTION":
       return `YOUR ONLY OBJECTIVE: answer the pricing question FIRST, then continue the sales conversation.
 Answer honestly from BusinessProfile/owner knowledge only. Never invent amounts, hourly rates, or fixed prices the profile does not contain.
-If the profile has no verified price, say the exact cost depends on the diagnosis and do not invent a number.
+If the profile has no verified price, explain that the final amount depends on the scope/assessment in natural customer-friendly language. Do not say "I don't have a verified price to quote from here."
 Do NOT say I'll alert, recorded, shared, or that the team will contact them unless delivery is already queued or sent.
+Do not start with "Thanks, {name}".
 ${
   state.preferredTiming
     ? `preferredTiming is already known (${state.preferredTiming}). Do not re-ask timing. Do not claim the appointment is booked.`
-    : `After the price answer, naturally ask what day or time they would prefer for a visit. Do not jump to timing before the price answer.`
+    : agreedToArrange(state)
+      ? `After the price answer, ask what day or time they would prefer. Do not jump to timing before the price answer.`
+      : `After the price answer, ask whether they would like to arrange ${business ? nextStepArticleNoun(business) : "the next step"} so the team can assess it. Do not use price as a reason to force a preferred-time question.`
 }
 If leadCapturePaused, do NOT ask for refused lead fields.
 Do not mention whether a request was shared, emailed, texted, or delivered unless this turn is the successful handoff acknowledgement.`;
@@ -1630,12 +1688,16 @@ Do NOT ask another timing/refinement question.`
     : needsTeamAck && state.leadDeliveryStatus === "FAILED"
       ? `Do NOT claim the team was alerted. Reply with this meaning only: "${failedFallback}"`
     : needsTeamAck
-      ? `Preferred time is known (${state.preferredTiming}). Do not say I'll alert, recorded, shared, or that the team will contact or confirm. Ask once for agreement: "${ASK_EXPLICIT_AGREEMENT}"`
+      ? agreedToArrange(state)
+        ? `Preferred time is known (${state.preferredTiming}). The customer already agreed to arrange this. Do not ask another confirmation question. Do not say I'll alert, recorded, shared, or that the team will contact them unless delivery is already queued or sent.`
+        : `Preferred time is known (${state.preferredTiming}) but the customer has not agreed to arrange the next step. Do not say I'll alert, recorded, shared, or that the team will contact or confirm. Ask once: "${ASK_EXPLICIT_AGREEMENT}"`
     : leadComplete
-      ? `Lead is captured. Preferred time is still missing, so this is not a completed handoff. After the customer agrees to a site assessment / next step, reply with this meaning only: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
+      ? agreedToArrange(state)
+        ? `Lead is captured and the customer agreed to arrange the next step. Preferred time is still missing, so this is not a completed handoff. Reply with this meaning only: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"
 Never say the request was recorded or shared with the team until preferred time is captured and delivery is queued or sent.
 Never say "we'll arrange a site assessment" or otherwise imply the appointment is already confirmed or booked.
 Do not offer arbitrary future options.`
+        : `Lead contact details are captured, but the customer has not agreed to arrange the next step. Give a short, helpful, need-aware explanation, then ask whether they would like to arrange ${business ? nextStepArticleNoun(business) : "the next step"}. Do NOT ask preferred day/time yet. Do not say recorded, shared, I'll alert, or that the team will contact them.`
       : `Name, customer phone, and service address are not all captured yet. Ask exactly ONE question for the next missing field only (${missingLeadFields(state)[0] || "name"}). Do not diagnose, interrogate, or sell the service. Do not ask property type or preferred time. Do not give the business phone number. Do not say the request was recorded or that the team will contact them.`
 }
 Do NOT ask for gate codes, pets, parking, or access instructions.
@@ -1799,6 +1861,23 @@ export function validateSalesReply(
 
   if (collecting && leadAsks > 1) {
     reasons.push("Multiple lead-field questions in one response.");
+  }
+
+  if (
+    collecting &&
+    (state.currentObjective === "COLLECT_PHONE" ||
+      state.currentObjective === "COLLECT_ADDRESS") &&
+    startsWithMechanicalNameThanks(reply)
+  ) {
+    reasons.push("Started with a mechanical Thanks, {name} on a contact-capture turn.");
+  }
+
+  if (
+    state.currentObjective === "COLLECT_NAME" &&
+    /\bwe can help with that\.\s*what(?:'s| is) your first name\?/i.test(reply) &&
+    !/\b(sorry|frustrating|glad to help with)\b/i.test(reply)
+  ) {
+    reasons.push("Cold form name ask; acknowledge the stated problem first.");
   }
 
   (Object.keys(state.lead) as Array<keyof LeadFields>).forEach((field) => {
@@ -2015,10 +2094,42 @@ export function validateSalesReply(
   if (
     !state.preferredTiming &&
     contactComplete &&
-    (state.customerAgreed || state.currentObjective === "ADVANCE_TO_NEXT_STEP") &&
+    agreedToArrange(state) &&
+    (state.currentObjective === "ADVANCE_TO_NEXT_STEP" ||
+      state.currentObjective === "PRESENT_SOLUTION") &&
     !/\bwhat day or time would you prefer\b/i.test(reply)
   ) {
     reasons.push("Preferred time is missing; ask once for a preferred day or time.");
+  }
+
+  if (
+    !state.preferredTiming &&
+    contactComplete &&
+    !agreedToArrange(state) &&
+    PREFERRED_TIME_ASK_RE.test(reply) &&
+    state.currentObjective !== "CLOSE"
+  ) {
+    reasons.push(
+      "Asked for preferred time before the customer agreed to arrange the next step."
+    );
+  }
+
+  if (
+    contactComplete &&
+    !agreedToArrange(state) &&
+    !state.preferredTiming &&
+    (state.currentObjective === "PRESENT_SOLUTION" ||
+      state.currentObjective === "ADVANCE_TO_NEXT_STEP") &&
+    !!latestUserMessage?.trim() &&
+    looksLikeLeadFieldOnlyReply(latestUserMessage) &&
+    !messageAsksPricingOrBilling(latestUserMessage) &&
+    !replyAsksToArrangeNextStep(reply) &&
+    state.leadDeliveryStatus !== "QUEUED" &&
+    state.leadDeliveryStatus !== "SENT"
+  ) {
+    reasons.push(
+      "After contact details, explain the next step and ask whether to arrange it."
+    );
   }
 
   if (
@@ -2180,11 +2291,13 @@ ${
       ? `If acknowledging the captured request, use this meaning: "${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}" Do not say the request was shared with the team.`
     : state.leadDeliveryStatus === "FAILED"
       ? `If acknowledging the captured request, use this meaning: "${failedFallback}" Do not claim the team was alerted.`
-      : isLeadContactComplete(state) && !state.preferredTiming
+      : isLeadContactComplete(state) && !state.preferredTiming && agreedToArrange(state)
         ? `Do not claim an alert, recording, or team contact. Ask once for preferred time: "${SITE_ASSESSMENT_TEAM_ALERT_ASK}"`
-        : isLeadContactComplete(state) && !state.customerAgreed
+        : isLeadContactComplete(state) && !agreedToArrange(state)
+          ? `Do not claim an alert, recording, or team contact. Give a short helpful next-step explanation and ask whether they would like to arrange it. Do not ask preferred time yet. Do not start with Thanks, {name}.`
+          : isLeadContactComplete(state) && !state.customerAgreed && !!state.preferredTiming
           ? `Do not claim an alert, recording, or team contact. Preferred time is known. Ask once for agreement: "${ASK_EXPLICIT_AGREEMENT}"`
-        : `Do not claim the request was recorded, shared, or that the team will contact them. Ask only for the next missing field among name, customer phone, and service address. Do not ask preferred time, property type, or troubleshooting. Do not give the business phone number.`
+        : `Do not claim the request was recorded, shared, or that the team will contact them. Ask only for the next missing field among name, customer phone, and service address. Acknowledge the stated problem briefly before the name question. Do not ask preferred time, property type, or troubleshooting. Do not give the business phone number.`
 }
 Do not give DIY tutorials or technician dumps.
 If objective is CLOSE: give the final message then STOP. No questions. No access asks. No "anything else?".

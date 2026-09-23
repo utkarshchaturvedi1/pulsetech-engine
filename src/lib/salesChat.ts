@@ -12,8 +12,8 @@ import {
 import {
   buildFailedLeadHandoffCustomerMessage,
   resolveWebsiteChatCustomerHandoffReply,
-  SITE_ASSESSMENT_TEAM_ALERT_ASK,
 } from "./schedulingPolicy";
+import { buildAgreedPreferredTimeAsk, classifyConversationNeedTone } from "./salesConversation";
 import {
   buildTurnControlBlock,
   buildValidationCorrection,
@@ -325,15 +325,15 @@ Do not assume: problem, urgency, budget, motivation, location, homeowner/custome
 Discover only what matters.
 
 ==================================================
-NO AUTOMATIC EMPATHY
+EMPATHY AND HUMAN TONE
 ==================================================
-Do not automatically say "Sorry to hear that."
-Use empathy when the customer's actual situation calls for it.
-For straightforward service requests, be positive and confident.
-Example shape:
-Customer: "I need [service]."
-Good: "Absolutely, we can help with that. What's your name?"
-Not: "Sorry to hear that."
+When the customer has stated a real need and you still need their name, acknowledge that need briefly with the right emotion for their intent: calm empathy for problems or breakdowns, positive enthusiasm for aspirational projects, warm excitement for celebrations/events, and confident helpfulness for consultations or neutral inquiries. Use their stated need naturally. Do not invent facts.
+Do not sound like a cold form. Never open with only "We can help with that. What's your first name?"
+Never use a universal "I'm sorry" template for projects, celebrations, or consultations.
+Do not start every later reply with "Thanks, {name}". Use the name only where it adds warmth.
+After name, customer phone, and service address are secured, give a short helpful next-step explanation and ask whether they want to arrange it before asking preferred time.
+Use technician / service visit / on-site wording only when the BusinessProfile supports field service and the customer described a problem. Otherwise use consultation, assessment, estimate, appointment, or follow-up.
+Never invent services, processes, availability, prices, diagnoses, or guarantees.
 
 ==================================================
 NO AUTOMATIC EMERGENCY RESPONSE
@@ -380,8 +380,11 @@ Do not promise same-day service unless BusinessProfile explicitly includes that 
 
 After name, phone, address, and the service need are captured:
 - Return to a warm, helpful sales conversation. Do not stay in form-field mode.
-- If the customer asks a direct question, especially about price, answer it first using BusinessProfile facts only. If no verified price exists, say the exact cost depends on the diagnosis — never invent amounts.
-- If they have not given a preferred time yet, then naturally ask what day or time they would prefer. Do not say "I'll alert the team", "recorded", "shared", or that the team will contact them until a handoff is actually queued.
+- Give a short, profile-aware explanation of the sensible next step, then ask whether they would like to arrange it. Do not jump immediately to preferred day/time.
+- If the customer asks a direct question, especially about price, answer it first using BusinessProfile facts only. If no verified price exists, explain that the final cost depends on assessment, design, event details, or consultation scope — matching the customer's intent — never invent amounts, and never say "I don't have a verified price to quote from here" or "the team can confirm the rate."
+- Only after they explicitly agree to arrange the next step, ask what day or time they would prefer. Do not say "I'll alert the team", "recorded", "shared", or that the team will contact them until a handoff is actually queued.
+- If they give a time without first agreeing to arrange, do not claim a completed handoff. Ask whether they would like to arrange it.
+- If they already agreed and then give a time, do not ask a second "are you sure?" confirmation.
 - Never say "we'll arrange a site assessment" or otherwise imply an appointment is already confirmed or booked.
 - Once name, phone, service address, and preferred time are captured and the visitor has asked to proceed or finished, the system queues an alert. While that is only queued, say the request has been recorded and the preferred time noted — never that it was already shared.
 - Say you have shared the request with the team only if delivery status is actually SENT.
@@ -524,7 +527,13 @@ export async function generateSalesReply(
     decision.missingRequiredFields[0] === "preferredTiming" &&
     decision.visitorRequestedProceedOrCompleted
   ) {
-    deterministicHandoffReply = SITE_ASSESSMENT_TEAM_ALERT_ASK;
+    deterministicHandoffReply = buildAgreedPreferredTimeAsk(
+      business,
+      classifyConversationNeedTone(
+        salesState.customerNeed || salesState.primaryNeed,
+        business
+      )
+    );
   } else if (handoff.attempted && !deterministicHandoffReply) {
     deterministicHandoffReply = buildFailedLeadHandoffCustomerMessage(business);
   } else if (

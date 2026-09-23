@@ -76,7 +76,6 @@ function looksLikeRequestToProceed(text: string): boolean {
   const t = text.trim();
   if (!t) return false;
   if (detectVisitPreferenceRequest(t)) return true;
-  if (extractPreferredVisitTimeFromText(t)) return true;
   return /\b(let'?s do it|let'?s (move forward|proceed|schedule)|go ahead|please go ahead|please proceed|sign me up|i(?:'d| would) like to (move forward|proceed|get this done)|okay[,.]? let'?s|yes[,.]? let'?s|yes[,.]?\s*please|book it|schedule it|please have someone (contact|call|come)|send (this|it) to the team|next step|get started)\b/i.test(
     t
   );
@@ -91,14 +90,6 @@ export function visitorRequestedProceedOrCompleted(
   if (state.salesStage === "COMPLETED") return true;
   if (looksLikeConversationCompleted(latestUserMessage || "")) return true;
   if (latestUserMessage && looksLikeRequestToProceed(latestUserMessage)) {
-    return true;
-  }
-  // A captured preferred visit time is itself a request for a visit window.
-  if (hasText(state.preferredTiming)) return true;
-  if (
-    latestUserMessage &&
-    extractPreferredVisitTimeFromText(latestUserMessage)
-  ) {
     return true;
   }
   return false;
@@ -225,10 +216,11 @@ export function shouldAttemptLeadHandoff(
   latestUserMessage?: string
 ): boolean {
   if (isHandoffAlreadyScheduled(state)) return false;
+  if (reason === "inactivity") {
+    return state.handoffReady === true;
+  }
   const decision = evaluateHandoffReadiness(state, latestUserMessage);
-  if (!decision.handoffReady) return false;
-  if (reason === "inactivity") return true;
-  return true;
+  return decision.handoffReady;
 }
 
 export function publicHandoffDecisionLog(params: {

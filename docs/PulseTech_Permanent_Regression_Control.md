@@ -14,6 +14,8 @@ Preserve all existing chat functionality, business logic, recipient routing, aft
 
 Lead capture must not turn the AI Sales Employee into a robotic form. After name + customer phone + service address are secured, the conversation must return to helpful, warm, sales-oriented service guidance. Direct customer questions—especially price—must be answered first, truthfully and without invented facts. Do not promise an alert/team contact before a ready handoff has actually queued.
 
+**Permanent conversation-quality rule:** Lead protection must never turn the AI Sales Employee into a cold form. Before contact capture, acknowledge the customer’s stated situation with intent-appropriate emotion (empathy for problems, enthusiasm for projects, excitement for celebrations, confident help for consultations)—never a universal “I’m sorry” template. After required contact details are secured, provide a helpful, profile-aware explanation and ask for agreement before asking preferred time. Do not repeat the customer’s name mechanically.
+
 ---
 
 ## Canonical lead sequence (website chat and inbound voice)
@@ -27,9 +29,12 @@ Protect the opportunity first. A genuine high-intent need must not be lost to HV
 3. Customer phone (the visitor/caller’s number — never the scraped business number in place of this field)
 4. Service address (where relevant)
 5. Details / price (only after the three lead fields above, and only as needed; answer a direct customer question when asked)
-6. Preferred time
-7. Explicit agreement
-8. Exactly one handoff (email + SMS to that business’s recipients)
+6. Helpful, profile-aware next-step explanation
+7. Explicit agreement to arrange that next step
+8. Preferred day/time
+9. Exactly one truthful handoff (email + SMS to that business’s recipients)
+
+**Combined request exception:** After name, customer phone, and service address are secured, an explicit combined request such as “Can you come tomorrow morning?” counts as agreement plus preferred time and may queue exactly one handoff.
 
 **Hard bans on this path:**
 
@@ -71,13 +76,15 @@ ANSWER FIRST: if the customer asks a direct question, answer it; do not refuse s
   - “Tomorrow morning works, but what do you charge?”
 - Confirm preferred time stays saved after a pricing response and “Yes”.
 - High-intent / ready-to-act: need already known → name → customer phone → service address, one field at a time. Do not discuss the service, diagnose, or ask residential/commercial or troubleshooting questions before those three fields are stored.
-- Preferred time is asked only after name, customer phone, and service address.
-- After those three fields, resume a human sales conversation: acknowledge the need, answer questions (price first), then guide to preferred time and agreement. Do not stay in form-field mode.
+- Preferred time is asked only after name, customer phone, and service address, and only after the customer has explicitly agreed to arrange the next step (unless they give an explicit combined arrange+time request such as “Can you come tomorrow morning?”).
+- After those three fields, resume a human sales conversation: acknowledge the need with intent-appropriate emotion, answer questions (price first), explain the sensible next step, get agreement to arrange it, then ask preferred day/time. Do not stay in form-field mode.
+- Before the name question, acknowledge the stated situation with intent-appropriate emotion. Do not use a cold “We can help with that. What’s your first name?” form. Do not use “I’m sorry” for aspirational projects, celebrations, or neutral consultations.
+- After the three contact fields, give a helpful profile-aware next-step explanation and get explicit agreement to arrange it before asking preferred time. Do not repeat the customer’s name mechanically.
 
 ### C. Handoff and customer wording
 
 - Required details plus agreement must queue exactly one handoff.
-- Required details include name, customer phone, service address, preferred time, and explicit agreement, following the canonical sequence above.
+- Required details include name, customer phone, service address, preferred time, and explicit agreement to arrange (or an explicit combined arrange+time request after contacts are secured), following the canonical sequence above.
 - Missing preferred time must queue none and ask only once for day/time.
 - No response may say “recorded”, “shared”, “I’ll alert,” “team will contact,” or imply alert delivery unless handoff is actually queued/scheduled.
 - Use “shared with the team” only when delivery status is SENT. QUEUED wording must never imply completed delivery.
@@ -172,6 +179,22 @@ Controller already **selects** `COLLECT_NAME` → phone → address on HIGH / RE
 - Preserve sticky extractors, combined time+price, truthful queued vs sent copy, per-business routing, `after()` delivery, voice tests, 375px layout, PII-safe logs, legal pages.
 - Add **generic** regression tests (not HVAC-only, not one hardcoded brand): high-intent service request → COLLECT_NAME; reject residential/commercial and troubleshooting; reject business phone without ask/emergency/failed delivery; reject preferred-time ask before the three lead fields.
 - Likely later files: `src/lib/salesController.ts` (`validateSalesReply` / possibly `detectIntent` if wording is classified LOW); `src/lib/salesChat.ts` only if a prompt line is required. Tests: `scripts/test-demo-chat.ts` and/or `scripts/test-handoff-timing.ts`. Avoid inbound voice / Twilio / ElevenLabs unless a test proves the same leak there.
+
+---
+
+## Newly discovered production failure (cold-form sales conversation)
+
+**Live failure:**
+
+- High-intent capture still used a cold form: “We can help with that. What’s your first name?”
+- Phone and address turns repeated “Thanks, {name}” mechanically.
+- After name + customer phone + service address, the AI jumped to preferred day/time instead of a helpful, profile-aware next-step explanation.
+- Price answers used “I don’t have a verified price to quote from here” and treated price as a reason to force a time question.
+- A preferred time without prior agreement could still be treated as a completed-handoff claim.
+
+**Map:** primarily **B** (lead capture must stay human after the three contact fields) and **C** (no recorded/shared/team-contact wording before a queued handoff). Preserve A, D, E, F, G, H. Do not hardcode plumbing or any one vertical as product behavior.
+
+**Coverage:** `scripts/test-demo-chat.ts` `testProfileAwareSalesConversationQuality` plus existing high-intent / post-contact / pre-queue tests. Representative plumbing, HVAC, electrical, roofing, and consultation-style profiles. Do not weaken earlier HVAC discovery, phone, or capture-order assertions.
 
 ---
 

@@ -1,4 +1,8 @@
 import type { BusinessProfile } from "../types/business";
+import {
+  pricingRulesKnowledgeText,
+  verifiedPricingRulesText,
+} from "./businessProfile";
 import type { SalesObjective, UrgencyLevel } from "./salesState";
 
 /**
@@ -115,7 +119,7 @@ export function buildPricingApproachAnswer(
   business: BusinessProfile
 ): string {
   const blob = [
-    business.pricingRules || "",
+    pricingRulesKnowledgeText(business.pricingRules),
     business.systemPrompt || "",
     ...business.faqs.map((f) => `${f.question} ${f.answer}`),
   ]
@@ -132,26 +136,24 @@ export function buildPricingApproachAnswer(
     /\blump sum\b/.test(blob) ||
     /\bfor the (full )?job\b/.test(blob);
 
+  const rules = verifiedPricingRulesText(business.pricingRules);
+
   if (hasHourly && !hasFixed) {
-    const rules = business.pricingRules?.trim();
     return rules
       ? rules
       : "This business typically charges hourly. The exact rate depends on the diagnosis and what the work includes.";
   }
   if (hasFixed && !hasHourly) {
-    const rules = business.pricingRules?.trim();
     return rules
       ? rules
       : "This business typically prices the full job rather than by the hour. The exact price depends on the diagnosis and scope.";
   }
   if (hasHourly && hasFixed) {
-    const rules = business.pricingRules?.trim();
     return rules
       ? rules
       : "Depending on the work, pricing may be hourly or for the full job. The applicable approach depends on the scope.";
   }
 
-  const rules = business.pricingRules?.trim();
   if (rules) return rules;
 
   return SCOPE_DEPENDENT_PRICING_ANSWER;

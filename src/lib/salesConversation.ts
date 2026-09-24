@@ -1,4 +1,8 @@
 import type { BusinessProfile } from "../types/business";
+import {
+  pricingRulesKnowledgeText,
+  verifiedPricingRulesText,
+} from "./businessProfile";
 import type { SalesState } from "./salesState";
 
 export const PRE_CONTACT_ASK_FIRST_NAME = "What's your first name?";
@@ -15,7 +19,7 @@ export type ConversationNeedTone =
 
 /** Broad intent cues only — no industry/example noun lists. */
 const PROBLEM_NEED_RE =
-  /\b(break(?:s|ing|down)?|broken|not working|isn'?t working|won'?t work|repair|fix|urgent|emergency|help needed|need help|leaking|leak|damaged|outage|flood(?:ing)?|clog(?:ged)?|block(?:age|ed)?|backup|backing up|overflow|faulty|failed|stopped|no (?:heat(?:ing)?|cooling|power|(?:hot )?water)|cracked|won'?t)\b/i;
+  /\b(break(?:s|ing|down)?|broken|not working|isn'?t working|won'?t work|repair|fix|urgent|emergency|help needed|need help|leaking|leak|damaged|outage|flood(?:ing)?|clog(?:ged)?|block(?:age|ed)?|backup|backing up|overflow|faulty|failed|stopped|no (?:heat(?:ing)?|cooling|power|(?:hot )?water)|cracked|won'?t|infestation|pest|termite|rodent|nest|spread)\b/i;
 
 const CELEBRATION_NEED_RE =
   /\b(celebrat(?:e|ion|ing)?|event|party|ceremony|occasion|reception|venue)\b/i;
@@ -35,7 +39,7 @@ export function profileKnowledgeBlob(business: BusinessProfile): string {
     business.businessName,
     business.tagline,
     business.systemPrompt,
-    business.pricingRules || "",
+    pricingRulesKnowledgeText(business.pricingRules),
     ...business.services,
     ...business.faqs.map((f) => `${f.question} ${f.answer}`),
   ]
@@ -194,17 +198,28 @@ function needToneFromState(
  */
 export function buildPersuasiveArrangeInvitation(
   business: BusinessProfile,
-  tone?: ConversationNeedTone
+  tone?: ConversationNeedTone,
+  need?: string | null
 ): string {
   const resolved = tone || "CONSULTATION";
   const step = nextStepArticleNoun(business, resolved);
   const fieldProblem =
     resolved === "PROBLEM" && isFieldServiceProfile(business);
+  const brief = briefNeedPhrase(need);
 
   switch (resolved) {
     case "PROBLEM":
       if (fieldProblem) {
-        return `A visit lets the professional identify the cause, explain the options, and give you a clear quote before any work begins. Would you like to arrange ${step}?`;
+        const shortBrief =
+          brief &&
+          brief.split(/\s+/).length <= 6 &&
+          !/^(i |we |my |our )/i.test(brief)
+            ? brief
+            : null;
+        const concern = shortBrief
+          ? `I understand you're dealing with ${shortBrief}. `
+          : "I understand this is concerning. ";
+        return `${concern}A visit lets the professional assess the situation on site, explain the options, and give you a clear quote before any work begins. Would you like to arrange ${step}?`;
       }
       return `A short conversation lets the team understand your goals and recommend the right next step. Would you like to arrange ${step}?`;
     case "ASPIRATIONAL":
@@ -223,7 +238,8 @@ export function buildPostContactNextStepReply(
 ): string {
   return buildPersuasiveArrangeInvitation(
     business,
-    needToneFromState(state, business)
+    needToneFromState(state, business),
+    state.customerNeed || state.primaryNeed
   );
 }
 
@@ -330,15 +346,15 @@ function toneAwareUnverifiedScope(
   switch (tone) {
     case "PROBLEM":
       return isFieldServiceProfile(business)
-        ? "The final cost depends on what the assessment finds and the scope of work. A visit lets the professional identify the cause and give you a clear quote before work begins."
-        : "The cost depends on your requirements and the scope of the consultation. A short conversation lets the team understand your needs and recommend the right next step.";
+        ? "Exact pricing depends on what is found on site — for example the extent of the issue, access, and the repair or treatment path. A visit lets the professional assess that and give you a clear quote before work begins."
+        : "Exact pricing depends on your requirements and the consultation scope. A short conversation lets the team understand your needs and recommend the right next step.";
     case "ASPIRATIONAL":
-      return "The final cost depends on the design, materials, and scope of the project. A short consultation lets the team understand what you have in mind and provide a clear quote.";
+      return "Exact pricing depends on design choices, materials, site conditions, and project scope. A short consultation lets the team review those variables with you and provide a clear quote.";
     case "CELEBRATION":
-      return "The cost depends on the date, guest count, venue requirements, and the options you choose. A short consultation lets the team understand your plans and prepare suitable options.";
+      return "Exact pricing depends on the date, guest count, venue requirements, and the options you choose. A short consultation lets the team map those variables to suitable options.";
     case "CONSULTATION":
     default:
-      return "The cost depends on your requirements and the scope of the consultation. A short conversation lets the team understand your needs and recommend the right next step.";
+      return "Exact pricing depends on your goals, the depth of advice needed, and the scope of work that follows. A short conversation lets the team understand those variables and recommend the right next step.";
   }
 }
 
@@ -352,7 +368,9 @@ export function buildIntentAwarePriceAnswer(
   business: BusinessProfile
 ): string {
   const tone = needToneFromState(state, business);
-  const rules = business.pricingRules?.trim();
+  // Only non-empty string pricingRules are customer-facing verified text.
+  // Structured/non-string shapes fall through to truthful no-invented-price.
+  const rules = verifiedPricingRulesText(business.pricingRules);
   if (rules) return rules;
 
   const approach = describeVerifiedApproach(business);
@@ -421,4 +439,135 @@ export function replyUsesFieldServiceJargon(reply: string): boolean {
   return /\b(technician|service visit|site visit|on[- ]site assessment|diagnosis|the work required|what the work includes)\b/i.test(
     reply
   );
+}
+
+/**
+ * True when the customer is asking for sales conversation value — not merely
+ * submitting a lead field or bare agreement. Used to avoid replacing the AI
+ * with generic consultation templates after contacts are secured.
+ */
+export function isSubstantiveSalesFollowUp(
+  message: string | null | undefined
+): boolean {
+  const t = (message || "").trim();
+  if (!t) return false;
+
+  if (/\?/.test(t)) return true;
+
+  const lower = t.toLowerCase();
+
+  if (
+    /^(yes|yeah|yep|yup|sure|ok|okay|sounds good|that works|yes please|no|nope|no thanks)[.!]?$/i.test(
+      t
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    /\b(worried|concerned|nervous|afraid|scared|anxious|how far|spread|getting worse|before it (gets|becomes) worse)\b/i.test(
+      lower
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    /\b(efficient|efficiency|energy|electricity|power (bill|usage|consumption)|consumption|options?|compare|comparison|difference|recommend|what (system|unit|model|type)|which (system|unit|model|type)|how (does|do|would|will)|why (do|does|would|should)|do you (know|offer|handle|provide|install)|can you (explain|tell|help|advise)|tell me (about|more)|what about)\b/i.test(
+      lower
+    )
+  ) {
+    return true;
+  }
+
+  if (
+    /\b(too expensive|cost too much|pricey|not sure|need to think|hesitat|why (should|would) i|worth it|financial)\b/i.test(
+      lower
+    )
+  ) {
+    return true;
+  }
+
+  if (isCostOptionsHesitation(t)) return true;
+
+  // Multi-sentence concern / explanation after contacts — treat as conversation.
+  if (t.split(/\s+/).filter(Boolean).length >= 10) return true;
+
+  return false;
+}
+
+/**
+ * Detects first-person business capability claims ("we handle/provide/...").
+ * Used to reject converting general industry knowledge into unsupported
+ * claims about the specific business when the profile does not support them.
+ */
+export function replyMakesFirstPersonCapabilityClaim(reply: string): boolean {
+  return /\b(we|our (team|technicians?|crew|company|staff))\s+(?:can |will |could |also )?(handle|handles|provide|provides|offer|offers|do|does|perform|performs|coordinate|coordinates|take care of|cover|covers)\b/i.test(
+    reply
+  );
+}
+
+/**
+ * Extracts rough capability phrases after first-person claim verbs for
+ * profile support checks. Industry-agnostic; not a vertical allowlist.
+ */
+export function extractClaimedCapabilities(reply: string): string[] {
+  const claims: string[] = [];
+  const re =
+    /\b(?:we|our (?:team|technicians?|crew|company|staff))\s+(?:can |will |could |also )?(?:handle|handles|provide|provides|offer|offers|do|does|perform|performs|coordinate|coordinates|take care of|cover|covers)\s+([^.;!?]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(reply))) {
+    const phrase = (match[1] || "").trim().toLowerCase();
+    if (phrase.length >= 4) claims.push(phrase.slice(0, 80));
+  }
+  return claims;
+}
+
+/**
+ * True when a first-person capability claim is not supported by the loaded
+ * BusinessProfile. General industry wording ("installations commonly require")
+ * is not flagged.
+ */
+export function replyHasUnsupportedBusinessCapabilityClaim(
+  reply: string,
+  business: BusinessProfile
+): boolean {
+  if (!replyMakesFirstPersonCapabilityClaim(reply)) return false;
+
+  const knowledge = profileKnowledgeBlob(business);
+  const claims = extractClaimedCapabilities(reply);
+  if (claims.length === 0) {
+    return /\b(we|our (team|technicians?|crew))\s+(?:can |will |could |also )?(handle|provide|coordinate|offer)\b/i.test(
+      reply
+    );
+  }
+
+  return claims.some((claim) => {
+    const tokens = claim
+      .replace(/[^a-z0-9\s-]/g, " ")
+      .split(/\s+/)
+      .filter((token) => token.length >= 4);
+    if (tokens.length === 0) return false;
+    const supported = tokens.some((token) => knowledge.includes(token));
+    return !supported;
+  });
+}
+
+/** Generic consultation-boilerplate only — no substantive answer content. */
+export function replyIsGenericConsultationBoilerplate(reply: string): boolean {
+  const t = reply.trim();
+  if (!t) return false;
+  const arrangeOnly =
+    /\bwould you like to arrange\b/i.test(t) &&
+    /\b(visit|consultation|assessment|appointment|estimate)\b/i.test(t);
+  if (!arrangeOnly) return false;
+  const hasBoilerplateBenefit =
+    /\b(lets the (professional|team)|short (conversation|consultation) lets|understand (the space|your goals|the occasion|your plans|your needs)|identify the cause|clear quote before)\b/i.test(
+      t
+    );
+  const hasSubstantiveAnswer =
+    /\b(efficiency|electric|energy|consumption|cost (is|depends|varies)|pricing depends|exact pricing|typically|commonly|usually|in general|options include|newer systems|high[- ]efficiency|can extend|helps determine|activity can|for example|variables|extent of the issue|design choices|guest count|depth of advice)\b/i.test(
+      t
+    );
+  return hasBoilerplateBenefit && !hasSubstantiveAnswer;
 }

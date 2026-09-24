@@ -1,16 +1,18 @@
 import { BusinessProfile } from "../types/business";
+import { pricingRulesKnowledgeText } from "./businessProfile";
 import { evaluateHandoffReadiness } from "./leadHandoffShared";
 import {
   agreedToArrange,
   buildAgreedPreferredTimeAsk,
-  buildCostOptionsHesitationReply,
   buildPostContactNextStepReply,
   buildPostContactPriceReply,
   buildTimeWithoutAgreementReply,
   classifyConversationNeedTone,
   isCostOptionsHesitation,
+  isSubstantiveSalesFollowUp,
   nextStepArticleNoun,
-  replyAsksToArrangeNextStep,
+  replyHasUnsupportedBusinessCapabilityClaim,
+  replyIsGenericConsultationBoilerplate,
   resolveWarmPreContactReply,
   startsWithMechanicalNameThanks,
 } from "./salesConversation";
@@ -101,7 +103,7 @@ function customerAskedAboutFee(text: string): boolean {
 
 function extractSiteVisitFeeLabel(business: BusinessProfile): string | null {
   const blob = [
-    business.pricingRules || "",
+    pricingRulesKnowledgeText(business.pricingRules),
     business.systemPrompt || "",
   ].join("\n");
   if (!/\b(visit|call-?out|site)\b/i.test(blob) || !/\b(fee|charge)\b/i.test(blob)) {
@@ -800,7 +802,7 @@ export function resolvePostContactConversationReply(
   state: SalesState,
   business: BusinessProfile,
   latestUserMessage?: string,
-  recentAssistantMessage?: string
+  _recentAssistantMessage?: string
 ): string | null {
   if (!isLeadContactComplete(state)) return null;
   if (
@@ -811,11 +813,15 @@ export function resolvePostContactConversationReply(
   }
   if (!latestUserMessage?.trim()) return null;
 
-  if (messageAsksPricingOrBilling(latestUserMessage)) {
-    return buildPostContactPriceReply(state, business);
-  }
-
+  // State/safety deterministic path: preferred time after agreement.
   if (agreedToArrange(state) && !state.preferredTiming) {
+    // Still answer a direct price question first when asked mid-agreement flow.
+    if (messageAsksPricingOrBilling(latestUserMessage)) {
+      return buildPostContactPriceReply(state, business);
+    }
+    if (isSubstantiveSalesFollowUp(latestUserMessage)) {
+      return null;
+    }
     return buildAgreedPreferredTimeAsk(
       business,
       classifyConversationNeedTone(
@@ -825,24 +831,40 @@ export function resolvePostContactConversationReply(
     );
   }
 
+  // State/safety: time without agreement must not claim a completed handoff.
   if (!agreedToArrange(state) && state.preferredTiming) {
+    if (
+      messageAsksPricingOrBilling(latestUserMessage) ||
+      isSubstantiveSalesFollowUp(latestUserMessage)
+    ) {
+      return null;
+    }
     return buildTimeWithoutAgreementReply(state, business);
   }
 
   if (!agreedToArrange(state) && !state.preferredTiming) {
-    if (isCostOptionsHesitation(latestUserMessage)) {
-      return buildCostOptionsHesitationReply(
-        state,
-        business,
-        recentAssistantMessage
-      );
+    // Price without verified timing/agreement: keep deterministic truthful
+    // pricing (no invented amounts) for performance and safety.
+    if (messageAsksPricingOrBilling(latestUserMessage)) {
+      return buildPostContactPriceReply(state, business);
     }
+
+    // Substantive sales conversation belongs to the AI — do not replace it
+    // with generic consultation / hesitation templates.
+    if (isSubstantiveSalesFollowUp(latestUserMessage)) {
+      return null;
+    }
+
+    // Sticky primary need remains active after contact capture. A bare address
+    // (or other lead-field-only answer) is NOT permission to close with a
+    // consultation/arrange template — resume the unresolved need via AI.
     if (
-      /\?/.test(latestUserMessage) &&
-      !messageAsksPricingOrBilling(latestUserMessage)
+      isCustomerNeedSpecific(state.customerNeed || state.primaryNeed)
     ) {
       return null;
     }
+
+    // No sticky need established: deterministic warm next-step invite.
     return buildPostContactNextStepReply(state, business);
   }
 
@@ -1111,7 +1133,10 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
     if (agreedToArrange(state)) {
       return "ADVANCE_TO_NEXT_STEP";
     }
-    if (/\?/.test(latestUserText) && !detectVisitPreferenceRequest(latestUserText)) {
+    if (
+      isSubstantiveSalesFollowUp(latestUserText) &&
+      !detectVisitPreferenceRequest(latestUserText)
+    ) {
       return "ANSWER";
     }
     return "PRESENT_SOLUTION";
@@ -1621,36 +1646,44 @@ Do not diagnose like a technician.
 Do not ask leakage/timeline/equipment questions unless truly required for the next sales move.
 No brochure. No DIY tutorial.`;
     case "ANSWER":
-      return `YOUR ONLY OBJECTIVE: answer helpfully using BusinessProfile.
-Do not force lead capture.
-Keep it concise — no huge brochure.`;
+      return `YOUR ONLY OBJECTIVE: answer the customer's substantive question or concern helpfully and persuasively.
+Use BusinessProfile facts when available. You may use reliable general industry knowledge to educate and handle objections, but NEVER present general knowledge as a verified capability, policy, price, warranty, credential, or service of THIS business unless BusinessProfile supports it.
+Prefer wording like "installations commonly require..." over "we handle..." when the profile does not establish that capability.
+Match emotion to the situation: empathy for problems, enthusiasm for projects, excitement for celebrations, confident help for consultations. Do not universally say "I'm sorry."
+Do not diagnose dangerous or technical conditions as established fact.
+Do not invent prices, availability, bookings, or unsupported business claims.
+Answer FIRST. After a useful answer, you may naturally advance the sale (including asking whether to arrange the next step) — but do not replace the answer with a generic consultation template.
+Do not force lead capture. Keep it concise — no huge brochure.`;
     case "PRESENT_SOLUTION":
       return `YOUR ONLY OBJECTIVE: connect THIS customer's established need to the single most relevant BusinessProfile-supported solution.
 Make it feel personalized ("based on what you've described...").
-Explain benefit and a logical next step using only verified BusinessProfile facts.
+Explain benefit and a logical next step using verified BusinessProfile facts plus safe general industry context when useful.
 Do NOT list all services or dump technical procedure details.
 Do NOT invent operational claims, brands, catalogs, prices, warranties, or discounts not in BusinessProfile.
+Do NOT convert general industry knowledge into "we provide / we handle / we coordinate" claims unless BusinessProfile supports them.
 Do NOT proactively ask about gate codes, pets, parking, or access instructions.
 Do NOT offer invented timing menus such as next week / 2–4 weeks / later.
 Do not start every sentence with the customer's name.
+Match emotion to the situation — do not use a universal apology.
 ${
   agreedToArrange(state) && !state.preferredTiming
     ? `The customer already agreed to arrange the next step. Ask once what day or time they would prefer. Do not say I'll alert, recorded, shared, or that the team will contact them.`
       : !agreedToArrange(state)
-      ? `Name, customer phone, and service address are secured. Briefly explain the tangible customer benefit of the next step (visit for field-service problems; consultation for projects, celebrations, and professional advice), then ask whether they would like to arrange it. Be confident and natural — not a bare "Would you like to arrange a consultation?" with no benefit. Do NOT invent free consultations, estimates, bookings, availability, or no-obligation promises unless BusinessProfile explicitly states them. Do NOT ask preferred day/time yet. Do not say I'll alert, recorded, shared, or that the team will contact them.`
+      ? `Name, customer phone, and service address are secured. Resume the customer's established sticky need first — continue a genuine sales conversation about that need using BusinessProfile facts and safe general industry knowledge. Completing contact fields is NOT permission to jump to consultation, appointment, preferred day/time, or a generic closing invite. Briefly explore relevant considerations when useful (vision, scope, practical factors), without inventing business capabilities the profile does not support and without turning into a long diagnostic questionnaire. When it is natural, explain why the sensible next step helps and ask whether they would like to arrange it. Do NOT output only a generic consultation/assessment template. Be confident and natural. Do NOT invent free consultations, estimates, bookings, availability, or no-obligation promises unless BusinessProfile explicitly states them. Do NOT ask preferred day/time yet. Do not say I'll alert, recorded, shared, or that the team will contact them.`
       : state.preferredTiming
         ? `preferredTiming is already known (${state.preferredTiming}). Do NOT ask another timing/refinement question.`
         : "Do not ask for a preferred visit time until the customer has agreed to arrange the next step."
 }
-If the lead is already complete (name/phone/address/need) and the customer is not raising a new issue, prefer advancing toward natural closure rather than inventing another "quick question".`;
+If the lead is already complete (name/phone/address/need) and the customer is not raising a new issue, prefer a helpful need-focused sales turn over inventing another "quick question". Do not auto-close with a consultation template.`;
     case "EXPLAIN_VALUE":
       return `YOUR ONLY OBJECTIVE: explain why the relevant offering matters to THIS customer.
-Use only BusinessProfile-supported differentiators. Ask at most ONE question if needed.
+Use BusinessProfile-supported differentiators and safe general industry context. Do NOT claim the business offers a capability unless BusinessProfile supports it.
+Ask at most ONE question if needed.
 Do NOT invent brands, catalogs, prices, or warranties. Do NOT ask access/pet/parking questions.`;
     case "HANDLE_PRICE_OBJECTION":
       return `YOUR ONLY OBJECTIVE: answer the pricing question FIRST, then continue the sales conversation.
 Answer honestly from BusinessProfile/owner knowledge only. Never invent amounts, hourly rates, or fixed prices the profile does not contain.
-If the profile has no verified price, explain that the final amount depends on the scope/assessment in natural customer-friendly language. Do not say "I don't have a verified price to quote from here."
+If the profile has no verified price, explain the genuine variables that normally affect price for this kind of need and why the next step helps establish an accurate quote. Do not merely repeat a vague "price depends on scope" sentence. Do not say "I don't have a verified price to quote from here."
 Do NOT say I'll alert, recorded, shared, or that the team will contact them unless delivery is already queued or sent.
 Do not start with "Thanks, {name}".
 ${
@@ -1667,7 +1700,7 @@ Do not mention whether a request was shared, emailed, texted, or delivered unles
 No invented superiority. Use BusinessProfile-supported facts only. Ask at most ONE clarifying question if needed.`;
     case "HANDLE_HESITATION":
       return `YOUR ONLY OBJECTIVE: handle hesitation without pressure.
-Acknowledge briefly (for example "That makes sense"), then explain the tangible benefit of the next step and ask whether they would like to arrange it.
+Acknowledge the concern with intent-appropriate emotion, answer what they are unsure about, then explain the tangible benefit of the next step and ask whether they would like to arrange it.
 Do not replay the original post-contact invitation or mechanically repeat earlier enthusiasm lines such as "That sounds like a great project".
 Do not invent free consultations, estimates, bookings, availability, outcomes, or no-obligation promises unless BusinessProfile explicitly states them.
 Ask at most ONE clarifying question if needed. Do NOT ask preferred day/time until they agree to arrange.`;
@@ -1811,7 +1844,7 @@ function businessKnowledgeBlob(business: BusinessProfile): string {
     business.businessName,
     business.tagline,
     business.systemPrompt,
-    business.pricingRules || "",
+    pricingRulesKnowledgeText(business.pricingRules),
     business.businessHours || "",
     ...business.services,
     ...business.serviceAreas,
@@ -2133,16 +2166,45 @@ export function validateSalesReply(
     !agreedToArrange(state) &&
     !state.preferredTiming &&
     (state.currentObjective === "PRESENT_SOLUTION" ||
-      state.currentObjective === "ADVANCE_TO_NEXT_STEP") &&
+      state.currentObjective === "ADVANCE_TO_NEXT_STEP" ||
+      state.currentObjective === "ANSWER") &&
     !!latestUserMessage?.trim() &&
-    looksLikeLeadFieldOnlyReply(latestUserMessage) &&
+    isCustomerNeedSpecific(state.customerNeed || state.primaryNeed) &&
+    (looksLikeLeadFieldOnlyReply(latestUserMessage) ||
+      isSubstantiveSalesFollowUp(latestUserMessage)) &&
     !messageAsksPricingOrBilling(latestUserMessage) &&
-    !replyAsksToArrangeNextStep(reply) &&
+    replyIsGenericConsultationBoilerplate(reply) &&
     state.leadDeliveryStatus !== "QUEUED" &&
     state.leadDeliveryStatus !== "SENT"
   ) {
     reasons.push(
-      "After contact details, explain the next step and ask whether to arrange it."
+      "After contact details, resume the customer's sticky need with a real sales conversation instead of a generic consultation template."
+    );
+  }
+
+  if (
+    contactComplete &&
+    business &&
+    replyHasUnsupportedBusinessCapabilityClaim(reply, business)
+  ) {
+    reasons.push(
+      "Claimed a business capability not supported by BusinessProfile; use general industry wording instead of we-handle/we-provide claims."
+    );
+  }
+
+  if (
+    contactComplete &&
+    !!latestUserMessage?.trim() &&
+    isSubstantiveSalesFollowUp(latestUserMessage) &&
+    !messageAsksPricingOrBilling(latestUserMessage) &&
+    (state.currentObjective === "ANSWER" ||
+      state.currentObjective === "PRESENT_SOLUTION" ||
+      state.currentObjective === "HANDLE_HESITATION" ||
+      state.currentObjective === "EXPLAIN_VALUE") &&
+    replyIsGenericConsultationBoilerplate(reply)
+  ) {
+    reasons.push(
+      "Replied with generic consultation boilerplate instead of answering the customer's substantive question or concern."
     );
   }
 

@@ -3,6 +3,7 @@ import { loadSharedProfile } from "./sharedProfileStore";
 import { normalizePhoneNumber } from "./phoneNumbers";
 import { StoredDemo } from "./demoStore";
 import { BusinessProfile } from "../types/business";
+import { verifiedPricingRulesText } from "./businessProfile";
 import {
   ASK_PREFERRED_DAY_TIME,
   CALLBACK_REQUEST_VOICE_ACK,
@@ -148,7 +149,10 @@ export function dynamicVariablesFromProfile(
     business_rules: [
       profile.systemPrompt,
       profile.businessHours ? "Hours: " + profile.businessHours : "",
-      profile.pricingRules ? "Pricing: " + profile.pricingRules : "",
+      (() => {
+        const pricing = verifiedPricingRulesText(profile.pricingRules);
+        return pricing ? "Pricing: " + pricing : "";
+      })(),
     ]
       .filter(Boolean)
       .join(" "),
@@ -197,7 +201,7 @@ function formatVoiceBusinessFacts(profile: BusinessProfile): string {
         ? profile.leadQuestions.join("; ")
         : "None provided"),
     "Pricing / visit charges / estimates: " +
-      (profile.pricingRules ||
+      (verifiedPricingRulesText(profile.pricingRules) ||
         "Not provided — do not invent prices, visit charges, free estimates, or promises."),
     "FAQs:\n" + faqs,
     "Business rules / additional facts:\n" +

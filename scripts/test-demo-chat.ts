@@ -51,6 +51,9 @@ import {
   loadSharedProfile,
 } from "../src/lib/sharedProfileStore";
 import {
+  verifiedPricingRulesText,
+} from "../src/lib/businessProfile";
+import {
   PRE_CONTACT_ASK_ADDRESS,
   PRE_CONTACT_ASK_FIRST_NAME,
   PRE_CONTACT_ASK_PHONE,
@@ -68,6 +71,9 @@ import {
   classifyConversationNeedTone,
   isCostOptionsHesitation,
   isFieldServiceProfile,
+  isSubstantiveSalesFollowUp,
+  replyHasUnsupportedBusinessCapabilityClaim,
+  replyIsGenericConsultationBoilerplate,
   replyUsesFieldServiceJargon,
 } from "../src/lib/salesConversation";
 import {
@@ -2201,9 +2207,14 @@ async function testPostContactSalesConversation() {
     [{ role: "user", content: "How much will it cost?" }],
     secured
   );
-  const priceIdx = priceTurn.reply.toLowerCase().indexOf("cost") >= 0
-    ? priceTurn.reply.toLowerCase().indexOf("cost")
-    : priceTurn.reply.toLowerCase().indexOf("amount");
+  const priceIdx = (() => {
+    const lower = priceTurn.reply.toLowerCase();
+    for (const token of ["cost", "pricing", "price", "amount"]) {
+      const idx = lower.indexOf(token);
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  })();
   const arrangeIdx = priceTurn.reply.toLowerCase().indexOf("would you like to arrange");
   assert(priceIdx >= 0, `price must be answered first, got: ${priceTurn.reply}`);
   assert(arrangeIdx > priceIdx, `arrange ask must follow the price answer, got: ${priceTurn.reply}`);
@@ -2212,7 +2223,7 @@ async function testPostContactSalesConversation() {
     `price must not force a preferred-time question, got: ${priceTurn.reply}`
   );
   assert(
-    /depends on (what the assessment finds|the diagnosis)|scope of work|exact cost depends|final cost depends/i.test(
+    /depends on|exact pricing depends|what is found on site|scope of work|assessment finds|final cost depends/i.test(
       priceTurn.reply
     ),
     `unverified price must not invent an amount, got: ${priceTurn.reply}`
@@ -2405,7 +2416,6 @@ async function testProfileAwareSalesConversationQuality() {
     tone: "PROBLEM" | "ASPIRATIONAL" | "CELEBRATION" | "CONSULTATION";
     nameAck: RegExp;
     forbidSorry: boolean;
-    postContactHint: RegExp;
   }> = [
     {
       label: "plumbing",
@@ -2414,7 +2424,6 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Clearflow Plumbing",
@@ -2431,7 +2440,6 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Northwind HVAC",
@@ -2448,7 +2456,6 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Brightline Electrical",
@@ -2465,7 +2472,6 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "PROBLEM",
       nameAck: /i'm sorry you're dealing with/i,
       forbidSorry: false,
-      postContactHint: /visit lets the professional|identify the cause|arrange a visit/i,
       profile: {
         ...business,
         businessName: "Ridgeview Roofing",
@@ -2482,8 +2488,6 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "ASPIRATIONAL",
       nameAck: /that sounds like a great project/i,
       forbidSorry: true,
-      postContactHint:
-        /consultation lets the team understand the space|before you commit|arrange a consultation/i,
       profile: {
         ...business,
         businessName: "Bluewater Outdoor Living",
@@ -2500,8 +2504,6 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "CELEBRATION",
       nameAck: /how exciting|congratulations/i,
       forbidSorry: true,
-      postContactHint:
-        /short consultation lets the team understand the occasion|prepare options that fit|arrange a consultation/i,
       profile: {
         ...business,
         businessName: "Gardenview Events",
@@ -2518,8 +2520,6 @@ async function testProfileAwareSalesConversationQuality() {
       tone: "CONSULTATION",
       nameAck: /absolutely, i'?d be glad to help/i,
       forbidSorry: true,
-      postContactHint:
-        /short conversation lets the team understand your goals|recommend the right next step|arrange a consultation/i,
       profile: {
         ...business,
         businessName: "Northline Advisory",
@@ -2609,8 +2609,9 @@ async function testProfileAwareSalesConversationQuality() {
         `${sample.label}: address ask must not thank the name`
       );
 
-      const afterAddress = await generateSalesReply(
-        sample.profile,
+      const addressOnly = "400 Main St, Dallas TX 75201";
+      const afterAddressState = updateSalesStateFromTurn(
+        afterPhone.salesState,
         [
           { role: "user", content: sample.opening },
           { role: "assistant", content: first.reply },
@@ -2618,28 +2619,76 @@ async function testProfileAwareSalesConversationQuality() {
           { role: "assistant", content: afterName.reply },
           { role: "user", content: "5125550198" },
           { role: "assistant", content: afterPhone.reply },
-          { role: "user", content: "400 Main St, Dallas TX 75201" },
+          { role: "user", content: addressOnly },
         ],
-        afterPhone.salesState
+        sample.profile
       );
       assert(
-        /would you like to arrange/i.test(afterAddress.reply),
-        `${sample.label}: post-contact must ask to arrange, got ${afterAddress.reply}`
+        !!afterAddressState.lead.name &&
+          !!afterAddressState.lead.phone &&
+          !!afterAddressState.lead.address,
+        `${sample.label}: contacts must be secured after address`
       );
       assert(
-        sample.postContactHint.test(afterAddress.reply),
-        `${sample.label}: profile-aware next-step wording, got ${afterAddress.reply}`
+        !!(afterAddressState.customerNeed || afterAddressState.primaryNeed),
+        `${sample.label}: sticky primary need must remain after address`
       );
       assert(
-        !/what day or time would you prefer/i.test(afterAddress.reply),
-        `${sample.label}: must not jump to preferred time after address, got ${afterAddress.reply}`
+        (afterAddressState.primaryNeed || afterAddressState.customerNeed || "")
+          .toLowerCase()
+          .includes(
+            sample.opening.toLowerCase().replace(/[?.!]+$/g, "").slice(0, 24)
+          ) ||
+          sample.opening
+            .toLowerCase()
+            .includes(
+              (afterAddressState.primaryNeed || afterAddressState.customerNeed || "")
+                .toLowerCase()
+                .slice(0, 24)
+            ),
+        `${sample.label}: sticky need should reflect opening, got ${afterAddressState.customerNeed}`
       );
-      if (sample.tone !== "PROBLEM" || !sample.fieldService) {
-        assert(
-          !replyUsesFieldServiceJargon(afterAddress.reply),
-          `${sample.label}: must not use field-service jargon, got ${afterAddress.reply}`
-        );
-      }
+      const postAddressRoute = resolvePostContactConversationReply(
+        afterAddressState,
+        sample.profile,
+        addressOnly
+      );
+      assert(
+        postAddressRoute === null,
+        `${sample.label}: bare address with sticky need must route to AI, got ${postAddressRoute}`
+      );
+      const bannedTemplate = buildPostContactNextStepReply(
+        afterAddressState,
+        sample.profile
+      );
+      assert(
+        replyIsGenericConsultationBoilerplate(bannedTemplate),
+        `${sample.label}: legacy invite helper remains detectable boilerplate`
+      );
+      const templateRejected = validateSalesReply(
+        bannedTemplate,
+        {
+          ...afterAddressState,
+          currentObjective: "PRESENT_SOLUTION",
+        },
+        sample.profile,
+        addressOnly
+      );
+      assert(
+        !templateRejected.ok,
+        `${sample.label}: generic consultation template must fail after bare address`
+      );
+      assert(
+        !shouldAttemptLeadHandoff(afterAddressState, "closure", addressOnly),
+        `${sample.label}: completing contacts must not hand off`
+      );
+      // Synthetic need-resume reply for later deterministic turns (no OpenAI).
+      const afterAddressReply =
+        "Thanks — happy to keep helping with what you described. A few practical details usually matter before we arrange the next step.";
+      const afterAddress = {
+        reply: afterAddressReply,
+        salesState: afterAddressState,
+      };
 
       const priceTurn = await generateSalesReply(
         sample.profile,
@@ -2801,7 +2850,9 @@ function testVerifiedPricingNeverLeaksFieldServiceJargon() {
   const projectPrice = buildIntentAwarePriceAnswer(projectState, projectBusiness);
   assert(/hourly/i.test(projectPrice), `project verified approach, got ${projectPrice}`);
   assert(
-    /design|materials|scope of the project/i.test(projectPrice),
+    /design|materials|scope of the project|project scope|site conditions/i.test(
+      projectPrice
+    ),
     `project price uses design/materials/scope, got ${projectPrice}`
   );
   assert(
@@ -2864,7 +2915,9 @@ function testVerifiedPricingNeverLeaksFieldServiceJargon() {
   const consultPrice = buildIntentAwarePriceAnswer(consultState, consultBusiness);
   assert(/hourly/i.test(consultPrice), `consultation verified approach, got ${consultPrice}`);
   assert(
-    /requirements|scope of the consultation/i.test(consultPrice),
+    /requirements|scope of the consultation|goals|depth of advice|scope of work that follows/i.test(
+      consultPrice
+    ),
     `consultation price uses requirements/scope, got ${consultPrice}`
   );
   assert(
@@ -2928,7 +2981,9 @@ function testPersuasivePostContactInvitations() {
     "PROBLEM"
   );
   assert(
-    /visit lets the professional identify the cause/i.test(repair) &&
+    /visit lets the professional (assess the situation|identify the cause)/i.test(
+      repair
+    ) &&
       /explain the options/i.test(repair) &&
       /clear quote before any work begins/i.test(repair) &&
       /would you like to arrange a visit/i.test(repair),
@@ -2995,45 +3050,658 @@ function testPersuasivePostContactInvitations() {
     isCostOptionsHesitation(hesitationMessage),
     "cost/options hesitation must be detected"
   );
-  const hesitation = resolvePostContactConversationReply(
+  const hesitationAiPath = resolvePostContactConversationReply(
     projectState,
     projectBusiness,
     hesitationMessage,
     "We can review fixture options during a consultation."
   );
-  assert(!!hesitation, "cost/options hesitation must get a deterministic reply");
   assert(
-    /^that makes sense\./i.test(hesitation!),
-    `hesitation must acknowledge naturally, got ${hesitation}`
+    hesitationAiPath === null,
+    "cost/options hesitation must route to AI sales conversation, not a template"
+  );
+  const hesitation = buildCostOptionsHesitationReply(
+    projectState,
+    projectBusiness,
+    "We can review fixture options during a consultation."
+  );
+  assert(
+    /^that makes sense\./i.test(hesitation),
+    `hesitation helper must acknowledge naturally, got ${hesitation}`
   );
   assert(
     /review the options and likely cost before deciding on fixtures/i.test(
-      hesitation!
+      hesitation
     ),
-    `hesitation must continue the product conversation, got ${hesitation}`
+    `hesitation helper must continue the product conversation, got ${hesitation}`
   );
   assert(
-    /would you like to arrange one/i.test(hesitation!),
-    `hesitation must invite arrangement, got ${hesitation}`
+    /would you like to arrange one/i.test(hesitation),
+    `hesitation helper must invite arrangement, got ${hesitation}`
   );
   assert(
-    !/that sounds like a great project/i.test(hesitation!) &&
+    !/that sounds like a great project/i.test(hesitation) &&
       !/understand the space, discuss the options, and give you a clear quote before you commit/i.test(
-        hesitation!
+        hesitation
       ),
-    `hesitation must not replay the original invitation, got ${hesitation}`
-  );
-  assert(
-    buildCostOptionsHesitationReply(
-      projectState,
-      projectBusiness,
-      "We can review fixture options during a consultation."
-    ) === hesitation,
-    "hesitation helper must match resolvePostContactConversationReply"
+    `hesitation helper must not replay the original invitation, got ${hesitation}`
   );
 
   console.log(
     "PASS — persuasive post-contact invitations + cost/options hesitation"
+  );
+}
+
+function testSalesConversationIntelligenceRegression() {
+  // 1) Problem / urgent concern — after contacts, substantive concern must not
+  // be replaced by generic consultation boilerplate (AI path).
+  const pestBusiness: BusinessProfile = {
+    ...business,
+    businessName: "Harbor Pest Control",
+    services: ["Termite inspection", "Pest treatment"],
+    systemPrompt:
+      "We inspect properties for termites and provide professional pest treatment visits.",
+  };
+  const pestState = securedLead({
+    customerNeed: "I think I have termites and I'm worried how far they spread.",
+    preferredTiming: null,
+    customerAgreed: false,
+    currentObjective: "ANSWER",
+  });
+  const pestConcern =
+    "I'm worried about how far the termites have spread and want treatment before it gets worse.";
+  assert(
+    isSubstantiveSalesFollowUp(pestConcern),
+    "termite/spread concern must count as substantive sales follow-up"
+  );
+  assert(
+    resolvePostContactConversationReply(pestState, pestBusiness, pestConcern) ===
+      null,
+    "urgent concern after contacts must route to AI, not a consultation template"
+  );
+  const pestBoilerplate = buildPostContactNextStepReply(pestState, pestBusiness);
+  assert(
+    /i understand this is concerning|i understand you're dealing with|visit lets the professional/i.test(
+      pestBoilerplate
+    ),
+    `problem invite should acknowledge concern when used, got ${pestBoilerplate}`
+  );
+  const pestBoilerplateValidation = validateSalesReply(
+    pestBoilerplate,
+    { ...pestState, currentObjective: "ANSWER" },
+    pestBusiness,
+    pestConcern
+  );
+  assert(
+    !pestBoilerplateValidation.ok,
+    "generic consultation boilerplate must fail validation on a substantive concern"
+  );
+  assert(
+    pestBoilerplateValidation.reasons.some((r) =>
+      /generic consultation boilerplate/i.test(r)
+    ),
+    pestBoilerplateValidation.reasons.join("; ")
+  );
+  const pestUseful = validateSalesReply(
+    "That is a valid concern — termite activity can extend beyond the first signs, so an on-site inspection helps determine the extent and the right treatment path before recommending work. Would you like to arrange a visit?",
+    { ...pestState, currentObjective: "ANSWER" },
+    pestBusiness,
+    pestConcern
+  );
+  assert(
+    pestUseful.ok,
+    `useful concern answer must pass validation: ${pestUseful.reasons.join("; ")}`
+  );
+
+  // 2) Project / efficiency — substantive efficiency question must not get a template.
+  const hvacBusiness: BusinessProfile = {
+    ...business,
+    businessName: "Northwind Comfort",
+    services: ["HVAC installation", "Heating and cooling systems"],
+    systemPrompt:
+      "We install and service heating and cooling systems. Field technicians handle on-site visits.",
+  };
+  const hvacState = securedLead({
+    customerNeed:
+      "I want a more efficient central heating and cooling system; electricity bill is the concern.",
+    preferredTiming: null,
+    customerAgreed: false,
+    currentObjective: "ANSWER",
+  });
+  const efficiencyQ =
+    "What are the latest most efficient systems and how would that affect electricity consumption?";
+  assert(
+    isSubstantiveSalesFollowUp(efficiencyQ),
+    "efficiency/energy question must count as substantive"
+  );
+  assert(
+    resolvePostContactConversationReply(hvacState, hvacBusiness, efficiencyQ) ===
+      null,
+    "efficiency question after contacts must route to AI"
+  );
+  const efficiencyBoilerplate = validateSalesReply(
+    buildPersuasiveArrangeInvitation(hvacBusiness, "ASPIRATIONAL"),
+    { ...hvacState, currentObjective: "ANSWER" },
+    hvacBusiness,
+    efficiencyQ
+  );
+  assert(
+    !efficiencyBoilerplate.ok,
+    "repeating consultation invitation for an efficiency question must fail"
+  );
+  const efficiencyAnswer = validateSalesReply(
+    "Newer high-efficiency systems typically use less electricity for the same comfort level, though the right match depends on home size, ductwork, and usage. An on-site consultation helps compare options against your bill goals. Would you like to arrange a consultation?",
+    { ...hvacState, currentObjective: "ANSWER" },
+    hvacBusiness,
+    efficiencyQ
+  );
+  assert(
+    efficiencyAnswer.ok,
+    `efficiency answer must pass: ${efficiencyAnswer.reasons.join("; ")}`
+  );
+
+  // 3) Capability boundary — general industry knowledge must not become
+  // unsupported we-handle/we-coordinate business claims.
+  const spaBusiness: BusinessProfile = {
+    ...business,
+    businessName: "Bluewater Outdoor Living",
+    services: ["Jacuzzi installation", "Patio upgrades"],
+    systemPrompt: "We install outdoor living features including jacuzzi units.",
+  };
+  assert(
+    replyHasUnsupportedBusinessCapabilityClaim(
+      "We handle plumbing, gas-line work, and we can coordinate with your electrician.",
+      spaBusiness
+    ),
+    "unsupported we-handle/coordinate claims must be detected"
+  );
+  assert(
+    !replyHasUnsupportedBusinessCapabilityClaim(
+      "Jacuzzi installations commonly require plumbing and electrical preparation before the unit is set.",
+      spaBusiness
+    ),
+    "general industry wording must remain allowed"
+  );
+  assert(
+    !replyHasUnsupportedBusinessCapabilityClaim(
+      "We install outdoor living features and can review jacuzzi placement during a consultation.",
+      spaBusiness
+    ),
+    "profile-supported install claims must remain allowed"
+  );
+  const unsupportedClaim = validateSalesReply(
+    "We handle plumbing, gas-line work, and we can coordinate with your electrician. Would you like to arrange a consultation?",
+    securedLead({
+      customerNeed: "I'd like to install a jacuzzi in my backyard.",
+      preferredTiming: null,
+      customerAgreed: false,
+      currentObjective: "ANSWER",
+    }),
+    spaBusiness,
+    "What is usually required for a jacuzzi installation?"
+  );
+  assert(!unsupportedClaim.ok, "unsupported capability claim must fail validation");
+  assert(
+    unsupportedClaim.reasons.some((r) => /capability not supported/i.test(r)),
+    unsupportedClaim.reasons.join("; ")
+  );
+  const generalKnowledge = validateSalesReply(
+    "Jacuzzi installations commonly require plumbing and electrical preparation; an on-site consultation confirms what your specific space needs. Would you like to arrange a consultation?",
+    securedLead({
+      customerNeed: "I'd like to install a jacuzzi in my backyard.",
+      preferredTiming: null,
+      customerAgreed: false,
+      currentObjective: "ANSWER",
+    }),
+    spaBusiness,
+    "What is usually required for a jacuzzi installation?"
+  );
+  assert(
+    generalKnowledge.ok,
+    `general industry wording must pass: ${generalKnowledge.reasons.join("; ")}`
+  );
+
+  // 4) Price without verified pricing — useful drivers, no invented numbers,
+  // not empty generic boilerplate alone.
+  const priceState = securedLead({
+    customerNeed: "I want a more efficient heating system.",
+    preferredTiming: null,
+    customerAgreed: false,
+  });
+  const priceReply = resolvePostContactConversationReply(
+    priceState,
+    hvacBusiness,
+    "How much will it cost?"
+  );
+  assert(!!priceReply, "price questions still get a deterministic truthful answer");
+  assert(!/\$\s?\d/.test(priceReply!), `must not invent a price, got ${priceReply}`);
+  assert(
+    /exact pricing depends|depends on/i.test(priceReply!) &&
+      /(design|materials|scope|found on site|site conditions|usage|size)/i.test(
+        priceReply!
+      ),
+    `price must explain genuine drivers, got ${priceReply}`
+  );
+  assert(
+    /would you like to arrange/i.test(priceReply!),
+    `price must still advance the sale, got ${priceReply}`
+  );
+  assert(
+    !replyIsGenericConsultationBoilerplate(priceReply!),
+    "price answer must not be empty consultation boilerplate"
+  );
+
+  // 5) Preserve lead capture — high-intent still progresses one field at a time.
+  const capture = updateSalesStateFromTurn(
+    null,
+    [{ role: "user", content: "Our AC stopped cooling and I need it fixed." }],
+    hvacBusiness
+  );
+  assert(
+    capture.currentObjective === "COLLECT_NAME",
+    `high-intent must collect name first, got ${capture.currentObjective}`
+  );
+  assert(
+    resolvePostContactConversationReply(capture, hvacBusiness, "Alex") === null,
+    "pre-contact turns must not use post-contact resolver"
+  );
+  const afterName = updateSalesStateFromTurn(
+    capture,
+    [
+      { role: "assistant", content: buildEmpatheticNameAsk(capture.customerNeed) },
+      { role: "user", content: "Alex" },
+    ],
+    hvacBusiness
+  );
+  assert(
+    afterName.currentObjective === "COLLECT_PHONE",
+    `after name must collect phone, got ${afterName.currentObjective}`
+  );
+  const afterPhone = updateSalesStateFromTurn(
+    afterName,
+    [
+      { role: "assistant", content: PRE_CONTACT_ASK_PHONE },
+      { role: "user", content: "5125550198" },
+    ],
+    hvacBusiness
+  );
+  assert(
+    afterPhone.currentObjective === "COLLECT_ADDRESS",
+    `after phone must collect address, got ${afterPhone.currentObjective}`
+  );
+  const afterAddress = updateSalesStateFromTurn(
+    afterPhone,
+    [
+      { role: "assistant", content: PRE_CONTACT_ASK_ADDRESS },
+      { role: "user", content: "400 Main St, Dallas TX 75201" },
+    ],
+    hvacBusiness
+  );
+  assert(
+    afterAddress.leadStatus === "SECURED" &&
+      !!afterAddress.lead.name &&
+      !!afterAddress.lead.phone &&
+      !!afterAddress.lead.address,
+    "required lead fields must remain sticky through capture"
+  );
+  const firstPostContact = resolvePostContactConversationReply(
+    afterAddress,
+    hvacBusiness,
+    "400 Main St, Dallas TX 75201"
+  );
+  assert(
+    firstPostContact === null,
+    `bare address with sticky need must route to AI, got ${firstPostContact}`
+  );
+  assert(
+    !!(afterAddress.customerNeed || afterAddress.primaryNeed),
+    "sticky need must remain after address capture"
+  );
+  assert(
+    !shouldAttemptLeadHandoff(
+      afterAddress,
+      "closure",
+      "400 Main St, Dallas TX 75201"
+    ),
+    "completing contacts must not hand off"
+  );
+
+  // 6) Preserve handoff — preferred timing / agreement / exactly-one handoff.
+  const ready = securedLead({
+    preferredTiming: null,
+    customerAgreed: false,
+    leadDeliveryStatus: "NOT_SENT",
+  });
+  const timeWithoutAgreement = resolvePostContactConversationReply(
+    { ...ready, preferredTiming: "tomorrow morning" },
+    business,
+    "tomorrow morning"
+  );
+  assert(
+    !!timeWithoutAgreement &&
+      /would you like to arrange/i.test(timeWithoutAgreement),
+    `time without agreement must ask to arrange, got ${timeWithoutAgreement}`
+  );
+  assert(
+    !shouldAttemptLeadHandoff(
+      { ...ready, preferredTiming: "tomorrow morning" },
+      "closure",
+      "tomorrow morning"
+    ),
+    "handoff must not fire without agreement"
+  );
+  const agreedAsk = resolvePostContactConversationReply(
+    { ...ready, customerAgreed: true, appointmentIntent: true },
+    business,
+    "yes"
+  );
+  assert(
+    !!agreedAsk && /what day or time would you prefer/i.test(agreedAsk),
+    `agreement must ask preferred time, got ${agreedAsk}`
+  );
+  const complete = securedLead({
+    preferredTiming: "tomorrow morning",
+    customerAgreed: true,
+    appointmentIntent: true,
+    leadDeliveryStatus: "NOT_SENT",
+  });
+  assert(
+    shouldAttemptLeadHandoff(complete, "closure", "tomorrow morning"),
+    "complete agreed lead must allow exactly one handoff attempt"
+  );
+  assert(
+    !shouldAttemptLeadHandoff(
+      { ...complete, leadDeliveryStatus: "QUEUED" },
+      "closure",
+      "tomorrow morning"
+    ),
+    "replay after queued must not attempt another handoff"
+  );
+
+  console.log(
+    "PASS — sales conversation intelligence: concern, efficiency, capability boundary, price drivers, lead capture, handoff"
+  );
+}
+
+/**
+ * Regression class: high-intent project need → name → phone → address-only reply
+ * must NOT fire the generic consultation/arrange template. Sticky need stays
+ * active and the turn routes to conversational intelligence. No handoff yet.
+ * Representative project wording only — not a fountain-specific production rule.
+ */
+function testStickyNeedResumesAfterBareAddress() {
+  const projectBusiness: BusinessProfile = {
+    ...business,
+    businessName: "Lakeside Outdoor Living",
+    services: ["Outdoor water features", "Patio upgrades"],
+    systemPrompt:
+      "We design and install outdoor living features including water features. We do not provide electrical or plumbing trade services beyond installation planning.",
+    pricingRules: "",
+  };
+  const opening =
+    "I want to install a fountain in front of my house.. Can you help?";
+
+  const needTurn = updateSalesStateFromTurn(
+    null,
+    [{ role: "user", content: opening }],
+    projectBusiness
+  );
+  assert(
+    needTurn.currentObjective === "COLLECT_NAME",
+    `high-intent project must collect name first, got ${needTurn.currentObjective}`
+  );
+  assert(
+    !!(needTurn.customerNeed || needTurn.primaryNeed),
+    "primary need must be captured from the opening"
+  );
+
+  const afterName = updateSalesStateFromTurn(
+    needTurn,
+    [
+      {
+        role: "assistant",
+        content: buildEmpatheticNameAsk(
+          needTurn.customerNeed || needTurn.primaryNeed
+        ),
+      },
+      { role: "user", content: "UT" },
+    ],
+    projectBusiness
+  );
+  assert(
+    afterName.currentObjective === "COLLECT_PHONE",
+    `after name must collect phone, got ${afterName.currentObjective}`
+  );
+  assert(
+    afterName.lead.name === "UT" || afterName.lead.name === "Ut",
+    `short name must stick, got ${afterName.lead.name}`
+  );
+
+  const afterPhone = updateSalesStateFromTurn(
+    afterName,
+    [
+      { role: "assistant", content: PRE_CONTACT_ASK_PHONE },
+      { role: "user", content: "9898989898" },
+    ],
+    projectBusiness
+  );
+  assert(
+    afterPhone.currentObjective === "COLLECT_ADDRESS",
+    `after phone must collect address, got ${afterPhone.currentObjective}`
+  );
+  assert(!!afterPhone.lead.phone, "phone must stick");
+
+  const addressOnly = "1500 Marilla St, Dallas TX 75201";
+  const afterAddress = updateSalesStateFromTurn(
+    afterPhone,
+    [
+      { role: "assistant", content: PRE_CONTACT_ASK_ADDRESS },
+      { role: "user", content: addressOnly },
+    ],
+    projectBusiness
+  );
+  assert(
+    afterAddress.leadStatus === "SECURED" &&
+      !!afterAddress.lead.name &&
+      !!afterAddress.lead.phone &&
+      !!afterAddress.lead.address,
+    "name, phone, and address must all be secured"
+  );
+
+  const stickyNeed = afterAddress.customerNeed || afterAddress.primaryNeed || "";
+  assert(
+    /fountain|install/i.test(stickyNeed),
+    `sticky original need must remain active after bare address, got ${stickyNeed}`
+  );
+  assert(
+    !isSubstantiveSalesFollowUp(addressOnly),
+    "bare address itself is not a substantive sales follow-up message"
+  );
+
+  const routed = resolvePostContactConversationReply(
+    afterAddress,
+    projectBusiness,
+    addressOnly
+  );
+  assert(
+    routed === null,
+    `post-address must route to AI conversation, not a template, got ${routed}`
+  );
+
+  const banned = buildPostContactNextStepReply(afterAddress, projectBusiness);
+  assert(
+    /a consultation lets the team understand the space/i.test(banned) &&
+      /would you like to arrange/i.test(banned),
+    `legacy ASPIRATIONAL invite still exists as a helper, got ${banned}`
+  );
+  assert(
+    replyIsGenericConsultationBoilerplate(banned),
+    "legacy invite must be classified as generic consultation boilerplate"
+  );
+
+  const rejected = validateSalesReply(
+    banned,
+    { ...afterAddress, currentObjective: "PRESENT_SOLUTION" },
+    projectBusiness,
+    addressOnly
+  );
+  assert(
+    !rejected.ok,
+    "generic consultation template must fail validation after bare address"
+  );
+  assert(
+    rejected.reasons.some((r) =>
+      /sticky need|generic consultation template/i.test(r)
+    ),
+    rejected.reasons.join("; ")
+  );
+
+  const usefulResume = validateSalesReply(
+    "Happy to help with a front-yard fountain project. Style, size, and whether water and power are already nearby usually shape the plan — we can walk through those so the team is prepared. What look or size are you imagining?",
+    { ...afterAddress, currentObjective: "PRESENT_SOLUTION" },
+    projectBusiness,
+    addressOnly
+  );
+  assert(
+    usefulResume.ok,
+    `need-resume sales turn must pass validation: ${usefulResume.reasons.join("; ")}`
+  );
+  assert(
+    !replyHasUnsupportedBusinessCapabilityClaim(
+      "Happy to help with a front-yard fountain project. Style, size, and whether water and power are already nearby usually shape the plan.",
+      projectBusiness
+    ),
+    "general industry considerations must not invent we-handle claims"
+  );
+  assert(
+    replyHasUnsupportedBusinessCapabilityClaim(
+      "We handle gas-line permits and we coordinate with your city inspector.",
+      projectBusiness
+    ),
+    "unsupported we-handle/coordinate claims must still be detected"
+  );
+
+  assert(
+    !shouldAttemptLeadHandoff(afterAddress, "closure", addressOnly),
+    "contact completeness alone must not queue a handoff"
+  );
+  assert(
+    !afterAddress.customerAgreed && !afterAddress.preferredTiming,
+    "agreement and preferred time must remain unset after address-only"
+  );
+
+  console.log(
+    "PASS — sticky need resumes after bare address (no consultation template, no handoff)"
+  );
+}
+
+/**
+ * Real runtime failure: owner-update / stored profiles can persist pricingRules
+ * as a structured object. buildIntentAwarePriceAnswer must not call .trim() on
+ * it, must not stringify the object into the customer reply, and must return a
+ * truthful no-invented-price answer so /api/chat does not 500.
+ */
+async function testNonStringPricingRulesDoesNotCrashPriceTurn() {
+  const objectPricingRules = {
+    model: "assessment_then_quote",
+    diagnostic: null,
+    notes: "Final amount depends on scope after on-site review",
+    billing: { approach: "hourly after diagnosis" },
+  };
+
+  assert(
+    verifiedPricingRulesText(objectPricingRules) === null,
+    "structured pricingRules must not count as customer-facing verified text"
+  );
+  assert(
+    verifiedPricingRulesText("Diagnostic visit is $89.") ===
+      "Diagnostic visit is $89.",
+    "string pricingRules must still be accepted"
+  );
+
+  const structuredBusiness: BusinessProfile = {
+    ...business,
+    // Runtime shape from owner-update LLM patches / stored JSON — not a string.
+    pricingRules: objectPricingRules as unknown as string,
+    systemPrompt:
+      "Field technicians handle on-site service visits. Labor may be billed hourly.",
+  };
+
+  const secured = securedLead({
+    preferredTiming: null,
+    customerAgreed: false,
+    currentObjective: "PRESENT_SOLUTION",
+    leadDeliveryStatus: "NOT_SENT",
+    conversationId: "conv_nonstring_pricing_rules",
+  });
+
+  let priceAnswer: string;
+  try {
+    priceAnswer = buildIntentAwarePriceAnswer(secured, structuredBusiness);
+  } catch (error) {
+    throw new Error(
+      `buildIntentAwarePriceAnswer must not throw on object pricingRules: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+  assert(
+    typeof priceAnswer === "string" && priceAnswer.trim().length > 0,
+    `must return a non-empty price answer, got ${priceAnswer}`
+  );
+  assert(
+    !/\[object Object\]/i.test(priceAnswer),
+    `must not stringify object into customer text, got ${priceAnswer}`
+  );
+  assert(
+    !/"model"\s*:|"assessment_then_quote"|JSON\.stringify/i.test(priceAnswer),
+    `must not dump structured pricingRules JSON, got ${priceAnswer}`
+  );
+  assert(
+    !/\$\s?\d/.test(priceAnswer),
+    `must not invent a dollar amount from structured rules, got ${priceAnswer}`
+  );
+  assert(
+    /depends on|exact pricing depends|hourly|scope|assessment|visit|quote/i.test(
+      priceAnswer
+    ),
+    `must use truthful no-invented-price fallback, got ${priceAnswer}`
+  );
+
+  const routed = resolvePostContactConversationReply(
+    secured,
+    structuredBusiness,
+    "How much will it cost?"
+  );
+  assert(!!routed, "price question must still get a deterministic reply");
+  assert(
+    !/\[object Object\]/i.test(routed!),
+    `resolver must not leak object coercion, got ${routed}`
+  );
+
+  const chat = await generateSalesReply(
+    structuredBusiness,
+    [{ role: "user", content: "How much will it cost?" }],
+    secured
+  );
+  assert(
+    typeof chat.reply === "string" && chat.reply.trim().length > 0,
+    `generateSalesReply must return a reply instead of throwing, got ${chat.reply}`
+  );
+  assert(
+    !/\[object Object\]/i.test(chat.reply),
+    `chat reply must not leak object pricingRules, got ${chat.reply}`
+  );
+  assert(
+    /would you like to arrange|depends on|exact pricing|hourly/i.test(
+      chat.reply
+    ),
+    `chat price turn must remain a valid sales reply, got ${chat.reply}`
+  );
+  assert(!/\$\s?\d/.test(chat.reply), `must not invent a dollar amount, got ${chat.reply}`);
+
+  console.log(
+    "PASS — non-string pricingRules does not crash price turn; no object leak"
   );
 }
 
@@ -3097,6 +3765,9 @@ async function main() {
   await testProfileAwareSalesConversationQuality();
   testVerifiedPricingNeverLeaksFieldServiceJargon();
   testPersuasivePostContactInvitations();
+  testSalesConversationIntelligenceRegression();
+  testStickyNeedResumesAfterBareAddress();
+  await testNonStringPricingRulesDoesNotCrashPriceTurn();
   testChatAvatarIdentityVisibility();
   testPreQueueAlertWordingBan();
   testCustomerFacingHandoffWording();

@@ -1,4 +1,5 @@
 import { BusinessProfile } from "../types/business";
+import { verifiedPricingRulesText } from "./businessProfile";
 
 /**
  * Business knowledge only (WHAT the business sells / knows).
@@ -11,6 +12,10 @@ export function formatBusinessKnowledge(business: BusinessProfile): string {
           .map((faq) => `Q: ${faq.question}\nA: ${faq.answer}`)
           .join("\n\n")
       : "None provided";
+
+  const pricingText =
+    verifiedPricingRulesText(business.pricingRules) ||
+    "Not provided — do not invent prices, visit charges, free estimates, or promises.";
 
   return `
 ==================================================
@@ -46,7 +51,7 @@ Optional business process context (NOT a script. NOT a checklist. Ask only if ne
 ${business.leadQuestions.length > 0 ? business.leadQuestions.map((q) => `- ${q}`).join("\n") : "- None provided"}
 
 Pricing / visit charges / estimates:
-${business.pricingRules || "Not provided — do not invent prices, visit charges, free estimates, or promises."}
+${pricingText}
 
 Additional business facts / offerings knowledge (NOT sales methodology — ignore any sales-script tone here):
 ${business.systemPrompt || "None provided"}

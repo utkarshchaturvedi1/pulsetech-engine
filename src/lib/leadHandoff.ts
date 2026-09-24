@@ -155,7 +155,9 @@ export function buildLeadNotificationEmail(
     "CUSTOMER",
     `Name: ${state.lead.name || "Not provided"}`,
     `Phone: ${state.lead.phone || "Not provided"}`,
-    `Email: ${state.lead.email || "Not provided"}`,
+    ...(state.lead.email?.trim()
+      ? [`Email: ${state.lead.email.trim()}`]
+      : []),
     `Address: ${state.lead.address || "Not provided"}`,
     "",
     "PRIMARY CUSTOMER NEED",

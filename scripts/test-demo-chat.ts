@@ -1674,6 +1674,21 @@ function testStickyPrimaryNeedInAlerts() {
   const mosquitoSms = buildWebsiteLeadSms(business, mosquito);
   assert(mosquitoEmail.text.includes(mosquitoNeed), "email has mosquito need");
   assert(mosquitoSms.includes("Need: Mosquito treatment / inspection"), "SMS has mosquito need");
+  assert(
+    !/^Email:/m.test(mosquitoEmail.text) &&
+      !/Email: Not provided/i.test(mosquitoEmail.text) &&
+      !/Email: N\/A/i.test(mosquitoEmail.text),
+    "missing customer email must omit the Email row entirely"
+  );
+
+  const withCustomerEmail = buildLeadNotificationEmail(business, {
+    ...mosquito,
+    lead: { ...mosquito.lead, email: "sam@example.test" },
+  });
+  assert(
+    withCustomerEmail.text.includes("Email: sam@example.test"),
+    "collected customer email must still be included"
+  );
 
   const driveway = run("I want my driveway sealed.");
   const drivewayNeed = formatPrimaryNeedForAlert(driveway);

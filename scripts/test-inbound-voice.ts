@@ -277,6 +277,24 @@ function testLeadAlerts() {
     !/arrange payment|pay now/i.test(urgentEmail.text),
     "phone alert must not collect payment"
   );
+  assert(
+    urgentVoice.urgency === "IMMEDIATE" &&
+      /Urgency: IMMEDIATE/.test(urgentEmail.text),
+    "urgent voice lead must remain marked IMMEDIATE in the business alert"
+  );
+  assert(
+    !/^Email:/m.test(urgentEmail.text) &&
+      !/Email: Not provided/i.test(urgentEmail.text),
+    "phone lead email must omit Email when customer email was not collected"
+  );
+  const withEmail = buildPhoneLeadEmail(
+    { ...urgentVoice, email: "maya@example.test" },
+    "lead"
+  );
+  assert(
+    withEmail.text.includes("Email: maya@example.test"),
+    "phone lead email must include Email when collected"
+  );
 
   const askOnly = extractPhoneLead(
     {
@@ -389,6 +407,28 @@ function testLeadFlowUnchanged() {
   assert(
     prompt.includes("at most once"),
     "voice fee mention at most once"
+  );
+  assert(
+    /do not tell them to hang up and dial another business phone number/i.test(
+      prompt
+    ),
+    "secured urgent inbound callers must not be redirected to another business number"
+  );
+  assert(
+    /treated as urgent for priority team attention/i.test(prompt),
+    "urgent secured requests must be marked for priority team attention"
+  );
+  assert(
+    /Provide the business phone number only if the caller specifically asks/i.test(
+      prompt
+    ),
+    "business phone remains available when the caller asks"
+  );
+  assert(
+    /genuine immediate danger to life or property/i.test(prompt) &&
+      /recommend emergency services/i.test(prompt) &&
+      /blocked toilet/i.test(prompt),
+    "immediate-danger safety exception must remain; ordinary urgent jobs must not use it"
   );
 
   const incomplete = evaluatePhoneLeadAlert(

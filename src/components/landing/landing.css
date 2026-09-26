@@ -293,3 +293,35 @@
  .pt-live-chat-body [data-chat-message-bubble]{font-size:13px!important;max-width:90%!important}
  .pt-live-chat-body [data-chat-messages]{padding:16px 13px!important}
 }
+
+/* Final hero composition: breathing room, sticky navigation, premium chat proportions */
+.pt-header{position:sticky!important;top:0!important;z-index:80!important;transition:transform .28s ease,background .28s ease,box-shadow .28s ease}
+.pt-nav{min-height:72px}
+.pt-hero{align-items:center!important;min-height:calc(100svh - 72px);padding-top:72px!important;padding-bottom:88px!important}
+.pt-hero-copy{align-self:center;max-width:690px!important;padding-top:0!important}
+.pt-hero .pt-eyebrow{margin:0 0 25px!important;line-height:1.35!important}
+.pt-hero h1{margin:0 0 27px!important;font-size:clamp(48px,4.15vw,64px)!important;line-height:1.02!important;letter-spacing:-.047em!important;font-weight:950!important}
+.pt-hero h1 span{display:block;margin-top:10px!important;line-height:1.04!important}
+.pt-hero .pt-lead{margin:0 0 30px!important;max-width:650px!important;font-size:17px!important;line-height:1.72!important}
+.pt-hero .pt-actions{margin-top:0!important;gap:14px!important}
+.pt-hero .pt-micro{margin-top:15px!important;line-height:1.5!important}
+.pt-hero-visual{min-height:610px!important;align-items:center!important}
+.pt-hero-chat-wrap{width:min(100%,470px)!important;margin:0 0 0 auto!important;transform:translateX(2%)!important}
+.pt-live-chat{border-radius:32px!important}
+.pt-live-chat-top{padding:14px 18px!important}
+.pt-live-chat-body{height:500px!important}
+.pt-live-chat-body [data-customer-widget-shell]{border-radius:26px!important}
+.pt-live-chat-body [data-chat-header]{padding:17px 19px!important}
+.pt-live-chat-body [data-chat-message-bubble]{font-size:15px!important;line-height:1.55!important;padding:13px 17px!important}
+.pt-live-chat-body [data-chat-messages]{padding:22px 20px!important}
+@media(max-width:699px){
+ .pt-nav{min-height:62px}
+ .pt-hero{min-height:auto;padding-top:42px!important;padding-bottom:62px!important}
+ .pt-hero .pt-eyebrow{margin-bottom:18px!important}
+ .pt-hero h1{font-size:42px!important;line-height:1.02!important;margin-bottom:22px!important}
+ .pt-hero h1 span{margin-top:8px!important}
+ .pt-hero .pt-lead{font-size:16px!important;line-height:1.62!important;margin-bottom:24px!important}
+ .pt-hero-visual{min-height:0!important;margin-top:36px!important}
+ .pt-hero-chat-wrap{width:100%!important;margin:0!important;transform:none!important}
+ .pt-live-chat-body{height:470px!important}
+}

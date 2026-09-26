@@ -21,122 +21,38 @@ export function HeroProductScene({ children }: { children: ReactNode }) {
   return (
     <div className="pt-hero-visual">
       <div className="pt-hero-halo" />
-      <div className="pt-ai-figure" aria-hidden="true">
-        <div className="pt-ai-orbit pt-ai-orbit-a" />
-        <div className="pt-ai-orbit pt-ai-orbit-b" />
-        <div className="pt-ai-head">
-          <span className="pt-ai-eye" />
-          <span className="pt-ai-face-line" />
-        </div>
-        <div className="pt-ai-neck" />
-        <div className="pt-ai-body"><img src={ICON} alt="" /></div>
+      <motion.div className="pt-cyborg-art" initial={reduce ? false : { opacity: 0, x: 30, scale: .97 }} animate={{ opacity: 1, x: 0, scale: 1 }} transition={{ duration: .85 }}>
+        <img src="/assets/website/hero-ai-face.png" alt="" />
+        <div className="pt-cyborg-ring pt-cyborg-ring-a" />
+        <div className="pt-cyborg-ring pt-cyborg-ring-b" />
         {!reduce && <motion.i className="pt-signal-dot" animate={{ offsetDistance: ["0%","100%"] }} transition={{ duration: 3.8, repeat: Infinity, ease: "linear" }} />}
-      </div>
+      </motion.div>
       <motion.div className="pt-hero-chat-wrap" initial={reduce ? false : { opacity: 0, y: 24, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: .7, delay: .25 }}>
         {children}
       </motion.div>
     </div>
   );
-}
-
-const PROCESS = [
-  ["01","Respond Instantly","chat"],
-  ["02","Handle Questions & Objections","brain"],
-  ["03","Secure the Opportunity","lead"],
-  ["04","Alert Your Team","alert"],
+}const INDUSTRIES=[
+["HVAC","snow"],["Plumbing","drop"],["Electrical","bolt"],["Roofing","home"],["Solar","sun"],["Pest Control","target"],
+["Landscaping","leaf"],["Cleaning","sparkle"],["Pool Services","waves"],["Legal Services","scale"],["Real Estate","building"],["Gyms & Fitness","fitness"]
 ] as const;
-
-export function ProcessJourney() {
-  return <div className="pt-process">
-    <div className="pt-process-line"><span /></div>
-    {PROCESS.map(([n,title,kind],i) => <motion.div className="pt-process-step" key={title} initial={{opacity:.45}} whileInView={{opacity:1}} viewport={{amount:.7}} transition={{delay:i*.08}}>
-      <div className="pt-process-node"><Icon kind={kind} /></div><small>{n}</small><h3>{title}</h3>
-    </motion.div>)}
-  </div>;
+function IndustryIcon({kind}:{kind:string}) {
+  const p:{[key:string]:ReactNode}={
+    snow:<><path d="M12 2v20M4.2 6.5l15.6 11M4.2 17.5l15.6-11"/><path d="m9 4 3 2 3-2M9 20l3-2 3 2"/></>,
+    drop:<path d="M12 2S5.5 9.2 5.5 14.5a6.5 6.5 0 0 0 13 0C18.5 9.2 12 2 12 2Z"/>,
+    bolt:<path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z"/>,
+    home:<><path d="m3 11 9-7 9 7"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></>,
+    sun:<><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></>,
+    target:<><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></>,
+    leaf:<><path d="M20 4C10 4 4 9 4 17c6 1 12-2 16-13Z"/><path d="M5 19c3-5 7-8 12-11"/></>,
+    sparkle:<><path d="m12 2 1.6 5.4L19 9l-5.4 1.6L12 16l-1.6-5.4L5 9l5.4-1.6L12 2Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></>,
+    waves:<><path d="M2 9c3 0 3 2 6 2s3-2 6-2 3 2 6 2 3-2 4-2M2 15c3 0 3 2 6 2s3-2 6-2 3 2 6 2 3-2 4-2"/></>,
+    scale:<><path d="M12 3v18M7 21h10M5 6h14"/><path d="m5 6-3 6h6L5 6Zm14 0-3 6h6l-3-6Z"/></>,
+    building:<><path d="M5 21V4h10v17M15 9h4v12M8 8h2M8 12h2M8 16h2M18 13h1M18 17h1"/></>,
+    fitness:<><path d="M6 8v8M3 10v4M18 8v8M21 10v4M6 12h12"/></>
+  };
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{p[kind]}</svg>;
 }
-
-const KNOWLEDGE = ["Services","Service areas","Business hours","Policies","Pricing rules","Customer questions"];
-export function BusinessIntelligence() {
-  return <div className="pt-intelligence">
-    <div className="pt-knowledge-ring">
-      {KNOWLEDGE.map((x,i)=><motion.div key={x} className={"pt-knowledge pt-k"+i} initial={{opacity:0,scale:.92}} whileInView={{opacity:1,scale:1}} viewport={{once:true}} transition={{delay:i*.07}}>{x}</motion.div>)}
-      <div className="pt-core"><img src={ICON} alt="" /><strong>Your AI<br/>Sales Employee</strong><span>Business intelligence</span></div>
-    </div>
-  </div>;
-}
-
-const fmt=(n:number)=>"$"+Math.round(n).toLocaleString("en-US");
-export function RevenueCalculator() {
-  const [jobIndex,setJobIndex]=useState(32);
-  const [jobs,setJobs]=useState(20);
-  const jobValue=50+(jobIndex/100)*(25000-50);
-  const monthly=jobValue*jobs;
-  return <div className="pt-calculator">
-    <div className="pt-slider-block">
-      <div className="pt-slider-head"><span>Average Job Value</span><strong>{jobIndex===100?"$25,000+":fmt(jobValue)}</strong></div>
-      <input aria-label="Average Job Value" type="range" min="0" max="100" value={jobIndex} onChange={e=>setJobIndex(Number(e.target.value))} />
-      <div className="pt-range-labels"><span>$50</span><span>$25,000+</span></div>
-    </div>
-    <div className="pt-slider-block">
-      <div className="pt-slider-head"><span>Jobs Received in a Month</span><strong>{jobs===100?"100+":jobs}</strong></div>
-      <input aria-label="Jobs Received in a Month" type="range" min="1" max="100" value={jobs} onChange={e=>setJobs(Number(e.target.value))} />
-      <div className="pt-range-labels"><span>1</span><span>100+</span></div>
-    </div>
-    <div className="pt-value-grid">
-      <div><span>Monthly Job Value</span><strong>{fmt(monthly)}</strong></div>
-      <div><span>5%</span><strong>{fmt(monthly*.05)}</strong></div>
-      <div><span>10%</span><strong>{fmt(monthly*.10)}</strong></div>
-    </div>
-    <p>Illustrative arithmetic only. Not a forecast or a recovery claim.</p>
-  </div>;
-}
-
-export function InboundSignal() {
-  return <div className="pt-signal-map">
-    <div className="pt-signal-source"><span><Icon kind="web"/></span><strong>Website Chat</strong><small>Engages visitors while they're still on your website.</small></div>
-    <div className="pt-signal-source"><span><Icon kind="phone"/></span><strong>Inbound Calls</strong><small>Answers customers when they call, even when your team can't.</small></div>
-    <div className="pt-signal-path pt-path-a"><i/></div><div className="pt-signal-path pt-path-b"><i/></div>
-    <div className="pt-signal-ai"><img src={ICON} alt=""/><strong>AI Sales Employee</strong><small>Responds · Qualifies · Secures</small></div>
-    <div className="pt-signal-path pt-path-c"><i/></div>
-    <div className="pt-signal-lead"><Icon kind="lead"/><strong>Secured Opportunity</strong></div>
-    <div className="pt-signal-path pt-path-d"><i/></div>
-    <div className="pt-phone-alert"><span>PulseTech</span><strong>New lead captured</strong><p>Jordan · HVAC enquiry<br/>Phone + service address secured</p><small>now</small></div>
-  </div>;
-}
-
-const INDUSTRIES=["HVAC","Plumbing","Electrical","Roofing","Solar","Pest Control","Landscaping","Cleaning","Pool Services","Legal Services","Real Estate","Gyms & Fitness"];
 export function IndustriesGrid() {
-  return <div className="pt-industries">{INDUSTRIES.map((x,i)=><motion.div key={x} className="pt-industry" whileHover={{y:-5}} transition={{duration:.2}}><span>{String(i+1).padStart(2,"0")}</span><strong>{x}</strong><i>↗</i></motion.div>)}</div>;
-}
-
-const QUOTES=["We charge a $79 visiting fee.","We don't service commercial properties.","We offer financing on installations.","We don't provide this particular service."];
-export function PeterTransfer() {
-  const [active,setActive]=useState(0);
-  return <div className="pt-peter">
-    <div className="pt-peter-col pt-owner"><span>BUSINESS OWNER</span><strong>Just tell Peter.</strong><div className="pt-quote-list">{QUOTES.map((q,i)=><button key={q} className={active===i?"active":""} onClick={()=>setActive(i)}>{q}</button>)}</div></div>
-    <div className="pt-transfer-line"><i/></div>
-    <div className="pt-peter-core"><img src={ICON} alt=""/><span>PETER</span><strong>Understands your business</strong><div className="pt-processing"><i/><i/><i/></div></div>
-    <div className="pt-transfer-line"><i/></div>
-    <div className="pt-peter-col pt-customer-ai"><span>YOUR AI SALES EMPLOYEE</span><strong>Knowledge updated</strong><p>“{QUOTES[active]}”</p><small>Ready for the next customer conversation</small></div>
-  </div>;
-}
-
-const CONTROLS=["Test it anytime","Teach it what's missing","Update it as your business changes","Know when a lead arrives","No unauthorized commitments"];
-export function ControlRail() {
-  return <div className="pt-control-rail">{CONTROLS.map((x,i)=><motion.div key={x} initial={{opacity:.45}} whileInView={{opacity:1}} viewport={{amount:.9}} transition={{delay:i*.06}} className={i===4?"pt-control-strong":""}><span><Icon kind="check"/></span><strong>{x}</strong></motion.div>)}</div>;
-}
-
-const FAQ=[
-["What exactly is an AI Sales Employee?","It is an AI-powered customer-facing sales assistant configured around your business. It can respond to website enquiries and inbound calls, answer questions using the business information you provide, capture lead details and alert your team."],
-["Is this just a chatbot?","No. Website chat is one customer channel. PulseTech is designed as an AI Sales Employee that can also handle inbound phone conversations and work around your business rules."],
-["Will it make up prices or promises?","It is designed to work from the information and rules you provide, and not to make unauthorized commitments on your behalf."],
-["What happens when a lead is captured?","The lead information can be sent immediately to the recipients you choose, so your team can follow up while the opportunity is still fresh."],
-["Can I test it before going live?","Yes. You can experience a customized version around your own business before deciding to go live."],
-["Can I change what it knows later?","Yes. Your business information can be updated as your services, policies and operating details change."],
-["Does it replace my team?","It is designed to cover the first-response gap and hand your team a usable opportunity. Your people remain in control of the business relationship."],
-["How much does PulseTech cost?","Pricing depends on the setup and requirements of your business. Experience your customized AI Sales Employee first, and we'll show you the appropriate setup for your business."],
-];
-export function FaqSection(){
-  const [open,setOpen]=useState<number|null>(0);
-  return <section className="pt-section pt-faq"><div className="pt-heading"><p className="pt-eyebrow">FAQ</p><h2>Questions business owners usually ask</h2></div><div className="pt-faq-list">{FAQ.map(([q,a],i)=><div className={"pt-faq-item "+(open===i?"open":"")} key={q}><button aria-expanded={open===i} onClick={()=>setOpen(open===i?null:i)}><span>{q}</span><i>+</i></button><div className="pt-faq-answer"><p>{a}</p></div></div>)}</div></section>;
+  return <div className="pt-industries">{INDUSTRIES.map(([name,kind],i)=><motion.div key={name} className="pt-industry" whileHover={{y:-8,scale:1.015}} transition={{duration:.2}}><div className="pt-industry-icon"><IndustryIcon kind={kind}/></div><span>{String(i+1).padStart(2,"0")}</span><strong>{name}</strong><i>↗</i></motion.div>)}</div>;
 }

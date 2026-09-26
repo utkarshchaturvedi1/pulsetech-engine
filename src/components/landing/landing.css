@@ -401,3 +401,9 @@
 .pt-live-chat-body [data-chat-message-row][data-chat-role="assistant"]{align-items:center!important}
 .pt-live-chat-body [data-chat-message-bubble][data-chat-role="assistant"]{background:rgba(255,255,255,.88)!important;border:1px solid rgba(255,255,255,.82)!important;box-shadow:0 9px 22px rgba(65,82,137,.09)!important}
 .pt-live-chat-body [data-chat-message-avatar]{align-self:center!important}
+
+/* Remove accidental message-stage panel: bubbles and avatars float directly on chat canvas */
+.pt-live-chat-body [data-chat-messages]{background:transparent!important}
+.pt-live-chat-body [data-chat-message-row]{background:transparent!important}
+.pt-live-chat-body [data-chat-message-row]::before,.pt-live-chat-body [data-chat-message-row]::after{display:none!important;content:none!important}
+.pt-live-chat-body [data-chat-message-bubble][data-chat-role="assistant"]{background:linear-gradient(145deg,#fff,#f6f8ff)!important}

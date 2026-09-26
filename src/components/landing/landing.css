@@ -114,3 +114,18 @@
  .pt-industries{grid-template-columns:1fr 1fr;gap:8px}.pt-industry{min-height:155px;padding:16px;border-radius:18px}.pt-industry-icon{width:52px;height:52px;margin-bottom:20px}.pt-industry-icon b{font-size:26px}
  .pt-signal-map{padding:16px;border-radius:24px}
 }
+
+/* visual refinement: approved cyborg, saner hero scale, visible industry iconography */
+.pt-hero h1{font-size:clamp(48px,4.75vw,70px)!important;line-height:.92!important}
+.pt-cyborg-art{position:absolute;right:-2%;top:2%;width:min(66%,540px);height:620px;z-index:1;pointer-events:none}
+.pt-cyborg-art>img{position:absolute;right:0;top:0;width:100%;height:100%;object-fit:contain;object-position:center top;filter:drop-shadow(0 35px 48px rgba(50,34,111,.2));mask-image:linear-gradient(to bottom,#000 0 82%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0 82%,transparent 100%)}
+.pt-cyborg-ring{position:absolute;border:1px solid rgba(103,78,238,.22);border-radius:50%;z-index:-1}
+.pt-cyborg-ring-a{width:520px;height:520px;right:-55px;top:20px}
+.pt-cyborg-ring-b{width:390px;height:390px;right:10px;top:84px;border-style:dashed;animation:ptOrbit 24s linear infinite}
+.pt-cyborg-art .pt-signal-dot{right:0;top:0;offset-path:path("M 420 105 C 300 20 110 100 100 300 C 95 430 220 520 390 455")}
+.pt-industry-icon svg{width:32px;height:32px}
+.pt-industry:nth-child(3n+1) .pt-industry-icon,.pt-industry:nth-child(3n+2) .pt-industry-icon{color:#c9ff55}
+.pt-industry:nth-child(3n) .pt-industry-icon{color:#111217}
+@keyframes ptOrbit{to{transform:rotate(360deg)}}
+@media(min-width:700px){.pt-hero h1{font-size:clamp(54px,4.5vw,68px)!important}.pt-hero-copy{max-width:620px}.pt-hero-chat-wrap{margin-top:250px}}
+@media(max-width:699px){.pt-hero h1{font-size:44px!important}.pt-cyborg-art{width:92%;height:520px;right:-30%;top:4%}.pt-cyborg-ring-a{width:390px;height:390px}.pt-cyborg-ring-b{width:300px;height:300px}.pt-hero-chat-wrap{margin-top:225px}}

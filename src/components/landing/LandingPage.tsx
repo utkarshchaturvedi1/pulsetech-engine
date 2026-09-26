@@ -67,6 +67,13 @@ export default function LandingPage() {
 
       <main id="top">
         <section className="pt-hero">
+          <div className="pt-hero-cinema" aria-hidden="true">
+            <video className="pt-hero-video" autoPlay muted loop playsInline preload="metadata">
+              <source src="/assets/website/pulsetech-hero-motion.mp4" type="video/mp4" />
+            </video>
+            <div className="pt-hero-video-wash" />
+            <div className="pt-hero-video-grid" />
+          </div>
           <div className="pt-hero-copy">
             <p className="pt-eyebrow">AI SALES EMPLOYEE FOR HIGH-INTENT BUSINESSES</p>
             <h1>Every customer inquiry matters.<span>Make sure none are missed.</span></h1>

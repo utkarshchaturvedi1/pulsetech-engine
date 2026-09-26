@@ -474,3 +474,20 @@
 .pt-hero-cinema:before{opacity:.9!important;filter:blur(10px)!important}
 .pt-hero-cinema:after{opacity:.8!important;filter:blur(12px)!important}
 .pt-hero-video-grid{opacity:.32!important}
+
+/* Visible cinematic light ribbons: dedicated elements, independent of legacy pseudo layers */
+.pt-light-ribbon,.pt-light-orb{position:absolute;pointer-events:none;display:block!important;z-index:2}
+.pt-light-ribbon{height:4px;border-radius:999px;transform-origin:center;mix-blend-mode:screen}
+.pt-light-ribbon:after{content:"";position:absolute;inset:-18px -4%;border-radius:50%;background:inherit;filter:blur(18px);opacity:.82}
+.pt-light-ribbon-a{width:78%;left:-12%;bottom:11%;background:linear-gradient(90deg,transparent 0%,#235dff 22%,#8a46ff 58%,#28c9ff 82%,transparent 100%);box-shadow:0 0 18px #536dff,0 0 42px rgba(103,65,255,.8);transform:rotate(-5deg);animation:ptRibbonOne 14s ease-in-out infinite alternate}
+.pt-light-ribbon-b{width:62%;right:-10%;top:27%;background:linear-gradient(90deg,transparent,#613eff 25%,#258dff 55%,#a34dff 78%,transparent);box-shadow:0 0 18px #477cff,0 0 48px rgba(112,60,255,.72);transform:rotate(-13deg);animation:ptRibbonTwo 17s ease-in-out infinite alternate}
+.pt-light-ribbon-c{width:55%;right:-3%;bottom:8%;height:2px;background:linear-gradient(90deg,transparent,#2cc8ff 24%,#5d6cff 55%,#9a50ff 80%,transparent);box-shadow:0 0 15px #338cff,0 0 34px rgba(55,118,255,.7);transform:rotate(2deg);animation:ptRibbonThree 19s ease-in-out infinite alternate}
+.pt-light-orb{border-radius:50%;filter:blur(46px);mix-blend-mode:screen}
+.pt-light-orb-a{width:420px;height:420px;right:7%;top:18%;background:rgba(45,105,255,.18);animation:ptOrbFloat 12s ease-in-out infinite alternate}
+.pt-light-orb-b{width:340px;height:260px;left:20%;bottom:-8%;background:rgba(117,55,255,.16);animation:ptOrbFloat 15s ease-in-out infinite alternate-reverse}
+@keyframes ptRibbonOne{from{transform:translate3d(-2%,7px,0) rotate(-5deg) scaleX(.98)}to{transform:translate3d(9%,-12px,0) rotate(-2.5deg) scaleX(1.04)}}
+@keyframes ptRibbonTwo{from{transform:translate3d(5%,0,0) rotate(-13deg)}to{transform:translate3d(-9%,20px,0) rotate(-9deg)}}
+@keyframes ptRibbonThree{from{transform:translate3d(3%,4px,0) rotate(2deg)}to{transform:translate3d(-7%,-9px,0) rotate(0deg)}}
+@keyframes ptOrbFloat{from{transform:translate3d(-12px,-8px,0) scale(.95);opacity:.68}to{transform:translate3d(18px,14px,0) scale(1.08);opacity:1}}
+@media(max-width:699px){.pt-light-ribbon-a{width:120%;left:-35%}.pt-light-ribbon-b{width:100%;right:-45%}.pt-light-ribbon-c{width:90%;right:-35%}.pt-light-orb-a{width:260px;height:260px}}
+@media(prefers-reduced-motion:reduce){.pt-light-ribbon,.pt-light-orb{animation:none!important}}

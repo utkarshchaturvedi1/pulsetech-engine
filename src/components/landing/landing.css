@@ -129,3 +129,73 @@
 @keyframes ptOrbit{to{transform:rotate(360deg)}}
 @media(min-width:700px){.pt-hero h1{font-size:clamp(54px,4.5vw,68px)!important}.pt-hero-copy{max-width:620px}.pt-hero-chat-wrap{margin-top:250px}}
 @media(max-width:699px){.pt-hero h1{font-size:44px!important}.pt-cyborg-art{width:92%;height:520px;right:-30%;top:4%}.pt-cyborg-ring-a{width:390px;height:390px}.pt-cyborg-ring-b{width:300px;height:300px}.pt-hero-chat-wrap{margin-top:225px}}
+
+/* Hero v3: living AI field + dimensional product focus */
+.pt-hero-visual{isolation:isolate;perspective:1400px;overflow:visible}
+.pt-cyborg-art{display:none!important}
+.pt-hero-visual:before{
+ content:"";position:absolute;inset:1% -7% 2% 0;z-index:-3;border-radius:48px;
+ background:
+ radial-gradient(circle at 72% 34%,rgba(108,76,255,.28),transparent 16%),
+ radial-gradient(circle at 44% 66%,rgba(39,123,255,.19),transparent 20%),
+ radial-gradient(circle at 84% 78%,rgba(201,255,85,.13),transparent 16%),
+ linear-gradient(145deg,rgba(255,255,255,.78),rgba(239,235,255,.68));
+ filter:saturate(1.12);
+}
+.pt-hero-visual:after{
+ content:"";position:absolute;inset:4% -3% 5% 10%;z-index:-2;border-radius:50%;
+ background-image:
+ linear-gradient(rgba(103,78,238,.08) 1px,transparent 1px),
+ linear-gradient(90deg,rgba(103,78,238,.08) 1px,transparent 1px);
+ background-size:42px 42px;
+ mask-image:radial-gradient(ellipse at center,#000 0 40%,transparent 72%);
+ -webkit-mask-image:radial-gradient(ellipse at center,#000 0 40%,transparent 72%);
+ animation:ptGridDrift 14s ease-in-out infinite alternate;
+}
+.pt-hero-halo{display:block!important;position:absolute;inset:0!important;width:auto!important;height:auto!important;z-index:-1!important;border:0!important;border-radius:44%!important;
+ background:
+ radial-gradient(circle at 74% 28%,rgba(255,255,255,.95) 0 2%,rgba(112,82,255,.24) 3%,transparent 4%),
+ radial-gradient(circle at 33% 68%,rgba(255,255,255,.95) 0 1.4%,rgba(37,120,255,.2) 2.4%,transparent 3.4%),
+ radial-gradient(circle at 68% 66%,rgba(117,83,255,.17),transparent 26%),
+ conic-gradient(from 20deg at 58% 50%,transparent,rgba(111,80,255,.12),transparent 28%,rgba(36,107,254,.1),transparent 58%);
+ filter:blur(.2px);animation:ptFieldBreath 7s ease-in-out infinite alternate;
+}
+.pt-hero-chat-wrap{position:relative;z-index:4;transform-style:preserve-3d;filter:drop-shadow(0 38px 55px rgba(43,31,100,.22))}
+.pt-live-chat{
+ position:relative;overflow:visible!important;border:1px solid rgba(255,255,255,.92)!important;
+ background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(245,243,255,.96))!important;
+ box-shadow:
+ 0 42px 95px rgba(45,29,112,.27),
+ 0 14px 30px rgba(32,86,214,.16),
+ inset 0 1px 0 rgba(255,255,255,1),
+ inset 0 -1px 0 rgba(111,80,255,.16),
+ 0 0 0 2px rgba(112,80,255,.17),
+ 0 0 28px rgba(101,68,255,.28),
+ 0 0 72px rgba(36,107,254,.16)!important;
+ transform:rotateY(-2deg) rotateX(1deg) translateZ(18px);
+ transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease;
+}
+.pt-live-chat:before{
+ content:"";position:absolute;inset:-3px;border-radius:inherit;z-index:-1;padding:2px;
+ background:linear-gradient(120deg,#7b5cff,#2f83ff,#b9ff54,#7656ff);
+ background-size:260% 260%;filter:blur(3px);opacity:.8;animation:ptGlowTravel 5s linear infinite;
+}
+.pt-live-chat:after{
+ content:"";position:absolute;left:7%;right:7%;bottom:-24px;height:30px;border-radius:50%;
+ background:radial-gradient(ellipse,rgba(80,54,190,.3),transparent 70%);filter:blur(10px);z-index:-2;
+}
+.pt-live-chat:hover,.pt-live-chat:focus-within{
+ transform:rotateY(0) rotateX(0) translateZ(30px) scale(1.018);
+ box-shadow:0 48px 110px rgba(45,29,112,.3),0 0 0 2px rgba(124,91,255,.26),0 0 38px rgba(101,68,255,.38),0 0 90px rgba(36,107,254,.2)!important;
+}
+.pt-live-chat-top{border-radius:25px 25px 0 0!important;background:linear-gradient(100deg,rgba(244,240,255,.98),rgba(244,250,255,.98))!important;box-shadow:inset 0 -1px 0 rgba(104,76,238,.12)}
+@keyframes ptGlowTravel{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes ptGridDrift{from{transform:translate3d(-10px,-8px,0) rotate(-1deg)}to{transform:translate3d(14px,10px,0) rotate(1deg)}}
+@keyframes ptFieldBreath{from{transform:scale(.98) rotate(-2deg);opacity:.72}to{transform:scale(1.035) rotate(2deg);opacity:1}}
+@media(max-width:699px){
+ .pt-hero-visual:before{inset:4% -18% 0 -8%;border-radius:36px}
+ .pt-live-chat{transform:none;box-shadow:0 28px 65px rgba(45,29,112,.22),0 0 0 2px rgba(112,80,255,.16),0 0 28px rgba(101,68,255,.24)!important}
+ .pt-live-chat:hover,.pt-live-chat:focus-within{transform:scale(1.006)}
+ .pt-hero-chat-wrap{margin-top:64px!important}
+}
+@media(prefers-reduced-motion:reduce){.pt-hero-visual:after,.pt-hero-halo,.pt-live-chat:before{animation:none!important}}

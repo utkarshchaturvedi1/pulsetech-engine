@@ -72,7 +72,7 @@ export default function LandingPage() {
               <source src="/assets/website/pulsetech-hero-motion.mp4" type="video/mp4" />
             </video>
             <div className="pt-hero-video-wash" />
-            <div className="pt-hero-video-grid" />
+            <div className="pt-hero-video-grid" /><div className="pt-light-ribbon pt-light-ribbon-a" /><div className="pt-light-ribbon pt-light-ribbon-b" /><div className="pt-light-ribbon pt-light-ribbon-c" /><div className="pt-light-orb pt-light-orb-a" /><div className="pt-light-orb pt-light-orb-b" />
           </div>
           <div className="pt-hero-copy">
             <p className="pt-eyebrow">AI SALES EMPLOYEE FOR HIGH-INTENT BUSINESSES</p>

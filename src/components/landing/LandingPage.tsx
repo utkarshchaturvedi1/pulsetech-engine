@@ -2,81 +2,49 @@
 
 import dynamic from "next/dynamic";
 import {
-  DualChannelVisual,
-  FutureVisualCard,
+  BusinessIntelligence,
+  ControlRail,
+  FaqSection,
   HeroProductScene,
+  InboundSignal,
   IndustriesGrid,
-  InquiryProtectStory,
-  SetupExperience,
+  PeterTransfer,
+  ProcessJourney,
+  RevenueCalculator,
 } from "./LandingVisuals";
 import SiteFooter from "./SiteFooter";
 import "./landing.css";
 
-const PulseTechSalesAssistant = dynamic(
-  () => import("../PulseTechSalesAssistant"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex h-full items-center justify-center bg-[#F7F8FA] text-sm text-slate-500">
-        Loading your AI Sales Employee...
-      </div>
-    ),
-  }
-);
+const PulseTechSalesAssistant = dynamic(() => import("../PulseTechSalesAssistant"), {
+  ssr: false,
+  loading: () => <div className="pt-chat-loading">Preparing your AI Sales Employee...</div>,
+});
 
-const PULSETECH_LOGO = "/branding/pulsetech-logo-color.svg";
-const PULSETECH_LOGO_ON_DARK = "/branding/pulsetech-logo-white.svg";
-const PULSETECH_ICON = "/branding/pulsetech-icon-color.svg";
+const LOGO = "/branding/pulsetech-logo-color.svg";
+const ICON = "/branding/pulsetech-icon-color.svg";
 
-function focusLiveChat(id: string) {
-  const root = document.getElementById(id);
+function focusLiveChat() {
+  const root = document.getElementById("live-chat");
   root?.scrollIntoView({ behavior: "smooth", block: "center" });
   window.setTimeout(() => {
     const input = root?.querySelector("input");
     if (input instanceof HTMLInputElement) input.focus();
-  }, 350);
+  }, 550);
 }
 
 function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function BrandLogo({ onDark = false }: { onDark?: boolean }) {
+function LiveChat() {
   return (
-    <img
-      src={onDark ? PULSETECH_LOGO_ON_DARK : PULSETECH_LOGO}
-      alt="PulseTech Labs"
-      className={onDark ? "pt-logo pt-logo-on-dark" : "pt-logo"}
-    />
-  );
-}
-
-function LiveChat({
-  id,
-  kicker,
-  hint,
-}: {
-  id: string;
-  kicker: string;
-  hint: string;
-}) {
-  return (
-    <div id={id} className="pt-chat-stage">
-      <div className="pt-chat-shell">
-        <div className="pt-chat-chrome">
-          <div className="pt-chat-chrome-left">
-            <img src={PULSETECH_ICON} alt="" className="pt-chat-icon" />
-            <p>{kicker}</p>
-          </div>
-          <p>{hint}</p>
-        </div>
-        <div className="pt-chat-body">
-          <PulseTechSalesAssistant
-            agentName="Peter"
-            agentRole="AI Sales Agent"
-            agentAvatar={PULSETECH_ICON}
-          />
-        </div>
+    <div id="live-chat" className="pt-live-chat">
+      <div className="pt-live-chat-top">
+        <span><img src={ICON} alt="" /> LIVE DEMO</span>
+        <small>Enter your website to begin</small>
+      </div>
+      <div className="pt-live-chat-body">
+        <PulseTechSalesAssistant agentName="Peter" agentRole="AI Sales Employee" agentAvatar={ICON} />
       </div>
     </div>
   );
@@ -84,215 +52,112 @@ function LiveChat({
 
 export default function LandingPage() {
   return (
-    <div className="pt-landing pt-home min-h-screen">
-      <div className="pt-shell">
-        <div className="pt-content">
-          <header className="pt-header sticky top-0 z-40">
-            <div className="pt-header-inner">
-              <a href="#top" className="shrink-0 py-1" aria-label="PulseTech Labs">
-                <BrandLogo />
-              </a>
-              <nav className="pt-header-nav" aria-label="Page">
-                <button type="button" onClick={() => scrollToId("how-it-works")}>
-                  How it works
-                </button>
-                <button type="button" onClick={() => scrollToId("industries")}>
-                  Industries
-                </button>
-              </nav>
-              <button
-                type="button"
-                className="pt-btn-primary pt-btn-nav hidden shrink-0 sm:inline-flex"
-                onClick={() => focusLiveChat("live-chat")}
-              >
-                See Your Customized AI Sales Employee
-              </button>
-            </div>
-          </header>
-
-          <main id="top">
-            {/* Hero */}
-            <section className="pt-section-hero">
-              <div className="pt-hero-grid">
-                <div className="pt-hero-copy">
-                  <p className="pt-kicker">AI Sales Employee for high-intent businesses</p>
-                  <h1 className="pt-hero-title">
-                    <span className="pt-hero-title-line">Every customer inquiry matters.</span>
-                    <span className="pt-hero-title-accent">Make sure none are missed.</span>
-                  </h1>
-                  <p className="pt-hero-lead">
-                    PulseTech gives your business an AI Sales Employee that responds instantly on
-                    website chat and inbound calls, captures the information your team needs, and
-                    alerts you while the customer is still engaged.
-                  </p>
-                  <div className="pt-hero-actions">
-                    <button
-                      type="button"
-                      className="pt-btn-primary inline-flex w-full sm:w-auto"
-                      onClick={() => focusLiveChat("live-chat")}
-                    >
-                      See Your Customized AI Sales Employee
-                    </button>
-                    <button
-                      type="button"
-                      className="pt-btn-secondary inline-flex w-full sm:w-auto"
-                      onClick={() => scrollToId("how-it-works")}
-                    >
-                      See How It Works
-                    </button>
-                  </div>
-                  <p className="pt-hero-note">
-                    Enter your website in the chat to see it working around your business.
-                  </p>
-                </div>
-
-                <div className="pt-hero-product">
-                  <HeroProductScene>
-                    <LiveChat
-                      id="live-chat"
-                      kicker="Live AI Sales Employee"
-                      hint="Enter your website to begin"
-                    />
-                  </HeroProductScene>
-                </div>
-              </div>
-            </section>
-
-            {/* Problem bridge */}
-            <section className="pt-section-light">
-              <div className="pt-wrap pt-section-pad pt-bridge">
-                <p className="pt-kicker pt-kicker-dark">The gap that costs you customers</p>
-                <h2 className="pt-section-title pt-title-dark">
-                  Ready customers should not wait for a callback.
-                </h2>
-                <p className="pt-section-copy pt-copy-dark">
-                  High-intent businesses already pay to generate interest. The loss happens after
-                  the inquiry — when nobody is free to answer. PulseTech covers that gap so your
-                  team can follow up with complete customer details, not a missed message.
-                </p>
-              </div>
-            </section>
-
-            {/* Scroll story — the one major motion moment */}
-            <section className="pt-section-story" id="how-it-works">
-              <div className="pt-wrap pt-story-intro">
-                <p className="pt-kicker">How PulseTech protects every inquiry</p>
-                <h2 className="pt-section-title">From first contact to a lead your team can use.</h2>
-                <p className="pt-section-copy">
-                  Scroll through the sequence. Watch how an inquiry moves from contact to captured
-                  details to an alert your team can act on.
-                </p>
-              </div>
-              <InquiryProtectStory />
-            </section>
-
-            {/* Website + Phone */}
-            <section className="pt-section-mist" id="experiences">
-              <div className="pt-wrap pt-section-pad">
-                <p className="pt-kicker pt-kicker-dark">Chat and phone, one product</p>
-                <h2 className="pt-section-title pt-title-dark">
-                  One AI Sales Employee. Two customer experiences.
-                </h2>
-                <p className="pt-section-copy pt-copy-dark">
-                  Website visitors and inbound callers reach the same trained AI Sales Employee.
-                  Both conversations collect the information your team needs to follow up.
-                </p>
-                <div className="mt-10">
-                  <DualChannelVisual />
-                </div>
-              </div>
-            </section>
-
-            {/* Setup / control */}
-            <section className="pt-section-light" id="control">
-              <div className="pt-wrap pt-section-pad">
-                <p className="pt-kicker pt-kicker-dark">Configured around your company</p>
-                <h2 className="pt-section-title pt-title-dark">Built around your business.</h2>
-                <p className="pt-section-copy pt-copy-dark">
-                  The AI Sales Employee is set up with the services, areas, tone, information, and
-                  pricing rules you provide — so chat and inbound calls represent the same
-                  business.
-                </p>
-                <div className="mt-10">
-                  <SetupExperience />
-                </div>
-                <div className="mt-8">
-                  <FutureVisualCard />
-                </div>
-              </div>
-            </section>
-
-            {/* Try */}
-            <section className="pt-section-test" id="try">
-              <div className="pt-convert-grid">
-                <div className="pt-convert-copy">
-                  <p className="pt-kicker">Test before you buy</p>
-                  <h2 className="pt-section-title">
-                    Try your own personalized chat and voice experience first.
-                  </h2>
-                  <p className="pt-section-copy">
-                    Enter your website to see an AI Sales Employee shaped around your business.
-                    Review how it talks about your services, then decide when you are ready to go
-                    live.
-                  </p>
-                  <p className="pt-section-copy pt-section-copy-follow">
-                    You can test both the chat and the voice experience before anything is published
-                    on your site or phone line.
-                  </p>
-                </div>
-                <div className="pt-convert-product">
-                  <LiveChat
-                    id="live-chat-create"
-                    kicker="Build your personalized AI Sales Employee"
-                    hint="Independent live chat"
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Industries */}
-            <section className="pt-section-mist" id="industries">
-              <div className="pt-wrap pt-section-pad">
-                <p className="pt-kicker pt-kicker-dark">Where inbound interest is expensive to miss</p>
-                <h2 className="pt-section-title pt-title-dark">
-                  Built for businesses where every inquiry matters.
-                </h2>
-                <p className="pt-section-copy pt-copy-dark">
-                  PulseTech is built for high-intent businesses that cannot afford to miss a ready
-                  customer — from home services to venues, travel, and local professionals.
-                </p>
-                <div className="mt-10">
-                  <IndustriesGrid />
-                </div>
-              </div>
-            </section>
-
-            {/* Final CTA */}
-            <section className="pt-section-cta" id="final-cta">
-              <div className="pt-wrap pt-section-pad pt-cta-inner">
-                <p className="pt-kicker">Keep the next ready customer</p>
-                <h2 className="pt-section-title">
-                  Do not lose the inquiry because nobody picked up.
-                </h2>
-                <p className="pt-section-copy">
-                  Put an AI Sales Employee on your website and inbound line so interested customers
-                  are spoken to immediately — and your team gets the lead while the customer is
-                  still engaged.
-                </p>
-                <button
-                  type="button"
-                  className="pt-btn-primary mt-8 inline-flex"
-                  onClick={() => focusLiveChat("live-chat")}
-                >
-                  See Your Customized AI Sales Employee
-                </button>
-              </div>
-            </section>
-          </main>
-
-          <SiteFooter />
+    <div className="pt-landing">
+      <header className="pt-header">
+        <div className="pt-nav">
+          <a href="#top" aria-label="PulseTech Labs"><img src={LOGO} className="pt-logo" alt="PulseTech Labs" /></a>
+          <nav aria-label="Page navigation">
+            <button onClick={() => scrollToId("how-it-works")}>How it works</button>
+            <button onClick={() => scrollToId("revenue")}>Revenue Calculator</button>
+            <button onClick={() => scrollToId("industries")}>Industries</button>
+          </nav>
+          <button className="pt-button pt-button-small" onClick={focusLiveChat}>Experience Yours</button>
         </div>
-      </div>
+      </header>
+
+      <main id="top">
+        <section className="pt-hero">
+          <div className="pt-hero-copy">
+            <p className="pt-eyebrow">AI SALES EMPLOYEE FOR HIGH-INTENT BUSINESSES</p>
+            <h1>Every customer inquiry matters.<span>Make sure none are missed.</span></h1>
+            <p className="pt-lead">PulseTech gives your business an AI Sales Employee that responds instantly on website chat and inbound calls, captures the information your team needs, and alerts you while the customer is still engaged.</p>
+            <div className="pt-actions">
+              <button className="pt-button" onClick={focusLiveChat}>See Your Customized AI Sales Employee</button>
+              <button className="pt-button-ghost" onClick={() => scrollToId("how-it-works")}>See How It Works <span>↓</span></button>
+            </div>
+            <p className="pt-micro">Enter your website in the chat to see it working around your business.</p>
+          </div>
+          <HeroProductScene><LiveChat /></HeroProductScene>
+        </section>
+
+        <section className="pt-section pt-process-section" id="how-it-works">
+          <div className="pt-heading">
+            <p className="pt-eyebrow">FROM INQUIRY TO OPPORTUNITY</p>
+            <h2>What Your AI Sales Employee Does</h2>
+            <p>Communicates naturally like a human, answering questions and handling objections so customers feel comfortable taking the next step.</p>
+          </div>
+          <ProcessJourney />
+          <p className="pt-exclusive">Built exclusively around <strong>your business.</strong></p>
+        </section>
+
+        <section className="pt-section pt-intelligence-section">
+          <div className="pt-heading">
+            <p className="pt-eyebrow">BUSINESS-SPECIFIC INTELLIGENCE</p>
+            <h2>It learns the way your business works.</h2>
+            <p>Services, service areas, business hours, policies, pricing rules and customer questions become the knowledge your AI Sales Employee uses in every conversation.</p>
+          </div>
+          <BusinessIntelligence />
+        </section>
+
+        <section className="pt-section pt-revenue-section" id="revenue">
+          <div className="pt-heading">
+            <p className="pt-eyebrow">THE VALUE ALREADY REACHING YOU</p>
+            <h2>What could missed opportunities be worth?</h2>
+          </div>
+          <RevenueCalculator />
+        </section>
+
+        <section className="pt-section pt-inbound-section">
+          <div className="pt-heading">
+            <p className="pt-eyebrow">RESPOND WHILE INTENT IS HIGH</p>
+            <h2>Every inbound enquiry is a hot lead.</h2>
+            <p>They've already taken the first step. They're looking for help, asking a question, or considering your service. The longer they wait, the greater the chance they move on to another business.</p>
+          </div>
+          <InboundSignal />
+          <div className="pt-inbound-copy">
+            <p>Your AI Sales Employee engages them immediately, communicates naturally, handles their questions and objections, and works to secure their contact details before that opportunity disappears.</p>
+            <strong>Capture the opportunity before your competitor does.</strong>
+          </div>
+        </section>
+
+        <section className="pt-section" id="industries">
+          <div className="pt-heading">
+            <p className="pt-eyebrow">BUILT FOR HIGH-INTENT BUSINESS</p>
+            <h2>Who is PulseTech built for?</h2>
+            <p>For businesses where an inbound enquiry can become real revenue.</p>
+          </div>
+          <IndustriesGrid />
+          <p className="pt-section-note">And other service businesses where customers call or enquire online before choosing who to work with.</p>
+        </section>
+
+        <section className="pt-section pt-peter-section">
+          <div className="pt-heading">
+            <p className="pt-eyebrow">YOUR BUSINESS. YOUR RULES.</p>
+            <h2>Not another generic AI. Yours.</h2>
+            <p>Your AI Sales Employee is built specifically around your business, your services and the way you work. And your website doesn't need to contain everything.</p>
+          </div>
+          <PeterTransfer />
+        </section>
+
+        <section className="pt-section pt-control-section">
+          <div className="pt-heading">
+            <p className="pt-eyebrow">CONTROL WITHOUT COMPLEXITY</p>
+            <h2>Your AI works for you. You stay in control.</h2>
+          </div>
+          <ControlRail />
+        </section>
+
+        <FaqSection />
+
+        <section className="pt-final-cta">
+          <div className="pt-final-orb" aria-hidden="true" />
+          <p className="pt-eyebrow">YOUR NEXT INQUIRY COULD ARRIVE ANY MOMENT</p>
+          <h2>Ready to see yours in action?</h2>
+          <p>Experience your AI Sales Employee with your own business.</p>
+          <button className="pt-button" onClick={focusLiveChat}>Experience Your AI Sales Employee</button>
+        </section>
+      </main>
+      <SiteFooter />
     </div>
   );
 }

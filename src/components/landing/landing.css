@@ -491,3 +491,15 @@
 @keyframes ptOrbFloat{from{transform:translate3d(-12px,-8px,0) scale(.95);opacity:.68}to{transform:translate3d(18px,14px,0) scale(1.08);opacity:1}}
 @media(max-width:699px){.pt-light-ribbon-a{width:120%;left:-35%}.pt-light-ribbon-b{width:100%;right:-45%}.pt-light-ribbon-c{width:90%;right:-35%}.pt-light-orb-a{width:260px;height:260px}}
 @media(prefers-reduced-motion:reduce){.pt-light-ribbon,.pt-light-orb{animation:none!important}}
+
+/* Final dark-hero visibility pass */
+.pt-header .pt-nav a,.pt-header nav a{color:#fff!important;opacity:1!important;text-shadow:0 1px 12px rgba(0,0,0,.25)!important}
+.pt-header .pt-nav a:hover,.pt-header nav a:hover{color:#9fc5ff!important}
+.pt-hero .pt-button-secondary,.pt-hero .pt-button-secondary *{color:#fff!important;opacity:1!important}
+.pt-hero-chat-wrap{position:relative!important;z-index:8!important}
+.pt-hero-chat-wrap:before{content:"";position:absolute;z-index:-2;inset:-95px -120px -100px -120px;border-radius:45%;background:radial-gradient(ellipse at center,rgba(39,177,255,.40) 0%,rgba(62,105,255,.31) 28%,rgba(116,64,255,.25) 47%,rgba(126,56,255,.10) 61%,transparent 74%);filter:blur(24px);animation:ptChatAura 7s ease-in-out infinite}
+.pt-hero-chat-wrap:after{content:"";position:absolute;z-index:-1;inset:-30px -38px;border-radius:42px;background:conic-gradient(from 210deg,rgba(37,205,255,.08),rgba(69,109,255,.34),rgba(156,71,255,.38),rgba(38,195,255,.25),rgba(37,205,255,.08));filter:blur(22px);opacity:.9;animation:ptChatHaloDrift 11s ease-in-out infinite alternate}
+.pt-live-chat{box-shadow:0 48px 120px rgba(0,0,0,.42),0 0 24px rgba(77,157,255,.55),0 0 65px rgba(79,93,255,.48),0 0 110px rgba(113,63,255,.30)!important}
+@keyframes ptChatAura{0%,100%{opacity:.68;transform:scale(.96)}50%{opacity:1;transform:scale(1.045)}}
+@keyframes ptChatHaloDrift{from{transform:translate3d(-8px,4px,0) scale(.98);opacity:.68}to{transform:translate3d(9px,-7px,0) scale(1.04);opacity:1}}
+@media(prefers-reduced-motion:reduce){.pt-hero-chat-wrap:before,.pt-hero-chat-wrap:after{animation:none!important}}

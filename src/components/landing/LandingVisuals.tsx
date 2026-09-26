@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 const ICON = "/branding/pulsetech-icon-color.svg";
 
@@ -94,7 +94,7 @@ export function RevenueCalculator() {
 export function InboundSignal() {
   return <div className="pt-signal-map">
     <div className="pt-signal-source"><span><Icon kind="web"/></span><strong>Website Chat</strong><small>Engages visitors while they're still on your website.</small></div>
-    <div className="pt-signal-source"><span><Icon kind="phone"/></span><strong>Inbound Calls</strong><small>Answers customers when your team can't.</small></div>
+    <div className="pt-signal-source"><span><Icon kind="phone"/></span><strong>Inbound Calls</strong><small>Answers customers when they call, even when your team can't.</small></div>
     <div className="pt-signal-path pt-path-a"><i/></div><div className="pt-signal-path pt-path-b"><i/></div>
     <div className="pt-signal-ai"><img src={ICON} alt=""/><strong>AI Sales Employee</strong><small>Responds · Qualifies · Secures</small></div>
     <div className="pt-signal-path pt-path-c"><i/></div>

@@ -453,3 +453,14 @@
 @keyframes ptHeroBreath{0%,100%{opacity:.62;transform:scale(.98)}50%{opacity:.86;transform:scale(1.035)}}
 @media(max-width:699px){.pt-hero-cinema:before{width:120%;left:-30%;opacity:.65}.pt-hero-cinema:after{width:100%;right:-35%;opacity:.55}}
 @media(prefers-reduced-motion:reduce){.pt-hero-cinema:before,.pt-hero-cinema:after,.pt-hero-video-grid,.pt-hero-visual:before{animation:none!important}}
+
+/* Correct dark hero canvas: previous legacy light pseudo-layers were washing it out */
+.pt-hero{background:#060a18!important;border-radius:0!important}
+.pt-hero:before,.pt-hero:after{background:none!important;box-shadow:none!important;opacity:0!important}
+.pt-hero-cinema{background:radial-gradient(ellipse at 78% 46%,rgba(49,95,255,.50) 0%,rgba(72,55,211,.22) 25%,transparent 50%),radial-gradient(ellipse at 35% 92%,rgba(99,48,235,.22),transparent 38%),linear-gradient(118deg,#040714 0%,#07112a 48%,#09183c 100%)!important}
+.pt-hero-video-wash{background:linear-gradient(90deg,rgba(3,7,20,.18),rgba(5,12,33,.04) 55%,rgba(7,18,48,.05))!important}
+.pt-hero-copy{background:transparent!important}
+.pt-hero-visual{background:transparent!important}
+.pt-hero .pt-lead{color:#c5d0e5!important}
+.pt-hero .pt-micro{color:#91a3c3!important}
+.pt-hero .pt-button-secondary{color:#f3f6ff!important}

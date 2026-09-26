@@ -1,512 +1,142 @@
 "use client";
 
-import {
-  AnimatePresence,
-  motion,
-  useMotionValueEvent,
-  useReducedMotion,
-  useScroll,
-} from "framer-motion";
-import { useRef, useState, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { useMemo, useState, type ReactNode } from "react";
 
 const ICON = "/branding/pulsetech-icon-color.svg";
 
-/* ─── Hero product canvas ─────────────────────────────────────────────── */
+function Icon({ kind }: { kind: "chat" | "brain" | "lead" | "alert" | "phone" | "web" | "check" }) {
+  const common = { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (kind === "chat") return <svg {...common}><path d="M4 5.5h16v10H9l-5 4v-14Z"/><path d="M8 10h8M8 13h5"/></svg>;
+  if (kind === "brain") return <svg {...common}><path d="M9 5a3 3 0 0 0-5 2.2A3 3 0 0 0 5 13a3 3 0 0 0 4 3v2a3 3 0 0 0 3 3V3a3 3 0 0 0-3 2Z"/><path d="M15 5a3 3 0 0 1 5 2.2A3 3 0 0 1 19 13a3 3 0 0 1-4 3v2a3 3 0 0 1-3 3V3a3 3 0 0 1 3 2Z"/></svg>;
+  if (kind === "lead") return <svg {...common}><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.8-3.5 2.6-5 5.5-5s4.7 1.5 5.5 5M17 8h4M19 6v4"/></svg>;
+  if (kind === "alert") return <svg {...common}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>;
+  if (kind === "phone") return <svg {...common}><path d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-5-1-1.5 2a15 15 0 0 1-8.5-8.5L8 8 7 3Z"/></svg>;
+  if (kind === "web") return <svg {...common}><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>;
+  return <svg {...common}><path d="m5 12 4 4L19 6"/></svg>;
+}
 
 export function HeroProductScene({ children }: { children: ReactNode }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="pt-product-scene" aria-label="AI Sales Employee product scene">
-      <div className="pt-product-scene-glow" aria-hidden />
-      <div className="pt-product-canvas">
-        <div className="pt-product-channels" aria-hidden>
-          <span className="pt-channel-pill pt-channel-pill-active">
-            <i className="pt-channel-dot" />
-            Website chat
-          </span>
-          <span className="pt-channel-pill">
-            <i className="pt-channel-dot pt-channel-dot-call" />
-            Inbound call
-          </span>
+    <div className="pt-hero-visual">
+      <div className="pt-hero-halo" />
+      <div className="pt-ai-figure" aria-hidden="true">
+        <div className="pt-ai-orbit pt-ai-orbit-a" />
+        <div className="pt-ai-orbit pt-ai-orbit-b" />
+        <div className="pt-ai-head">
+          <span className="pt-ai-eye" />
+          <span className="pt-ai-face-line" />
         </div>
-
-        <div className="pt-product-main">
-          <div className="pt-product-chat-col">
-            <p className="pt-product-label">Live AI Sales Employee</p>
-            {children}
-          </div>
-
-          <aside className="pt-product-side" aria-hidden>
-            <div className="pt-side-card pt-side-inquiry">
-              <p className="pt-side-kicker">1 · Inquiry</p>
-              <p className="pt-side-title">Weekend availability?</p>
-              <p className="pt-side-meta">High-intent visitor · just now</p>
-            </div>
-
-            <div className="pt-side-card pt-side-reply">
-              <p className="pt-side-kicker">2 · Instant reply</p>
-              <p className="pt-side-body">
-                “I can help with that. What’s the best number to reach you?”
-              </p>
-            </div>
-
-            <div className="pt-side-card pt-side-secure">
-              <p className="pt-side-kicker">3 · Details secured</p>
-              <ul className="pt-side-fields">
-                <li>
-                  <span>Name</span>
-                  <strong>Jordan Blake</strong>
-                </li>
-                <li>
-                  <span>Phone</span>
-                  <strong>(512) 555-0147</strong>
-                </li>
-                <li>
-                  <span>Need</span>
-                  <strong>Weekend availability</strong>
-                </li>
-              </ul>
-            </div>
-
-            <div className="pt-side-card pt-side-alert">
-              <div className="pt-side-alert-head">
-                <img src={ICON} alt="" />
-                <div>
-                  <p className="pt-side-kicker">4 · Business alert</p>
-                  <p className="pt-side-title">Sent to your team</p>
-                </div>
-              </div>
-              <p className="pt-side-meta">Email + SMS · while the customer is still engaged</p>
-            </div>
-          </aside>
-        </div>
+        <div className="pt-ai-neck" />
+        <div className="pt-ai-body"><img src={ICON} alt="" /></div>
+        {!reduce && <motion.i className="pt-signal-dot" animate={{ offsetDistance: ["0%","100%"] }} transition={{ duration: 3.8, repeat: Infinity, ease: "linear" }} />}
       </div>
+      <motion.div className="pt-hero-chat-wrap" initial={reduce ? false : { opacity: 0, y: 24, scale: .96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: .7, delay: .25 }}>
+        {children}
+      </motion.div>
     </div>
   );
 }
 
-/* ─── Sticky scroll story ─────────────────────────────────────────────── */
-
-const STORY_STEPS = [
-  {
-    title: "A customer reaches out",
-    copy: "A ready visitor opens website chat — or calls your inbound line — while interest is still high.",
-    visual: "reach",
-  },
-  {
-    title: "AI responds immediately",
-    copy: "Your AI Sales Employee answers in the moment, so the inquiry never sits unanswered.",
-    visual: "respond",
-  },
-  {
-    title: "The right details are secured",
-    copy: "Name, phone, and inquiry details are captured in the conversation — ready for your team.",
-    visual: "secure",
-  },
-  {
-    title: "Your team is alerted",
-    copy: "An immediate internal alert reaches the people you choose, while the customer is still engaged.",
-    visual: "alert",
-  },
+const PROCESS = [
+  ["01","Respond Instantly","chat"],
+  ["02","Handle Questions & Objections","brain"],
+  ["03","Secure the Opportunity","lead"],
+  ["04","Alert Your Team","alert"],
 ] as const;
 
-function StoryVisual({ kind }: { kind: (typeof STORY_STEPS)[number]["visual"] }) {
-  const reduce = useReducedMotion();
-  const enter = reduce ? false : { opacity: 0, y: 16 };
-  const shown = { opacity: 1, y: 0 };
-  const leave = reduce ? undefined : { opacity: 0, y: -12 };
+export function ProcessJourney() {
+  return <div className="pt-process">
+    <div className="pt-process-line"><span /></div>
+    {PROCESS.map(([n,title,kind],i) => <motion.div className="pt-process-step" key={title} initial={{opacity:.45}} whileInView={{opacity:1}} viewport={{amount:.7}} transition={{delay:i*.08}}>
+      <div className="pt-process-node"><Icon kind={kind} /></div><small>{n}</small><h3>{title}</h3>
+    </motion.div>)}
+  </div>;
+}
 
-  return (
-    <div className={`pt-story-visual pt-story-visual-${kind}`}>
-      <div className="pt-story-frame">
-        <div className="pt-story-frame-bar">
-          <span />
-          <span />
-          <span />
-          <p>PulseTech · AI Sales Employee</p>
-        </div>
-
-        <AnimatePresence mode="wait">
-          {kind === "reach" && (
-            <motion.div
-              key="reach"
-              className="pt-story-panel"
-              initial={enter}
-              animate={shown}
-              exit={leave}
-              transition={{ duration: 0.35 }}
-            >
-              <div className="pt-story-split">
-                <div className="pt-story-channel">
-                  <p className="pt-story-chip">Website chat</p>
-                  <div className="pt-story-bubble pt-story-bubble-in">
-                    Do you have availability this weekend for a private event?
-                  </div>
-                </div>
-                <div className="pt-story-channel">
-                  <p className="pt-story-chip">Inbound call</p>
-                  <div className="pt-story-call">
-                    <img src={ICON} alt="" />
-                    <div>
-                      <strong>Incoming</strong>
-                      <p>High-intent caller</p>
-                    </div>
-                    <em>0:01</em>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {kind === "respond" && (
-            <motion.div
-              key="respond"
-              className="pt-story-panel"
-              initial={enter}
-              animate={shown}
-              exit={leave}
-              transition={{ duration: 0.35 }}
-            >
-              <div className="pt-story-thread">
-                <div className="pt-story-bubble pt-story-bubble-in">
-                  Do you have availability this weekend?
-                </div>
-                <div className="pt-story-bubble pt-story-bubble-out">
-                  I can help with that right away. What’s the best number to reach you, and your
-                  name?
-                </div>
-                <p className="pt-story-status">Responded instantly · conversation active</p>
-              </div>
-            </motion.div>
-          )}
-
-          {kind === "secure" && (
-            <motion.div
-              key="secure"
-              className="pt-story-panel"
-              initial={enter}
-              animate={shown}
-              exit={leave}
-              transition={{ duration: 0.35 }}
-            >
-              <p className="pt-story-chip">Secured in conversation</p>
-              <div className="pt-story-fields">
-                <div>
-                  <span>Name</span>
-                  <strong>Jordan Blake</strong>
-                </div>
-                <div>
-                  <span>Phone</span>
-                  <strong>(512) 555-0147</strong>
-                </div>
-                <div>
-                  <span>Inquiry</span>
-                  <strong>Weekend private event</strong>
-                </div>
-                <div>
-                  <span>Preferred time</span>
-                  <strong>Saturday afternoon</strong>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {kind === "alert" && (
-            <motion.div
-              key="alert"
-              className="pt-story-panel"
-              initial={enter}
-              animate={shown}
-              exit={leave}
-              transition={{ duration: 0.35 }}
-            >
-              <div className="pt-story-alert-card">
-                <div className="pt-story-alert-top">
-                  <img src={ICON} alt="" />
-                  <div>
-                    <p className="pt-story-chip">Business alert</p>
-                    <strong>New lead ready</strong>
-                  </div>
-                  <span className="pt-story-now">Now</span>
-                </div>
-                <p>
-                  Jordan Blake · (512) 555-0147 · Weekend private event · Saturday afternoon
-                </p>
-                <div className="pt-story-alert-tags">
-                  <span>Email</span>
-                  <span>SMS</span>
-                  <span>Internal only</span>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+const KNOWLEDGE = ["Services","Service areas","Business hours","Policies","Pricing rules","Customer questions"];
+export function BusinessIntelligence() {
+  return <div className="pt-intelligence">
+    <div className="pt-knowledge-ring">
+      {KNOWLEDGE.map((x,i)=><motion.div key={x} className={"pt-knowledge pt-k"+i} initial={{opacity:0,scale:.92}} whileInView={{opacity:1,scale:1}} viewport={{once:true}} transition={{delay:i*.07}}>{x}</motion.div>)}
+      <div className="pt-core"><img src={ICON} alt="" /><strong>Your AI<br/>Sales Employee</strong><span>Business intelligence</span></div>
     </div>
-  );
+  </div>;
 }
 
-export function InquiryProtectStory() {
-  const reduce = useReducedMotion();
-  const pinRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: pinRef,
-    offset: ["start start", "end end"],
-  });
-  const [active, setActive] = useState(0);
-
-  useMotionValueEvent(scrollYProgress, "change", (progress) => {
-    const next = Math.min(
-      STORY_STEPS.length - 1,
-      Math.max(0, Math.floor(progress * STORY_STEPS.length))
-    );
-    setActive((prev) => (prev === next ? prev : next));
-  });
-
-  if (reduce) {
-    return (
-      <div className="pt-story pt-story-static">
-        <ol className="pt-story-mobile-list">
-          {STORY_STEPS.map((step) => (
-            <li key={step.title} className="pt-story-mobile-item">
-              <div className="pt-story-mobile-copy">
-                <h3>{step.title}</h3>
-                <p>{step.copy}</p>
-              </div>
-              <StoryVisual kind={step.visual} />
-            </li>
-          ))}
-        </ol>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {/* Desktop sticky pin */}
-      <div ref={pinRef} className="pt-story-pin-track">
-        <div className="pt-story-pin-sticky">
-          <div className="pt-story-pin-grid">
-            <ol className="pt-story-steps">
-              {STORY_STEPS.map((step, index) => (
-                <li
-                  key={step.title}
-                  className={`pt-story-step${active === index ? " is-active" : ""}`}
-                >
-                  <button
-                    type="button"
-                    className="pt-story-step-btn"
-                    onClick={() => {
-                      const el = pinRef.current;
-                      if (!el) return;
-                      const rect = el.getBoundingClientRect();
-                      const top = window.scrollY + rect.top;
-                      const height = el.offsetHeight - window.innerHeight;
-                      const target = top + (height * index) / (STORY_STEPS.length - 1);
-                      window.scrollTo({ top: target, behavior: "smooth" });
-                    }}
-                  >
-                    <span className="pt-story-index">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="pt-story-step-text">
-                      <strong>{step.title}</strong>
-                      <em>{step.copy}</em>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-            <div className="pt-story-stage">
-              <StoryVisual kind={STORY_STEPS[active].visual} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile stacked sequence */}
-      <div className="pt-story-mobile">
-        <ol className="pt-story-mobile-list">
-          {STORY_STEPS.map((step) => (
-            <li key={step.title} className="pt-story-mobile-item">
-              <div className="pt-story-mobile-copy">
-                <h3>{step.title}</h3>
-                <p>{step.copy}</p>
-              </div>
-              <StoryVisual kind={step.visual} />
-            </li>
-          ))}
-        </ol>
-      </div>
-    </>
-  );
-}
-
-/* ─── Dual channel ────────────────────────────────────────────────────── */
-
-export function DualChannelVisual() {
-  return (
-    <div className="pt-dual-stage">
-      <article className="pt-dual-panel pt-dual-chat">
-        <header>
-          <p className="pt-kicker">Website chat</p>
-          <h3>Answers the visitor already on your site.</h3>
-        </header>
-        <div className="pt-mock-chat">
-          <p className="pt-example-tag">Home Services example</p>
-          <div className="pt-mock-bubble in">
-            Can you send someone for AC repair today? 8914 Willow Creek Ln.
-          </div>
-          <div className="pt-mock-bubble out">
-            I can help with that. What’s the best number to reach you, and your name?
-          </div>
-          <div className="pt-mock-bubble in">Jordan Blake, (512) 555-0147. Late afternoon.</div>
-          <div className="pt-mock-bubble out">
-            Thanks, Jordan. I’ve captured your name, phone, service address, and request.
-          </div>
-        </div>
-      </article>
-
-      <article className="pt-dual-panel pt-dual-call">
-        <header>
-          <p className="pt-kicker">Inbound phone</p>
-          <h3>Answers the caller when your line would otherwise wait.</h3>
-        </header>
-        <div className="pt-mock-call">
-          <div className="pt-mock-call-hero">
-            <img src={ICON} alt="" />
-            <div>
-              <strong>AI Sales Employee</strong>
-              <p>Inbound line · live</p>
-            </div>
-          </div>
-          <p className="pt-mock-quote">
-            “Hi, this is the AI Sales Employee for Harbor &amp; Pine. I can take the details and
-            have the team follow up.”
-          </p>
-          <ul className="pt-mock-capture">
-            <li>Name and phone</li>
-            <li>Inquiry details</li>
-            <li>Booking or service requirements</li>
-            <li>Preferred time</li>
-          </ul>
-        </div>
-      </article>
+const fmt=(n:number)=>"$"+Math.round(n).toLocaleString("en-US");
+export function RevenueCalculator() {
+  const [jobIndex,setJobIndex]=useState(32);
+  const [jobs,setJobs]=useState(20);
+  const jobValue=50+(jobIndex/100)*(25000-50);
+  const monthly=jobValue*jobs;
+  return <div className="pt-calculator">
+    <div className="pt-slider-block">
+      <div className="pt-slider-head"><span>Average Job Value</span><strong>{jobIndex===100?"$25,000+":fmt(jobValue)}</strong></div>
+      <input aria-label="Average Job Value" type="range" min="0" max="100" value={jobIndex} onChange={e=>setJobIndex(Number(e.target.value))} />
+      <div className="pt-range-labels"><span>$50</span><span>$25,000+</span></div>
     </div>
-  );
-}
-
-/* ─── Setup / control ─────────────────────────────────────────────────── */
-
-const SETUP_ITEMS = [
-  {
-    title: "Welcome message",
-    copy: "How the AI Sales Employee introduces your company at the start of a conversation.",
-    preview: "Thanks for reaching Harbor & Pine. How can we help today?",
-  },
-  {
-    title: "Services and FAQs",
-    copy: "Conversations stay inside the work you actually do — hours, policies, and common questions.",
-    preview: "HVAC · Plumbing · Electrical",
-  },
-  {
-    title: "Lead-alert recipient",
-    copy: "New-lead alerts go to the people on your team who can respond.",
-    preview: "dispatch@yourcompany.com",
-  },
-  {
-    title: "Business rules",
-    copy: "Service areas, pricing guidance you approve, and what the AI should never invent.",
-    preview: "Austin metro · no invented rates",
-  },
-  {
-    title: "Preferred communication style",
-    copy: "Professional, direct, or warm — trained to sound like your company.",
-    preview: "Professional · clear · helpful",
-  },
-];
-
-export function SetupExperience() {
-  return (
-    <div className="pt-setup">
-      <p className="pt-setup-note">
-        Presented as the setup experience — not a live client portal. Personal login and dashboard
-        are a future product milestone.
-      </p>
-      <div className="pt-setup-grid">
-        {SETUP_ITEMS.map((item, index) => (
-          <article key={item.title} className="pt-setup-card">
-            <span className="pt-setup-index">{String(index + 1).padStart(2, "0")}</span>
-            <h3>{item.title}</h3>
-            <p>{item.copy}</p>
-            <div className="pt-setup-preview">{item.preview}</div>
-          </article>
-        ))}
-      </div>
+    <div className="pt-slider-block">
+      <div className="pt-slider-head"><span>Jobs Received in a Month</span><strong>{jobs===100?"100+":jobs}</strong></div>
+      <input aria-label="Jobs Received in a Month" type="range" min="1" max="100" value={jobs} onChange={e=>setJobs(Number(e.target.value))} />
+      <div className="pt-range-labels"><span>1</span><span>100+</span></div>
     </div>
-  );
+    <div className="pt-value-grid">
+      <div><span>Monthly Job Value</span><strong>{fmt(monthly)}</strong></div>
+      <div><span>5%</span><strong>{fmt(monthly*.05)}</strong></div>
+      <div><span>10%</span><strong>{fmt(monthly*.10)}</strong></div>
+    </div>
+    <p>Illustrative arithmetic only. Not a forecast or a recovery claim.</p>
+  </div>;
 }
 
-/* ─── Future capability ───────────────────────────────────────────────── */
-
-export function FutureVisualCard() {
-  return (
-    <article className="pt-future-card">
-      <div className="pt-future-badge">Upcoming</div>
-      <h3>Next: Visual inquiry context</h3>
-      <p>Let customers share photos and videos when the conversation needs more context.</p>
-      <div className="pt-future-mock" aria-hidden>
-        <div className="pt-future-slot">Photo</div>
-        <div className="pt-future-slot">Video</div>
-        <div className="pt-future-slot pt-future-slot-soon">Coming later</div>
-      </div>
-    </article>
-  );
+export function InboundSignal() {
+  return <div className="pt-signal-map">
+    <div className="pt-signal-source"><span><Icon kind="web"/></span><strong>Website Chat</strong><small>Engages visitors while they're still on your website.</small></div>
+    <div className="pt-signal-source"><span><Icon kind="phone"/></span><strong>Inbound Calls</strong><small>Answers customers when your team can't.</small></div>
+    <div className="pt-signal-path pt-path-a"><i/></div><div className="pt-signal-path pt-path-b"><i/></div>
+    <div className="pt-signal-ai"><img src={ICON} alt=""/><strong>AI Sales Employee</strong><small>Responds · Qualifies · Secures</small></div>
+    <div className="pt-signal-path pt-path-c"><i/></div>
+    <div className="pt-signal-lead"><Icon kind="lead"/><strong>Secured Opportunity</strong></div>
+    <div className="pt-signal-path pt-path-d"><i/></div>
+    <div className="pt-phone-alert"><span>PulseTech</span><strong>New lead captured</strong><p>Jordan · HVAC enquiry<br/>Phone + service address secured</p><small>now</small></div>
+  </div>;
 }
 
-/* ─── Industries ──────────────────────────────────────────────────────── */
-
-const INDUSTRIES = [
-  {
-    name: "Home Services",
-    copy: "High-intent repair and install inquiries answered as they come in. A service address can appear when the work is at a property.",
-    tags: ["HVAC", "Plumbing", "Electrical", "Roofing", "Solar"],
-    tone: "home",
-  },
-  {
-    name: "Events & Venues",
-    copy: "Tour requests, date holds, and event details captured while the planner is still engaged.",
-    tags: ["Wedding venues", "Banquet halls", "Event spaces"],
-    tone: "events",
-  },
-  {
-    name: "Premium Travel & Charter",
-    copy: "Charter and luxury transport inquiries captured with the booking requirements your team needs.",
-    tags: ["Yacht charter", "Private aviation", "Luxury transport"],
-    tone: "travel",
-  },
-  {
-    name: "Professional & Local Services",
-    copy: "Consults, estimates, and appointment interest captured before the next provider is called.",
-    tags: ["Legal", "Real estate", "Clinics", "Cleaning"],
-    tone: "pro",
-  },
-];
-
+const INDUSTRIES=["HVAC","Plumbing","Electrical","Roofing","Solar","Pest Control","Landscaping","Cleaning","Pool Services","Legal Services","Real Estate","Gyms & Fitness"];
 export function IndustriesGrid() {
-  return (
-    <div className="pt-industry-grid">
-      {INDUSTRIES.map((item) => (
-        <article key={item.name} className={`pt-industry-card pt-industry-${item.tone}`}>
-          <div className="pt-industry-art" aria-hidden />
-          <div className="pt-industry-body">
-            <h3>{item.name}</h3>
-            <p>{item.copy}</p>
-            <ul>
-              {item.tags.map((tag) => (
-                <li key={tag}>{tag}</li>
-              ))}
-            </ul>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
+  return <div className="pt-industries">{INDUSTRIES.map((x,i)=><motion.div key={x} className="pt-industry" whileHover={{y:-5}} transition={{duration:.2}}><span>{String(i+1).padStart(2,"0")}</span><strong>{x}</strong><i>↗</i></motion.div>)}</div>;
+}
+
+const QUOTES=["We charge a $79 visiting fee.","We don't service commercial properties.","We offer financing on installations.","We don't provide this particular service."];
+export function PeterTransfer() {
+  const [active,setActive]=useState(0);
+  return <div className="pt-peter">
+    <div className="pt-peter-col pt-owner"><span>BUSINESS OWNER</span><strong>Just tell Peter.</strong><div className="pt-quote-list">{QUOTES.map((q,i)=><button key={q} className={active===i?"active":""} onClick={()=>setActive(i)}>{q}</button>)}</div></div>
+    <div className="pt-transfer-line"><i/></div>
+    <div className="pt-peter-core"><img src={ICON} alt=""/><span>PETER</span><strong>Understands your business</strong><div className="pt-processing"><i/><i/><i/></div></div>
+    <div className="pt-transfer-line"><i/></div>
+    <div className="pt-peter-col pt-customer-ai"><span>YOUR AI SALES EMPLOYEE</span><strong>Knowledge updated</strong><p>“{QUOTES[active]}”</p><small>Ready for the next customer conversation</small></div>
+  </div>;
+}
+
+const CONTROLS=["Test it anytime","Teach it what's missing","Update it as your business changes","Know when a lead arrives","No unauthorized commitments"];
+export function ControlRail() {
+  return <div className="pt-control-rail">{CONTROLS.map((x,i)=><motion.div key={x} initial={{opacity:.45}} whileInView={{opacity:1}} viewport={{amount:.9}} transition={{delay:i*.06}} className={i===4?"pt-control-strong":""}><span><Icon kind="check"/></span><strong>{x}</strong></motion.div>)}</div>;
+}
+
+const FAQ=[
+["What exactly is an AI Sales Employee?","It is an AI-powered customer-facing sales assistant configured around your business. It can respond to website enquiries and inbound calls, answer questions using the business information you provide, capture lead details and alert your team."],
+["Is this just a chatbot?","No. Website chat is one customer channel. PulseTech is designed as an AI Sales Employee that can also handle inbound phone conversations and work around your business rules."],
+["Will it make up prices or promises?","It is designed to work from the information and rules you provide, and not to make unauthorized commitments on your behalf."],
+["What happens when a lead is captured?","The lead information can be sent immediately to the recipients you choose, so your team can follow up while the opportunity is still fresh."],
+["Can I test it before going live?","Yes. You can experience a customized version around your own business before deciding to go live."],
+["Can I change what it knows later?","Yes. Your business information can be updated as your services, policies and operating details change."],
+["Does it replace my team?","It is designed to cover the first-response gap and hand your team a usable opportunity. Your people remain in control of the business relationship."],
+["How much does PulseTech cost?","Pricing depends on the setup and requirements of your business. Experience your customized AI Sales Employee first, and we'll show you the appropriate setup for your business."],
+];
+export function FaqSection(){
+  const [open,setOpen]=useState<number|null>(0);
+  return <section className="pt-section pt-faq"><div className="pt-heading"><p className="pt-eyebrow">FAQ</p><h2>Questions business owners usually ask</h2></div><div className="pt-faq-list">{FAQ.map(([q,a],i)=><div className={"pt-faq-item "+(open===i?"open":"")} key={q}><button aria-expanded={open===i} onClick={()=>setOpen(open===i?null:i)}><span>{q}</span><i>+</i></button><div className="pt-faq-answer"><p>{a}</p></div></div>)}</div></section>;
 }

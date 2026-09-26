@@ -420,3 +420,36 @@
 .pt-live-chat-body [data-chat-messages]{background:transparent!important}
 .pt-live-chat-body [data-chat-input]>div{background:linear-gradient(110deg,#e8eef9,#dce7f7)!important;border-top:1px solid rgba(255,255,255,.9)!important}
 @media(max-width:900px){.pt-hero-copy,.pt-hero-visual{justify-self:stretch!important}.pt-hero-chat-wrap{margin-left:auto!important;margin-right:auto!important}}
+
+/* Approved dark cinematic PulseTech hero */
+.pt-header{background:rgba(7,12,31,.88)!important;border-bottom:1px solid rgba(126,151,255,.13)!important;box-shadow:0 10px 35px rgba(0,0,0,.18)!important;color:#fff!important}
+.pt-header .pt-nav a{color:rgba(239,244,255,.84)!important}
+.pt-header .pt-nav a:hover{color:#fff!important}
+.pt-hero{background:#070b1b!important;color:#fff!important}
+.pt-hero-cinema{background:
+ radial-gradient(circle at 78% 44%,rgba(50,99,255,.42) 0,rgba(66,57,218,.18) 24%,transparent 48%),
+ radial-gradient(circle at 35% 86%,rgba(87,55,244,.20),transparent 35%),
+ linear-gradient(122deg,#050817 0%,#08132e 48%,#0a1740 100%)!important}
+.pt-hero-video{display:none!important}
+.pt-hero-video-wash{background:
+ radial-gradient(ellipse at 83% 55%,rgba(34,130,255,.22),transparent 32%),
+ linear-gradient(90deg,rgba(4,8,22,.28),rgba(5,12,34,.05) 55%,rgba(8,20,54,.08))!important}
+.pt-hero-video-grid{right:-8%!important;top:-20%!important;width:74%!important;height:140%!important;opacity:.2!important;background-size:54px 54px!important;background-image:linear-gradient(rgba(91,120,255,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(91,120,255,.13) 1px,transparent 1px)!important;animation:ptCinemaGrid 22s ease-in-out infinite alternate!important}
+.pt-hero-cinema:before,.pt-hero-cinema:after{content:"";position:absolute;pointer-events:none;border-radius:50%;filter:blur(18px)}
+.pt-hero-cinema:before{width:72%;height:24%;left:-8%;bottom:3%;background:linear-gradient(90deg,transparent,rgba(44,91,255,.22),rgba(125,65,255,.35),rgba(26,194,255,.16),transparent);transform:rotate(-5deg);animation:ptLightRibbonA 16s ease-in-out infinite alternate}
+.pt-hero-cinema:after{width:58%;height:18%;right:-8%;top:24%;background:linear-gradient(90deg,transparent,rgba(74,66,255,.20),rgba(37,153,255,.30),rgba(141,61,255,.22),transparent);transform:rotate(-14deg);animation:ptLightRibbonB 19s ease-in-out infinite alternate}
+.pt-hero .pt-eyebrow{color:#78a4ff!important}
+.pt-hero h1{color:#f8faff!important;text-shadow:0 2px 20px rgba(0,0,0,.14)}
+.pt-hero h1 span{background:linear-gradient(90deg,#48c7ff 0%,#5386ff 42%,#9a61ff 100%)!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important}
+.pt-hero .pt-lead{color:rgba(222,230,248,.79)!important}
+.pt-hero .pt-micro{color:rgba(183,199,229,.66)!important}
+.pt-hero .pt-button-primary{background:linear-gradient(100deg,#7958ff,#3e75ff 62%,#24c7ef)!important;color:#fff!important;border:1px solid rgba(255,255,255,.5)!important;box-shadow:0 10px 32px rgba(68,76,255,.30),inset 0 1px 0 rgba(255,255,255,.42)!important}
+.pt-hero .pt-button-secondary{color:#f4f7ff!important}
+.pt-hero .pt-button-secondary:hover{background:rgba(255,255,255,.07)!important}
+.pt-hero-visual:before{background:radial-gradient(circle at 55% 48%,rgba(54,126,255,.30),rgba(98,60,255,.15) 38%,transparent 68%)!important;animation:ptHeroBreath 8s ease-in-out infinite!important}
+.pt-live-chat{box-shadow:0 46px 110px rgba(0,0,0,.34),0 20px 55px rgba(43,72,218,.24),0 0 0 2px rgba(167,192,255,.26),0 0 48px rgba(66,102,255,.38)!important}
+@keyframes ptLightRibbonA{0%{transform:translate3d(-2%,2%,0) rotate(-5deg) scale(1)}100%{transform:translate3d(7%,-4%,0) rotate(-2deg) scale(1.06)}}
+@keyframes ptLightRibbonB{0%{transform:translate3d(3%,-2%,0) rotate(-14deg) scale(1)}100%{transform:translate3d(-7%,5%,0) rotate(-10deg) scale(1.08)}}
+@keyframes ptHeroBreath{0%,100%{opacity:.62;transform:scale(.98)}50%{opacity:.86;transform:scale(1.035)}}
+@media(max-width:699px){.pt-hero-cinema:before{width:120%;left:-30%;opacity:.65}.pt-hero-cinema:after{width:100%;right:-35%;opacity:.55}}
+@media(prefers-reduced-motion:reduce){.pt-hero-cinema:before,.pt-hero-cinema:after,.pt-hero-video-grid,.pt-hero-visual:before{animation:none!important}}

@@ -1,5 +1,7 @@
 "use client";
 
+import { PULSETECH_CHAT_ICON } from "../../lib/chatAvatar";
+
 export type ChatMessageData = {
   id: string;
   role: "assistant" | "user";
@@ -16,10 +18,15 @@ export default function ChatMessage({ message }: ChatMessageProps) {
 
   return (
     <div
-      className={`mb-3.5 flex ${
-        isUser ? "justify-end" : "justify-start"
-      }`}
+      data-chat-message-row
+      data-chat-role={isUser ? "user" : "assistant"}
+      className={`mb-3.5 flex items-end gap-2.5 ${isUser ? "justify-end" : "justify-start"}`}
     >
+      {!isUser ? (
+        <span data-chat-message-avatar className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" aria-hidden>
+          <img src={PULSETECH_CHAT_ICON} alt="" className="h-full w-full rounded-full object-contain p-1" />
+        </span>
+      ) : null}
       <div
         data-chat-message-bubble
         data-chat-role={isUser ? "user" : "assistant"}
@@ -31,6 +38,11 @@ export default function ChatMessage({ message }: ChatMessageProps) {
       >
         {message.content}
       </div>
+      {isUser ? (
+        <span data-chat-visitor-avatar className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full" aria-hidden>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><circle cx="12" cy="7" r="4"/><path d="M3 22v-3c0-4 4-6 9-6s9 2 9 6v3z"/></svg>
+        </span>
+      ) : null}
     </div>
   );
 }

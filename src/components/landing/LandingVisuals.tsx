@@ -62,19 +62,20 @@ export function BusinessIntelligence() {
 
 const fmt=(n:number)=>"$"+Math.round(n).toLocaleString("en-US");
 export function RevenueCalculator() {
-  const [jobIndex,setJobIndex]=useState(32);
+  const [jobValue,setJobValue]=useState(500);
   const [jobs,setJobs]=useState(20);
-  const jobValue=50+(jobIndex/100)*(25000-50);
   const monthly=jobValue*jobs;
+  const jobPct=((jobValue-50)/(2000-50))*100;
+  const jobsPct=((jobs-1)/(100-1))*100;
   return <div className="pt-calculator">
     <div className="pt-slider-block">
-      <div className="pt-slider-head"><span>Average Job Value</span><strong>{jobIndex===100?"$25,000+":fmt(jobValue)}</strong></div>
-      <input aria-label="Average Job Value" type="range" min="0" max="100" value={jobIndex} onChange={e=>setJobIndex(Number(e.target.value))} />
-      <div className="pt-range-labels"><span>$50</span><span>$25,000+</span></div>
+      <div className="pt-slider-head"><span>Average Job Value</span><strong>{fmt(jobValue)}</strong></div>
+      <input className="pt-3d-range" style={{"--range-progress":jobPct+"%"} as React.CSSProperties} aria-label="Average Job Value" type="range" min="50" max="2000" step="50" value={jobValue} onChange={e=>setJobValue(Number(e.target.value))} />
+      <div className="pt-range-labels"><span>$50</span><span>$2,000</span></div>
     </div>
     <div className="pt-slider-block">
       <div className="pt-slider-head"><span>Jobs Received in a Month</span><strong>{jobs===100?"100+":jobs}</strong></div>
-      <input aria-label="Jobs Received in a Month" type="range" min="1" max="100" value={jobs} onChange={e=>setJobs(Number(e.target.value))} />
+      <input className="pt-3d-range pt-3d-range-lime" style={{"--range-progress":jobsPct+"%"} as React.CSSProperties} aria-label="Jobs Received in a Month" type="range" min="1" max="100" value={jobs} onChange={e=>setJobs(Number(e.target.value))} />
       <div className="pt-range-labels"><span>1</span><span>100+</span></div>
     </div>
     <div className="pt-value-grid">

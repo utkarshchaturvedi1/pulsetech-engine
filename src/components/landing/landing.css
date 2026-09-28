@@ -786,3 +786,24 @@
   pointer-events:none!important;
 }
 .pt-hero .pt-button-primary{isolation:isolate!important}
+
+/* One CTA language across the launch site */
+.pt-landing .pt-button,
+.pt-landing .pt-button-primary,
+.pt-landing .pt-button-small{
+  background:linear-gradient(105deg,#159dff 0%,#346ff7 38%,#6358f6 68%,#8a4df0 100%)!important;
+  color:#fff!important;
+  border:1px solid rgba(255,255,255,.28)!important;
+  box-shadow:0 10px 26px rgba(55,83,235,.24),0 5px 14px rgba(116,73,238,.16)!important;
+}
+.pt-landing .pt-button:hover,
+.pt-landing .pt-button-primary:hover,
+.pt-landing .pt-button-small:hover{
+  box-shadow:0 13px 32px rgba(55,83,235,.30),0 7px 18px rgba(116,73,238,.20)!important;
+}
+.pt-landing .pt-button:after,
+.pt-landing .pt-button-primary:after,
+.pt-landing .pt-button-small:after{
+  content:none!important;
+  display:none!important;
+}

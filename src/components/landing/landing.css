@@ -682,3 +682,20 @@
  .pt-live-chat-body [data-chat-header]{min-height:88px!important;padding:14px 16px!important}
  .pt-live-chat-body [data-compact-avatar]{width:54px!important;height:54px!important}
 }
+
+/* Remove the hidden message-stage card behind Peter's actual bubble */
+.pt-live-chat-body [data-chat-messages],
+.pt-live-chat-body [data-chat-message-row],
+.pt-live-chat-body [data-chat-message-row][data-chat-role="assistant"]{
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  outline:0!important;
+}
+.pt-live-chat-body [data-chat-message-row]::before,
+.pt-live-chat-body [data-chat-message-row]::after,
+.pt-live-chat-body [data-chat-messages]::before,
+.pt-live-chat-body [data-chat-messages]::after{
+  content:none!important;
+  display:none!important;
+}

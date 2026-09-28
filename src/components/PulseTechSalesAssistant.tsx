@@ -175,7 +175,7 @@ export default function PulseTechSalesAssistant({
           ...prev,
           `${message}
 
-You can reply "retry" to try again.`,
+Enter the website again to try another address.`,
         ]);
         setPhase("error");
       }
@@ -253,7 +253,7 @@ What's your website?`}
           phase === "analyzing"
             ? "Creating your AI Sales Employee..."
             : phase === "error"
-              ? 'Type "retry" to try again...'
+              ? "Enter the website again..."
               : "Enter your website..."
         }
         disabled={phase === "analyzing"}

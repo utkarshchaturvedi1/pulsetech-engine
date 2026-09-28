@@ -47,7 +47,7 @@ ${business.serviceAreas.length > 0 ? business.serviceAreas.map((a) => `- ${a}`).
 FAQs:
 ${faqs}
 
-Optional business process context (NOT a script. NOT a checklist. Ask only if needed for the next sales move):
+Owner-required business questions (NOT a script): Ask these naturally before completing the customer handoff. Do not skip an owner-provided question. Keep the existing core lead-capture order unchanged.
 ${business.leadQuestions.length > 0 ? business.leadQuestions.map((q) => `- ${q}`).join("\n") : "- None provided"}
 
 Pricing / visit charges / estimates:

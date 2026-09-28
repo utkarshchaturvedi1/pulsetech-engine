@@ -752,3 +752,12 @@
  .pt-hero-video-wash{background:linear-gradient(180deg,rgba(3,7,20,.72) 0%,rgba(4,9,25,.56) 48%,rgba(5,10,29,.48) 100%)!important}
 }
 @media(prefers-reduced-motion:reduce){.pt-hero-video{display:none!important}}
+
+/* Ensure actual MP4 is visible above legacy hero artwork */
+.pt-hero-cinema{background:#050817!important}
+.pt-hero-video{display:block!important;visibility:visible!important;opacity:.78!important;z-index:3!important;filter:saturate(1.12) contrast(1.04) brightness(.78)!important}
+.pt-hero-video-wash{z-index:4!important;background:linear-gradient(90deg,rgba(3,7,20,.72) 0%,rgba(4,8,23,.43) 43%,rgba(4,8,23,.18) 72%,rgba(4,8,23,.28) 100%)!important}
+.pt-hero-video-grid{display:none!important}
+.pt-light-ribbon,.pt-light-orb{display:none!important}
+.pt-hero-cinema:before,.pt-hero-cinema:after{display:none!important}
+.pt-hero-copy,.pt-hero-visual{position:relative!important;z-index:6!important}

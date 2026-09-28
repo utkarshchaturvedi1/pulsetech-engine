@@ -206,7 +206,16 @@ You can reply "retry" to try again.`,
         return CREATING_MESSAGE;
       }
 
-      return `Analysis failed. Reply "retry" to try again.`;
+      // A corrected website should be accepted immediately after a failed
+      // attempt. Do not trap the visitor in a special "retry" command.
+      websiteRef.current = text;
+      setWebsite(text);
+      setPhase("analyzing");
+      setShowProgress(true);
+      setProgress(0);
+      progressRef.current = 0;
+      setRetryToken((value) => value + 1);
+      return CREATING_MESSAGE;
     }
 
     if (websiteRef.current) {

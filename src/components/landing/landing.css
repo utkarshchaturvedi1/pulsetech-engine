@@ -699,3 +699,26 @@
   content:none!important;
   display:none!important;
 }
+
+/* Launch header: clean white sticky navigation with original colored PulseTech logo */
+.pt-header{
+  position:sticky!important;
+  top:0!important;
+  z-index:100!important;
+  background:rgba(255,255,255,.96)!important;
+  border-bottom:1px solid rgba(209,220,236,.82)!important;
+  box-shadow:0 8px 28px rgba(8,27,65,.08)!important;
+  color:#071d36!important;
+  backdrop-filter:blur(16px)!important;
+  -webkit-backdrop-filter:blur(16px)!important;
+}
+.pt-header .pt-logo,
+.pt-header img[alt*="PulseTech"]{
+  filter:none!important;
+}
+.pt-header .pt-nav nav button{
+  color:#26354b!important;
+  opacity:1!important;
+  text-shadow:none!important;
+}
+.pt-header .pt-nav nav button:hover{color:#176ff2!important}

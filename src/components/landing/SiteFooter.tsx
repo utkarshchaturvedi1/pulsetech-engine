@@ -8,6 +8,9 @@ export default function SiteFooter() {
         <div className="pt-footer-brand">
           <a href="/" aria-label="PulseTech Labs home"><img src={LOGO} alt="PulseTech Labs" className="pt-logo" /></a>
           <p>AI Sales Employees for high-intent businesses</p>
+          <p className="pt-design-credit">
+            Design inspiration: <a href="https://www.figma.com/design/aUO1ZCxKlyTF5Yw3LswI7R/Ether---AI-Image-Generator-Website--Community-" target="_blank" rel="noreferrer">Ether – AI Image Generator Website</a> by Nickelfox, via Figma Community (CC BY 4.0).
+          </p>
         </div>
         <nav className="pt-footer-nav" aria-label="Legal and support">
           <a href="/privacy">Privacy Policy</a>

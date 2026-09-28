@@ -807,3 +807,9 @@
   content:none!important;
   display:none!important;
 }
+
+
+/* Launch polish: neutral transparent-black hero wash for a seamless section transition. */
+.pt-hero-video-wash{
+  background:rgba(0,0,0,.38)!important;
+}

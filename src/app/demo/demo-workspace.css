@@ -628,3 +628,13 @@ body:has(.pt-demo) {
   background: rgba(239, 68, 68, 0.08);
   color: #b91c1c;
 }
+
+
+/* Mobile demo intro must scroll away with the page instead of covering the chats. */
+@media (max-width: 1023.98px) {
+  .pt-demo .pt-header {
+    position: relative !important;
+    top: auto !important;
+    z-index: 1 !important;
+  }
+}

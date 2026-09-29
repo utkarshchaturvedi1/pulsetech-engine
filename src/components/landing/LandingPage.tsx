@@ -68,9 +68,7 @@ export default function LandingPage() {
       <main id="top">
         <section className="pt-hero">
           <div className="pt-hero-cinema" aria-hidden="true">
-            <video className="pt-hero-video" autoPlay muted loop playsInline preload="metadata">
-              <source src="/assets/website/pulsetech-hero-callcenter.mp4.mp4" type="video/mp4" />
-            </video>
+            <img className="pt-hero-video" src="/assets/website/pulsetech-hero-ai.png.png" alt="" />
             <div className="pt-hero-video-wash" />
             <div className="pt-hero-video-grid" /><div className="pt-light-ribbon pt-light-ribbon-a" /><div className="pt-light-ribbon pt-light-ribbon-b" /><div className="pt-light-ribbon pt-light-ribbon-c" /><div className="pt-light-orb pt-light-orb-a" /><div className="pt-light-orb pt-light-orb-b" />
           </div>

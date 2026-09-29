@@ -856,3 +856,26 @@
 .pt-hero-video-wash{
   background:transparent!important;
 }
+
+
+/* Call-center hero test: crisp source with neutral black readability layer. */
+.pt-hero-video{
+  opacity:1!important;
+  filter:none!important;
+  object-fit:cover!important;
+  object-position:center center!important;
+}
+.pt-hero-video-wash{
+  display:block!important;
+  background:rgba(0,0,0,.48)!important;
+}
+@media(max-width:699px){
+  .pt-hero-video{
+    opacity:1!important;
+    filter:none!important;
+    object-position:center center!important;
+  }
+  .pt-hero-video-wash{
+    background:rgba(0,0,0,.54)!important;
+  }
+}

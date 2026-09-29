@@ -850,3 +850,9 @@
 .pt-hero-video-wash{
   background:rgba(3,8,30,.66)!important;
 }
+
+
+/* Hero experiment: show the motion artwork without any color wash. */
+.pt-hero-video-wash{
+  background:transparent!important;
+}

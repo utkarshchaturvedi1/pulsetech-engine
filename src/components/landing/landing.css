@@ -813,3 +813,34 @@
 .pt-hero-video-wash{
   background:rgba(0,0,0,.38)!important;
 }
+
+
+/* Hero readability: true black video treatment, with copy rendered above every overlay. */
+.pt-hero-video-wash{
+  background:rgba(0,0,0,.62)!important;
+}
+.pt-hero-copy{
+  position:relative!important;
+  z-index:20!important;
+  background:transparent!important;
+  filter:none!important;
+  opacity:1!important;
+}
+.pt-hero-copy:before,
+.pt-hero-copy:after{
+  content:none!important;
+  display:none!important;
+}
+.pt-hero .pt-eyebrow,
+.pt-hero h1,
+.pt-hero .pt-lead,
+.pt-hero .pt-actions,
+.pt-hero .pt-micro{
+  position:relative!important;
+  z-index:21!important;
+  filter:none!important;
+  opacity:1!important;
+}
+.pt-hero h1{color:#fff!important}
+.pt-hero .pt-lead{color:#d7deeb!important}
+.pt-hero .pt-micro{color:#aebbd0!important}

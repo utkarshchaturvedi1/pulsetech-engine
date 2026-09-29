@@ -901,3 +901,16 @@
   }
   .pt-hero-video-wash{display:none!important}
 }
+
+
+/* Hero artwork composition repair: keep the informative right side visible behind the demo. */
+.pt-hero-video{
+  object-fit:cover!important;
+  object-position:68% center!important;
+}
+@media(max-width:699px){
+  .pt-hero-video{
+    object-fit:cover!important;
+    object-position:78% center!important;
+  }
+}

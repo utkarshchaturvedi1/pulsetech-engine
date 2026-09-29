@@ -879,3 +879,25 @@
     background:rgba(0,0,0,.54)!important;
   }
 }
+
+
+/* AI still hero test: preserve the artwork cleanly without video haze. */
+.pt-hero-video{
+  opacity:1!important;
+  filter:none!important;
+  object-fit:cover!important;
+  object-position:center center!important;
+}
+.pt-hero-video-wash{
+  display:none!important;
+  background:transparent!important;
+}
+@media(max-width:699px){
+  .pt-hero-video{
+    opacity:1!important;
+    filter:none!important;
+    object-fit:cover!important;
+    object-position:center center!important;
+  }
+  .pt-hero-video-wash{display:none!important}
+}

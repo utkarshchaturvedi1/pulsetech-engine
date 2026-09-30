@@ -220,6 +220,15 @@ Report PASS/FAIL for each command, any new coverage added, and that earlier asse
 
 ### Owner configuration and price-scope regression (30 Sep 2026)
 
+#### Production regression: repeated project-description question (30 Sep 2026)
+
+- Customer stated a garage charger installation, completed name → phone → address, then answered the requested project-description question. The AI repeated that same question.
+- Root cause: generic service-request rejection ran after a question-specific checker had accepted the answer. The checker prompt also labelled service requests unrelated without considering what question was asked. Earlier tests covered pet answers but missed this interaction; passing those tests did not establish natural conversation compliance.
+- Question-specific verified answers must override generic interruption heuristics. Service descriptions answer service-description questions; dates answer timing questions. Bare yes/no must not automatically complete an open-ended description question when semantic verification is available.
+- Audit all prompt layers for conflicting owner-question defaults; an exception in one layer is insufficient if another still prohibits an owner-required question.
+- Required regression: run the exact repeated-description reply through generateSalesReply with the semantic checker enabled; assert the answer persists, the next required question appears, and remaining unanswered questions still prevent handoff. Also test unrelated replies, explicit refusals, timing answers, and bare acknowledgements against their actual question.
+- Preserve every previous regression assertion. Document new failures here and exercise the conflicting paths together, rather than checking only prompt text or helpers in isolation.
+
 Affected categories: A (saved configuration and cross-browser identity), B (sticky qualification state), C (required owner questions before handoff), D (answers in existing business alerts), G (deterministic closure and safe response fallbacks). E, F and H remain preserve-only.
 
 - Peter additions accumulate; no small owner-instruction cap. Corrections remove exact targeted old values and retain unrelated rules. Invalid field shapes cannot be saved.

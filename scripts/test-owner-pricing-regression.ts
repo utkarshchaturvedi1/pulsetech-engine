@@ -163,9 +163,32 @@ async function run() {
     globalThis.fetch=(async()=>new Response(JSON.stringify({id:'resp_check',object:'response',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'{"answersQuestion":false}',annotations:[]}]}]}),{status:200,headers:{'Content-Type':'application/json'}})) as typeof fetch;
     const unrelated=await generateSalesReply(ownerBusiness,[{role:'assistant',content:firstAsk},{role:'user',content:'I am still thinking about the installation'}],pendingState);
     assert.equal(Object.keys(unrelated.salesState.ownerQuestionAnswers).length,0,'Unrelated response must not complete required question');
+    const openQuestionBusiness={...ownerBusiness,leadQuestions:['Describe the project you need help with.',...ownerBusiness.leadQuestions]};
+    const openState=synchronizeOwnerQuestions(secured(),openQuestionBusiness);
+    const openAsk=ownerQuestionReply(openState)!;
+    const bare=await generateSalesReply(openQuestionBusiness,[{role:'assistant',content:openAsk},{role:'user',content:'Yes'}],openState);
+    assert.equal(bare.reply,openAsk,'Bare acknowledgement must not complete an open-ended question');
+    assert(!bare.salesState.ownerQuestionAnswers[openAsk]);
     globalThis.fetch=(async()=>new Response(JSON.stringify({id:'resp_check',object:'response',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'{"answersQuestion":true}',annotations:[]}]}]}),{status:200,headers:{'Content-Type':'application/json'}})) as typeof fetch;
     const qualified=await generateSalesReply(ownerBusiness,[{role:'assistant',content:firstAsk},{role:'user',content:'There are two, but they stay in the back yard'}],pendingState);
     assert.equal(qualified.reply,ownerBusiness.leadQuestions[1],'Natural answer must advance to next required question');
+    const descriptionBusiness={...ownerBusiness,leadQuestions:['Can you describe the electrical problem or project you need help with?',...ownerBusiness.leadQuestions]};
+    const descriptionState=synchronizeOwnerQuestions(secured(),descriptionBusiness);
+    const descriptionAsk=ownerQuestionReply(descriptionState)!;
+    for (const reply of ['I want to install a car charger in my garage I bought a new electric car','I need to repair equipment in my workshop']) {
+      const described=await generateSalesReply(descriptionBusiness,[{role:'assistant',content:descriptionAsk},{role:'user',content:reply}],descriptionState);
+      assert.equal(described.salesState.ownerQuestionAnswers[descriptionAsk],reply,'Verified project description must survive generic service-request filters');
+      assert.equal(described.reply,firstAsk,'Answered project question must advance to the next owner question');
+      assert.equal(described.salesState.leadDeliveryStatus,'NOT_SENT','Description must not bypass remaining required questions');
+    }
+    for (const [question,reply] of [['Which day is access available?','Tomorrow'],['Describe your project.','I prefer not to answer']]) {
+      const contextualBusiness={...ownerBusiness,leadQuestions:[question,...ownerBusiness.leadQuestions]};
+      const contextualState=synchronizeOwnerQuestions(secured(),contextualBusiness);
+      ownerQuestionReply(contextualState);
+      const contextual=await generateSalesReply(contextualBusiness,[{role:'assistant',content:question},{role:'user',content:reply}],contextualState);
+      assert.equal(contextual.salesState.ownerQuestionAnswers[question],reply,'Verified timing/refusal must complete the actual question');
+      assert.equal(contextual.reply,firstAsk);
+    }
     const {applyOwnerFeedbackToProfile}=await import('../src/lib/updateBusinessProfile');
     globalThis.fetch=(async()=>new Response(JSON.stringify({id:'resp_owner',object:'response',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({patch:{leadQuestions:['Is parking available?'],systemPrompt:'Ask whether parking is available.'}}),annotations:[]}]}]}),{status:200,headers:{'Content-Type':'application/json'}})) as typeof fetch;
     const ownerUpdate=await applyOwnerFeedbackToProfile(business,'Also check parking availability');

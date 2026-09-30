@@ -26,6 +26,13 @@ export function captureOwnerQuestionAnswer(state: SalesState, latest: string, pr
   const pending = state.pendingOwnerQuestion;
   if (!pending || !previousAssistant?.includes(pending)) return;
   if (verified === false) return;
+  // Semantic verification is question-specific; generic interruption patterns must
+  // not veto a valid description, requested day, or other natural answer.
+  if (verified === true && latest.trim()) {
+    state.ownerQuestionAnswers[pending] = latest.trim();
+    state.pendingOwnerQuestion = null;
+    return;
+  }
   if (!latest.trim() || /\?|\b(how much|overall cost|total cost|what.*cost|what.*price|instead|why do you|why are you)\b/i.test(latest)) return;
   // An unrelated explicit service/timing request must not count as a qualification answer.
   if (/\b(can you come|please (?:schedule|book)|i (?:need|want) to (?:install|repair|replace))\b/i.test(latest)) return;

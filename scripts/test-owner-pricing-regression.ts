@@ -169,6 +169,8 @@ async function run() {
     const bare=await generateSalesReply(openQuestionBusiness,[{role:'assistant',content:openAsk},{role:'user',content:'Yes'}],openState);
     assert.equal(bare.reply,openAsk,'Bare acknowledgement must not complete an open-ended question');
     assert(!bare.salesState.ownerQuestionAnswers[openAsk]);
+    const explicitDescription=await generateSalesReply(openQuestionBusiness,[{role:'assistant',content:openAsk},{role:'user',content:'I want to install new equipment in my garage'}],openState);
+    assert.equal(explicitDescription.reply,firstAsk,'Explicit description must advance even when the remote checker rejects/fails');
     globalThis.fetch=(async()=>new Response(JSON.stringify({id:'resp_check',object:'response',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:'{"answersQuestion":true}',annotations:[]}]}]}),{status:200,headers:{'Content-Type':'application/json'}})) as typeof fetch;
     const qualified=await generateSalesReply(ownerBusiness,[{role:'assistant',content:firstAsk},{role:'user',content:'There are two, but they stay in the back yard'}],pendingState);
     assert.equal(qualified.reply,ownerBusiness.leadQuestions[1],'Natural answer must advance to next required question');

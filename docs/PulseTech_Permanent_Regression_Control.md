@@ -228,6 +228,7 @@ Report PASS/FAIL for each command, any new coverage added, and that earlier asse
 - Audit all prompt layers for conflicting owner-question defaults; an exception in one layer is insufficient if another still prohibits an owner-required question.
 - Required regression: run the exact repeated-description reply through generateSalesReply with the semantic checker enabled; assert the answer persists, the next required question appears, and remaining unanswered questions still prevent handoff. Also test unrelated replies, explicit refusals, timing answers, and bare acknowledgements against their actual question.
 - Preserve every previous regression assertion. Document new failures here and exercise the conflicting paths together, rather than checking only prompt text or helpers in isolation.
+- Mocked checker success is insufficient: run the description loop against the deployed API. Narrow explicit service descriptions and refusals must remain answerable during checker failure; unrelated questions must still block handoff.
 
 Affected categories: A (saved configuration and cross-browser identity), B (sticky qualification state), C (required owner questions before handoff), D (answers in existing business alerts), G (deterministic closure and safe response fallbacks). E, F and H remain preserve-only.
 

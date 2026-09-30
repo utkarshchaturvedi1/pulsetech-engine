@@ -24,7 +24,7 @@ import {
   validateSalesReply,
 } from "./salesController";
 import { SalesState } from "./salesState";
-import { ownerQuestionReply, ownerRequiredQuestions } from "./ownerQuestions";
+import { explicitOwnerAnswer, ownerQuestionReply, ownerRequiredQuestions } from "./ownerQuestions";
 import { asksVisitPrice, scopedPricing, feeOnlyPriceReply } from "./pricingScope";
 import { buildIntentAwarePriceAnswer, buildPostContactPriceReply, buildPostContactNextStepReply } from "./salesConversation";
 import { messageAsksPricingOrBilling } from "./schedulingPolicy";
@@ -495,7 +495,9 @@ export async function generateSalesReply(
   const pending = previousState?.pendingOwnerQuestion;
   const previousAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const answer = latestUser?.content.trim() || "";
-  if (pending && ownerRequiredQuestions(business).includes(pending) && previousAssistant?.content.includes(pending) && process.env.OPENAI_API_KEY &&
+  if (pending && ownerRequiredQuestions(business).includes(pending) && previousAssistant?.content.includes(pending) && explicitOwnerAnswer(pending, answer)) {
+    ownerAnswerVerified = true;
+  } else if (pending && ownerRequiredQuestions(business).includes(pending) && previousAssistant?.content.includes(pending) && process.env.OPENAI_API_KEY &&
     !messageAsksPricingOrBilling(answer)) {
     try {
       const result = await getOpenAI().responses.create({

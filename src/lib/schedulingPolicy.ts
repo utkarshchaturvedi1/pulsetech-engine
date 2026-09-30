@@ -4,6 +4,7 @@ import {
   verifiedPricingRulesText,
 } from "./businessProfile";
 import type { SalesObjective, UrgencyLevel } from "./salesState";
+import { scopedPricing, separateVisitFee, asksVisitPrice } from "./pricingScope";
 
 /**
  * Website chat: after contact fields are in, ask preferred time without
@@ -116,7 +117,8 @@ const SCOPE_DEPENDENT_PRICING_ANSWER =
  * Never invents an approach the profile does not establish.
  */
 export function buildPricingApproachAnswer(
-  business: BusinessProfile
+  business: BusinessProfile,
+  latestUserMessage?: string
 ): string {
   const blob = [
     pricingRulesKnowledgeText(business.pricingRules),
@@ -136,7 +138,12 @@ export function buildPricingApproachAnswer(
     /\blump sum\b/.test(blob) ||
     /\bfor the (full )?job\b/.test(blob);
 
-  const rules = verifiedPricingRulesText(business.pricingRules);
+  const scoped = scopedPricing(business);
+  if (asksVisitPrice(latestUserMessage) && scoped.visit) return scoped.visit;
+  const rules = scoped.service ? [scoped.service, separateVisitFee(business)].filter(Boolean).join(" ") : "";
+  if (!rules && scoped.visit) {
+    return `The total service/project cost depends on the scope, materials or equipment, labor, and site conditions. ${separateVisitFee(business)}`;
+  }
 
   if (hasHourly && !hasFixed) {
     return rules
@@ -180,7 +187,7 @@ export function buildHandoffReplyWithOptionalPricing(params: {
     params.latestUserMessage &&
     messageAsksPricingOrBilling(params.latestUserMessage)
   ) {
-    return `${buildPricingApproachAnswer(params.business)} ${handoff}`;
+    return `${buildPricingApproachAnswer(params.business, params.latestUserMessage)} ${handoff}`;
   }
   return handoff;
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { BusinessProfile } from "../../../../types/business";
-import { loadSharedProfile, commitSharedProfile } from "../../../../lib/sharedProfileStore";
+import { loadSharedProfile, commitSharedProfile, ProfileUpdateConflict } from "../../../../lib/sharedProfileStore";
 import { sanitizeDemoId } from "../../../../lib/demoRepository";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
@@ -57,7 +57,16 @@ export async function PUT(
         { status: 400 }
       );
     }
-    const commit = await commitSharedProfile(demoId, profile);
+    const stored = await loadSharedProfile(demoId);
+    // This endpoint saves onboarding alert recipients. Owner instruction edits
+    // go through /api/update-profile; a stale onboarding tab cannot revive an
+    // old corrected rule or erase newer saved configuration.
+    const nextProfile = stored ? {
+      ...stored.profile,
+      leadNotificationEmail: profile.leadNotificationEmail ?? stored.profile.leadNotificationEmail,
+      leadNotificationPhone: profile.leadNotificationPhone ?? stored.profile.leadNotificationPhone,
+    } : profile;
+    const commit = await commitSharedProfile(demoId, nextProfile, stored ? stored.durableVersion || "" : undefined);
     if (!commit.persisted) {
       return NextResponse.json(
         {
@@ -77,6 +86,7 @@ export async function PUT(
       backend: commit.backend,
     });
   } catch (error) {
+    if (error instanceof ProfileUpdateConflict) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error("PUT /api/demo/[id] failed:", error);
     return NextResponse.json(
       { error: "Unable to save demo." },

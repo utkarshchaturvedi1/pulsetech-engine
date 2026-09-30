@@ -8,6 +8,7 @@ import {
 import {
   commitSharedProfile,
   loadSharedProfile,
+  ProfileUpdateConflict,
 } from "../../../lib/sharedProfileStore";
 import { applyOwnerFeedbackToProfile } from "../../../lib/updateBusinessProfile";
 
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const current = base || (clientProfile as BusinessProfile);
     const result = await applyOwnerFeedbackToProfile(current, feedback);
-    const commit = await commitSharedProfile(demoId, result.profile);
+    const commit = await commitSharedProfile(demoId, result.profile, stored ? stored.durableVersion || "" : undefined);
     const changes = summarizeOwnerProfileChanges(current, commit.demo.profile);
     const reply = commit.persisted
       ? result.reply || buildOwnerUpdateReply(changes, true)
@@ -81,6 +82,9 @@ export async function POST(request: NextRequest) {
       demoId: commit.demo.id,
     });
   } catch (error) {
+    if (error instanceof ProfileUpdateConflict) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     console.error("POST /api/update-profile failed:", error);
 
     return NextResponse.json(

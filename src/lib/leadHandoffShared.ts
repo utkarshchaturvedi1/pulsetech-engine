@@ -1,4 +1,5 @@
 import { SalesState } from "./salesState";
+import { missingOwnerQuestions } from "./ownerQuestions";
 import {
   detectVisitPreferenceRequest,
   extractPreferredVisitTimeFromText,
@@ -113,7 +114,7 @@ export function evaluateHandoffReadiness(
   );
   return {
     handoffReady:
-      missingRequiredFields.length === 0 && proceedOrCompleted,
+      missingRequiredFields.length === 0 && proceedOrCompleted && missingOwnerQuestions(state).length === 0,
     missingRequiredFields,
     visitorRequestedProceedOrCompleted: proceedOrCompleted,
   };

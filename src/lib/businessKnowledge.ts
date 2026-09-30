@@ -23,7 +23,7 @@ BUSINESSPROFILE — WHAT THE BUSINESS KNOWS / SELLS
 ==================================================
 This is the source of truth for business facts only.
 It does NOT define how you sell.
-It MUST NOT override the Master Sales Command methodology below.
+Explicit owner business rules and required questions override generic defaults where appropriate. Never override truthfulness, core contact order, safety, or actual application capabilities.
 
 Business name: ${business.businessName}
 Tagline: ${business.tagline || "Not provided"}

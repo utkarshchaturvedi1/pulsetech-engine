@@ -218,6 +218,17 @@ Report PASS/FAIL for each command, any new coverage added, and that earlier asse
 
 ## Preservation checklist for any repair
 
+### Owner configuration and price-scope regression (30 Sep 2026)
+
+Affected categories: A (saved configuration and cross-browser identity), B (sticky qualification state), C (required owner questions before handoff), D (answers in existing business alerts), G (deterministic closure and safe response fallbacks). E, F and H remain preserve-only.
+
+- Peter additions accumulate; no small owner-instruction cap. Corrections remove exact targeted old values and retain unrelated rules. Invalid field shapes cannot be saved.
+- Existing personalised chat and inactivity requests load the current saved profile; stale onboarding saves cannot erase or revive owner rules. Durable updates compare the database version; concurrent changes must return a conflict rather than silently overwrite.
+- Core contact order remains name → phone → service address. Owner-required questions follow contact capture, one at a time, and block final/inactivity handoff until answered or explicitly declined. A qualification answer is not appointment agreement. Direct pricing interruptions are answered first and cannot falsely complete a qualification question.
+- Visit/diagnostic/call-out fees never answer the total service/project price. Preserve verified fee and waiver terms separately, explain relevant price drivers without invented amounts, and address repeated total-price questions directly.
+- Invalid model price answers retry once, then use a scoped fallback. A model/checker error must not bypass required questions or expose an invalid answer.
+- Additional required coverage: `npm.cmd run test:owner-pricing-regression` and `npm.cmd run test:owner-profile-update`. Keep every earlier test and assertion intact.
+
 Preserve all existing chat functionality, business logic, recipient routing, after() background delivery, Twilio, and ElevenLabs behavior unless the approved change explicitly requires it.
 
 When fixing one failure, preserve every other category:

@@ -12,6 +12,7 @@ import { businessIdentityKey } from "../lib/salesState";
 
 type CustomerAIProps = {
   business: BusinessProfile;
+  demoId?: string;
   disabled: boolean;
   className?: string;
 };
@@ -42,6 +43,7 @@ function profileContentSignature(business: BusinessProfile): string {
 
 export default function CustomerAI({
   business,
+  demoId,
   disabled,
   className = "",
 }: CustomerAIProps) {
@@ -51,7 +53,7 @@ export default function CustomerAI({
 
   useEffect(() => {
     sessionRef.current?.destroy();
-    sessionRef.current = createCustomerChatSession(business, INITIAL_MESSAGE);
+    sessionRef.current = createCustomerChatSession(business, INITIAL_MESSAGE, demoId);
 
     return () => {
       sessionRef.current?.destroy();
@@ -59,7 +61,7 @@ export default function CustomerAI({
     };
     // Recreate only when business identity (website) changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- identityKey is the isolation boundary
-  }, [identityKey]);
+  }, [identityKey, demoId]);
 
   // Owner knowledge updates: rebind BusinessProfile, keep conversationId + SalesState.
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function CustomerAI({
 
   async function handleCustomerMessage(message: string): Promise<string> {
     if (!sessionRef.current || !sessionRef.current.isActive()) {
-      sessionRef.current = createCustomerChatSession(business, INITIAL_MESSAGE);
+      sessionRef.current = createCustomerChatSession(business, INITIAL_MESSAGE, demoId);
     } else {
       sessionRef.current.updateBusiness(business);
     }

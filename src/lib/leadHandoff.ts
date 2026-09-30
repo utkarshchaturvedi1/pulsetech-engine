@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { BusinessProfile } from "../types/business";
+import { synchronizeOwnerQuestions } from "./ownerQuestions";
 import { SalesState } from "./salesState";
 import {
   resolveWebsiteChatLeadAlert,
@@ -56,8 +57,8 @@ function formatCustomerStatus(state: SalesState): string {
 }
 
 function buildCustomerContextSection(state: SalesState): string | null {
-  if (!state.customerContext?.length) return null;
-  return state.customerContext.map((c) => `- ${c}`).join("\n");
+  const lines = [...(state.customerContext || []), ...(state.requiredOwnerQuestions || []).filter((q) => state.ownerQuestionAnswers?.[q]).map((q) => `${q} ${state.ownerQuestionAnswers[q]}`)];
+  return lines.length ? lines.map((c) => `- ${c}`).join("\n") : null;
 }
 
 function buildSalesContext(state: SalesState): string | null {
@@ -281,6 +282,7 @@ export function buildWebsiteLeadSms(
     (state.lead.name || "Unknown") + " | " + (state.lead.phone || "no phone"),
     state.lead.address || "",
     state.preferredTiming ? `Preferred visit time: ${state.preferredTiming}` : "",
+    ...(state.requiredOwnerQuestions || []).filter((q) => state.ownerQuestionAnswers?.[q]).map((q) => `${q} ${state.ownerQuestionAnswers[q]}`),
   ]
     .filter(Boolean)
     .join("\n")
@@ -426,6 +428,8 @@ export async function maybeSendLeadHandoff(
   reason: LeadHandoffReason,
   latestUserMessage?: string
 ): Promise<LeadHandoffResult> {
+  Object.assign(state, synchronizeOwnerQuestions(state, business));
+  state.handoffReady = evaluateHandoffReadiness(state, latestUserMessage).handoffReady;
   const decision = evaluateHandoffReadiness(state, latestUserMessage);
 
   if (isHandoffAlreadyScheduled(state)) {

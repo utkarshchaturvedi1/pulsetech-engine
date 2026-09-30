@@ -356,49 +356,45 @@ function testLayoutConstraints() {
     "voice card has demo-scoped contrast styles"
   );
 
+  // The approved production homepage redesign replaced the former navy canvas.
+  // Protect its current hero and chat geometry; demo geometry remains unchanged.
   assert(
-    landingCss.includes("--pt-canvas: linear-gradient(160deg, #023047 0%, #03485f 42%, #012536 100%)"),
-    "homepage canvas token matches desktop blue"
+    /\.pt-hero-video\s*\{[^}]*object-fit:\s*cover!important/.test(landingCss),
+    "approved homepage hero preserves cover fit"
   );
   assert(
-    landingCss.includes("background: var(--pt-canvas)"),
-    "product canvas uses the canonical token on all viewports"
+    /\.pt-hero-video\s*\{[^}]*object-position:\s*center center!important/.test(landingCss),
+    "approved hero artwork stays centred"
   );
   assert(
-    /@media \(max-width: 639px\)[\s\S]*\.pt-product-canvas \{[\s\S]*?background:\s*var\(--pt-canvas\)/.test(
-      landingCss
-    ),
-    "mobile product canvas keeps the same canvas token"
+    /@media\s*\(max-width:\s*699px\)[\s\S]*?\.pt-hero-video\s*\{[^}]*object-fit:\s*cover!important/.test(landingCss),
+    "mobile hero preserves the approved cover fit"
   );
   assert(
-    landingCss.includes("[data-chat-agent-name]") &&
-      landingCss.includes("color: #ffffff !important"),
-    "Peter's name uses light text on the dark homepage header"
+    /\[data-chat-agent-name\]\s*\{[^}]*color:\s*#fff!important/.test(landingCss),
+    "Peter's name remains white on the approved dark blue header"
   );
   assert(
-    landingCss.includes("height: 560px") &&
-      landingCss.includes("max-height: 560px"),
-    "desktop homepage chat shell is locked at 560px"
+    /\.pt-live-chat-body\s*\{[^}]*height:\s*515px!important[^}]*overflow:\s*hidden!important/.test(landingCss),
+    "approved desktop homepage chat shell stays fixed at 515px"
   );
   assert(
-    landingCss.includes("height: 430px") &&
-      landingCss.includes("max-height: 430px"),
-    "375px homepage chat shell is locked at 430px"
+    /@media\s*\(max-width:\s*699px\)[\s\S]*?\.pt-live-chat-body\s*\{[^}]*height:\s*490px!important/.test(landingCss),
+    "approved mobile homepage chat shell stays fixed at 490px"
+  );
+  const sharedChatWindow = readSrc("src/components/Chat/ChatWindow.tsx");
+  assert(
+    sharedChatWindow.includes("data-chat-messages") && sharedChatWindow.includes("overflow-y-auto") &&
+      /\[data-customer-widget-shell\]\s*\{[^}]*height:\s*100%!important[^}]*overflow:\s*hidden!important/.test(landingCss),
+    "homepage transcripts scroll within the approved stable shell"
   );
   assert(
-    landingCss.includes(".pt-chat-body [data-chat-messages]") &&
-      /overflow-y:\s*auto/.test(landingCss),
-    "homepage transcripts scroll inside a stable shell"
+    /\[data-chat-message-bubble\]\[data-chat-role="user"\]\s*\{[^}]*background:\s*linear-gradient\(180deg,#25a9ed,#1746ef 72%\)!important[^}]*color:\s*#fff!important/.test(landingCss),
+    "approved outgoing bubbles retain blue gradient and white text"
   );
   assert(
-    /\[data-chat-role="user"\][\s\S]{0,160}background:\s*#209ebb/.test(landingCss) &&
-      /\[data-chat-role="user"\][\s\S]{0,220}color:\s*#ffffff/.test(landingCss),
-    "homepage outgoing bubbles are PulseTech blue with white text"
-  );
-  assert(
-    /\[data-chat-role="assistant"\][\s\S]{0,160}background:\s*#ffffff/.test(landingCss) &&
-      /\[data-chat-role="assistant"\][\s\S]{0,200}color:\s*#1e293b/.test(landingCss),
-    "homepage assistant bubbles stay dark text on white"
+    /\[data-chat-message-bubble\]\[data-chat-role="assistant"\]\s*\{[^}]*background:\s*#fff!important[^}]*color:\s*#081b69!important/.test(landingCss),
+    "approved assistant bubbles retain dark text on white"
   );
 
   const agentShell = readSrc("src/components/Chat/ChatAgentShell.tsx");

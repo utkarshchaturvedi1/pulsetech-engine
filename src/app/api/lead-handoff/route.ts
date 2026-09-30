@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 
 import { BusinessProfile } from "../../../types/business";
+import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
 import {
   applyLeadDeliveryResult,
   maybeSendLeadHandoff,
@@ -36,7 +37,7 @@ function isBusinessProfile(value: unknown): value is BusinessProfile {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const business = body.business;
+    let business = body.business;
     const reason = (body.reason || "inactivity") as LeadHandoffReason;
     const conversationId = body.conversationId;
     const latestUserMessage =
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     let salesState: SalesState = normalizeSalesState(body.salesState);
+    business = await resolveCurrentChatProfile(business, body.demoId);
     const businessKey = businessIdentityKey(business);
 
     if (

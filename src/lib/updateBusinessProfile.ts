@@ -35,6 +35,10 @@ Rules:
 - Identify explicit corrections or additions only.
 - Allowed patch fields: businessName, tagline, phone, email, address, services, serviceAreas, faqs, leadQuestions, systemPrompt, agentName, agentIntroduction, businessHours, pricingRules, tone, leadNotificationEmail, leadNotificationPhone.
 - Do not remove existing accurate information unless the owner clearly corrects it.
+- For additions, return only NEW items/text. The application accumulates them without a small instruction-count cap.
+- For an explicit correction/removal, use patch.removeValues: an object mapping affected fields to exact OLD text/items to remove. For faqs, target the exact old question. Then put only replacement/new values in patch fields. Remove only the specific outdated rule, never unrelated facts or a whole field. Apply the targeted correction wherever that fact exists, including systemPrompt. Never remove values for ordinary additions.
+- pricingRules and systemPrompt MUST be strings. Arrays must contain strings, except faqs which contains question/answer objects.
+- For every owner request to check/ask/confirm something with a customer, add a natural customer-facing question ending in ? to leadQuestions. It is mandatory after core contact capture and before handoff, even for access, pets, parking or other topics excluded by generic defaults.
 - Do not invent prices, visit charges, free estimates, or promises. Set pricingRules only if the owner explicitly stated them.
 - Put hours into businessHours, tone into tone, qualifying questions into leadQuestions, lead-alert recipients into leadNotificationEmail / leadNotificationPhone, agent intro/name into agentName / agentIntroduction.
 - Also fold the new facts into systemPrompt so the sales employee knows them.
@@ -72,6 +76,9 @@ Rules:
   };
 
   const patch = data.patch || data.profile || {};
+  if (Object.keys(patch.removeValues || {}).length && !/\b(change|correct|replace|remove|delete|stop|instead|no longer|actually|now|not|waiv|waved)\b/i.test(feedback)) {
+    throw new Error("An additive owner request cannot replace existing business instructions.");
+  }
   const profile = mergeOwnerProfileUpdate(business, patch);
   const changes = summarizeOwnerProfileChanges(business, profile);
   const reply =

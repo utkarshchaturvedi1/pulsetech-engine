@@ -18,6 +18,8 @@ export function demoIdFromWebsite(website: string): string {
 }
 
 export type StoredDemo = {
+  /** Present only when loaded from an existing durable database row. */
+  durableVersion?: string;
   id: string;
   profile: BusinessProfile;
   updatedAt: string;

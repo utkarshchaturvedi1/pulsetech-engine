@@ -177,6 +177,7 @@ export default function DemoWorkspace({
                 </div>
                 <div className="pt-demo-chat">
                   <CustomerAI
+                    demoId={resolvedDemoId}
                     business={business}
                     disabled={!hasConfiguredWebsiteChatLeadAlerts(business)}
                     className="h-full min-h-0 min-w-0 w-full"

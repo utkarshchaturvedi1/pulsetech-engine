@@ -4,6 +4,7 @@ import {
   verifiedPricingRulesText,
 } from "./businessProfile";
 import type { SalesState } from "./salesState";
+import { asksVisitPrice, scopedPricing, separateVisitFee } from "./pricingScope";
 
 export const PRE_CONTACT_ASK_FIRST_NAME = "What's your first name?";
 export const PRE_CONTACT_ASK_PHONE =
@@ -365,28 +366,36 @@ function toneAwareUnverifiedScope(
  */
 export function buildIntentAwarePriceAnswer(
   state: SalesState,
-  business: BusinessProfile
+  business: BusinessProfile,
+  latestUserMessage?: string
 ): string {
   const tone = needToneFromState(state, business);
   // Only non-empty string pricingRules are customer-facing verified text.
   // Structured/non-string shapes fall through to truthful no-invented-price.
-  const rules = verifiedPricingRulesText(business.pricingRules);
-  if (rules) return rules;
+  const { visit, service } = scopedPricing(business);
+  if (asksVisitPrice(latestUserMessage) && visit) return visit;
+  if (service) return [service, separateVisitFee(business)].filter(Boolean).join(" ");
 
   const approach = describeVerifiedApproach(business);
-  const scope = toneAwareUnverifiedScope(tone, business);
+  const scope = state.priceQuestionCount > 1
+    ? `For the overall service or project, there isn't an exact total established yet. ${toneAwareUnverifiedScope(tone, business)}`
+    : toneAwareUnverifiedScope(tone, business);
+  const fee = state.priceQuestionCount > 1 && visit
+    ? "The visit fee discussed separately is only for the visit, not the overall project price."
+    : separateVisitFee(business);
   if (approach) {
-    return `${approach} ${scope}`.trim();
+    return `${approach} ${scope} ${fee}`.trim();
   }
-  return scope;
+  return `${scope} ${fee}`.trim();
 }
 
 export function buildPostContactPriceReply(
   state: SalesState,
-  business: BusinessProfile
+  business: BusinessProfile,
+  latestUserMessage?: string
 ): string {
   const tone = needToneFromState(state, business);
-  const price = buildIntentAwarePriceAnswer(state, business);
+  const price = buildIntentAwarePriceAnswer(state, business, latestUserMessage);
   if (state.preferredTiming && agreedToArrange(state)) {
     return price;
   }

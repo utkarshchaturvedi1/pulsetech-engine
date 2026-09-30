@@ -23,7 +23,8 @@ export type CustomerChatMessage = {
  */
 export function createCustomerChatSession(
   business: BusinessProfile,
-  openingMessage = "👋 Hi! How can I help you today?"
+  openingMessage = "👋 Hi! How can I help you today?",
+  demoId?: string
 ) {
   const conversationId = createConversationId();
   let boundBusiness: BusinessProfile = cloneBusinessProfile(business);
@@ -96,6 +97,7 @@ export function createCustomerChatSession(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          demoId,
           conversationId,
           business: boundBusiness,
           salesState,
@@ -176,6 +178,7 @@ export function createCustomerChatSession(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        demoId,
         conversationId,
         business: boundBusiness,
         messages: nextMessages,

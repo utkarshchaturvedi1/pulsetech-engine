@@ -7,6 +7,7 @@ import {
 } from "./demoRepository";
 import { StoredDemo } from "./demoStore";
 import { mergeOwnerProfileUpdate, type OwnerProfilePatch } from "./ownerProfileUpdate";
+import { businessIdentityKey } from "./salesState";
 
 export type ProfileStoreBackend = "supabase" | "filesystem" | "none";
 
@@ -39,20 +40,24 @@ export const sharedProfileFilesystem = {
 };
 
 async function saveSupabaseRecord(
-  record: StoredDemo
+  record: StoredDemo,
+  expectedUpdatedAt?: string
 ): Promise<boolean> {
   const config = supabaseConfig();
   if (!config) return false;
+  const createOnly = expectedUpdatedAt === "";
   try {
     const response = await fetch(
-      config.url + "/rest/v1/business_profiles?on_conflict=id",
+      config.url + (expectedUpdatedAt
+        ? "/rest/v1/business_profiles?id=eq." + encodeURIComponent(record.id) + "&updated_at=eq." + encodeURIComponent(expectedUpdatedAt)
+        : "/rest/v1/business_profiles?on_conflict=id"),
       {
-        method: "POST",
+        method: expectedUpdatedAt ? "PATCH" : "POST",
         headers: {
           apikey: config.key,
           Authorization: "Bearer " + config.key,
           "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=minimal",
+          Prefer: expectedUpdatedAt ? "return=representation" : createOnly ? "resolution=ignore-duplicates,return=representation" : "resolution=merge-duplicates,return=minimal",
         },
         body: JSON.stringify({
           id: record.id,
@@ -61,10 +66,31 @@ async function saveSupabaseRecord(
         }),
       }
     );
+    if ((expectedUpdatedAt || createOnly) && response.ok) {
+      const rows = await response.json();
+      if (!Array.isArray(rows) || rows.length !== 1) throw new ProfileUpdateConflict();
+    }
     return response.ok;
-  } catch {
+  } catch (error) {
+    if (error instanceof ProfileUpdateConflict) throw error;
     return false;
   }
+}
+
+export class ProfileUpdateConflict extends Error {
+  constructor() {
+    super("The business profile changed while this update was being saved. Please retry the instruction; your earlier instructions were preserved.");
+  }
+}
+
+/** Saved identity is authoritative for an existing personalised customer chat. */
+export async function resolveCurrentChatProfile(client: BusinessProfile, demoId?: unknown): Promise<BusinessProfile> {
+  if (demoId == null || demoId === "") return client;
+  if (typeof demoId !== "string" || !sanitizeDemoId(demoId)) throw new Error("Invalid demo identity.");
+  const saved = await loadSharedProfile(demoId);
+  if (!saved || businessIdentityKey(saved.profile) !== businessIdentityKey(client)) throw new Error("Saved business identity does not match this chat.");
+  if (isEphemeralRuntime() && isDurableProfileStoreConfigured() && !saved.durableVersion) throw new Error("Saved business configuration is temporarily unavailable.");
+  return saved.profile;
 }
 
 async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
@@ -97,6 +123,7 @@ async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
     id: row.id || safe,
     profile: row.profile,
     updatedAt: row.updated_at || new Date().toISOString(),
+    durableVersion: row.updated_at,
   };
 }
 
@@ -156,7 +183,8 @@ export async function loadSharedProfile(
 
 export async function commitSharedProfile(
   id: string,
-  profile: BusinessProfile
+  profile: BusinessProfile,
+  expectedUpdatedAt?: string
 ): Promise<SharedProfileCommitResult> {
   const safe = sanitizeDemoId(id);
   if (!safe) {
@@ -172,7 +200,7 @@ export async function commitSharedProfile(
   const ephemeral = isEphemeralRuntime();
 
   if (durableConfigured) {
-    const supabaseOk = await saveSupabaseRecord(demo);
+    const supabaseOk = await saveSupabaseRecord(demo, expectedUpdatedAt);
     if (supabaseOk) {
       if (!ephemeral) {
         await saveFilesystemRecord(safe, demo.profile);
@@ -229,5 +257,5 @@ export async function applyOwnerPatchToSharedProfile(
     throw new Error("Shared profile not found for demoId " + demoId);
   }
   const next = mergeOwnerProfileUpdate(stored.profile, patch);
-  return commitSharedProfile(demoId, next);
+  return commitSharedProfile(demoId, next, stored.durableVersion || "");
 }

@@ -73,6 +73,10 @@ export type SalesState = {
   customerAskedAboutFee: boolean;
   /** Owner-provided visit fee amount like "$79", or null if none. */
   siteVisitFeeLabel: string | null;
+  requiredOwnerQuestions: string[];
+  ownerQuestionAnswers: Record<string, string>;
+  pendingOwnerQuestion: string | null;
+  priceQuestionCount: number;
   summary: string;
 };
 
@@ -139,6 +143,10 @@ export function createInitialSalesState(
     siteVisitFeeMentioned: false,
     customerAskedAboutFee: false,
     siteVisitFeeLabel: null,
+    requiredOwnerQuestions: [],
+    ownerQuestionAnswers: {},
+    pendingOwnerQuestion: null,
+    priceQuestionCount: 0,
     summary: "New conversation. No lead secured yet.",
   };
 }
@@ -187,6 +195,10 @@ export function normalizeSalesState(value: SalesState): SalesState {
     siteVisitFeeMentioned: value.siteVisitFeeMentioned ?? false,
     customerAskedAboutFee: value.customerAskedAboutFee ?? false,
     siteVisitFeeLabel: value.siteVisitFeeLabel ?? null,
+    requiredOwnerQuestions: [...(value.requiredOwnerQuestions || [])],
+    ownerQuestionAnswers: { ...(value.ownerQuestionAnswers || {}) },
+    pendingOwnerQuestion: value.pendingOwnerQuestion ?? null,
+    priceQuestionCount: value.priceQuestionCount ?? 0,
     conversationId: value.conversationId ?? "",
     businessKey: value.businessKey ?? "",
   };

@@ -1,4 +1,6 @@
 import { BusinessProfile } from "../types/business";
+import { captureOwnerQuestionAnswer, synchronizeOwnerQuestions } from "./ownerQuestions";
+import { feeOnlyPriceReply } from "./pricingScope";
 import { pricingRulesKnowledgeText } from "./businessProfile";
 import { evaluateHandoffReadiness } from "./leadHandoffShared";
 import {
@@ -817,7 +819,7 @@ export function resolvePostContactConversationReply(
   if (agreedToArrange(state) && !state.preferredTiming) {
     // Still answer a direct price question first when asked mid-agreement flow.
     if (messageAsksPricingOrBilling(latestUserMessage)) {
-      return buildPostContactPriceReply(state, business);
+      return buildPostContactPriceReply(state, business, latestUserMessage);
     }
     if (isSubstantiveSalesFollowUp(latestUserMessage)) {
       return null;
@@ -846,7 +848,7 @@ export function resolvePostContactConversationReply(
     // Price without verified timing/agreement: keep deterministic truthful
     // pricing (no invented amounts) for performance and safety.
     if (messageAsksPricingOrBilling(latestUserMessage)) {
-      return buildPostContactPriceReply(state, business);
+      return buildPostContactPriceReply(state, business, latestUserMessage);
     }
 
     // Substantive sales conversation belongs to the AI — do not replace it
@@ -1177,7 +1179,8 @@ function buildSummary(state: SalesState): string {
 export function updateSalesStateFromTurn(
   previous: SalesState | null | undefined,
   messages: ChatTurnMessage[],
-  _business: BusinessProfile
+  _business: BusinessProfile,
+  ownerAnswerVerified?: boolean
 ): SalesState {
   const state: SalesState = previous
     ? normalizeSalesState({
@@ -1194,8 +1197,13 @@ export function updateSalesStateFromTurn(
 
   const latestUser = [...messages].reverse().find((m) => m.role === "user");
   const text = latestUser?.content?.trim() || "";
+  Object.assign(state, synchronizeOwnerQuestions(state, _business));
+  const pendingOwnerQuestion = state.pendingOwnerQuestion;
+  captureOwnerQuestionAnswer(state, text, lastAssistantMessage(messages), ownerAnswerVerified);
+  const answeredOwnerQuestion = !!pendingOwnerQuestion && !state.pendingOwnerQuestion;
 
   state.customerAskedAboutFee = customerAskedAboutFee(text);
+  if (messageAsksPricingOrBilling(text)) state.priceQuestionCount += 1;
   state.siteVisitFeeLabel = extractSiteVisitFeeLabel(_business);
   const priorAssistantFee = messages.some(
     (m) => m.role === "assistant" && mentionsSiteVisitFee(m.content)
@@ -1310,7 +1318,7 @@ export function updateSalesStateFromTurn(
     }
   }
 
-  if (detectCustomerAgreement(text)) {
+  if (detectCustomerAgreement(text) && (!answeredOwnerQuestion || /\b(proceed|go ahead|schedule|book|arrange|move forward)\b/i.test(text))) {
     state.customerAgreed = true;
     state.establishedFacts = addFact(
       state.establishedFacts,
@@ -1661,7 +1669,7 @@ Explain benefit and a logical next step using verified BusinessProfile facts plu
 Do NOT list all services or dump technical procedure details.
 Do NOT invent operational claims, brands, catalogs, prices, warranties, or discounts not in BusinessProfile.
 Do NOT convert general industry knowledge into "we provide / we handle / we coordinate" claims unless BusinessProfile supports them.
-Do NOT proactively ask about gate codes, pets, parking, or access instructions.
+Do not invent access/pet/parking questions. Explicit owner-required questions override this generic default after core contact capture and before handoff.
 Do NOT offer invented timing menus such as next week / 2–4 weeks / later.
 Do not start every sentence with the customer's name.
 Match emotion to the situation — do not use a universal apology.
@@ -1679,7 +1687,7 @@ If the lead is already complete (name/phone/address/need) and the customer is no
       return `YOUR ONLY OBJECTIVE: explain why the relevant offering matters to THIS customer.
 Use BusinessProfile-supported differentiators and safe general industry context. Do NOT claim the business offers a capability unless BusinessProfile supports it.
 Ask at most ONE question if needed.
-Do NOT invent brands, catalogs, prices, or warranties. Do NOT ask access/pet/parking questions.`;
+Do NOT invent brands, catalogs, prices, or warranties. Ask access/pet/parking questions only when explicitly required by the owner.`;
     case "HANDLE_PRICE_OBJECTION":
       return `YOUR ONLY OBJECTIVE: answer the pricing question FIRST, then continue the sales conversation.
 Answer honestly from BusinessProfile/owner knowledge only. Never invent amounts, hourly rates, or fixed prices the profile does not contain.
@@ -1747,7 +1755,7 @@ Do not offer arbitrary future options.`
         : `Lead contact details are captured, but the customer has not agreed to arrange the next step. Give a short, helpful, need-aware explanation, then ask whether they would like to arrange ${business ? nextStepArticleNoun(business) : "the next step"}. Do NOT ask preferred day/time yet. Do not say recorded, shared, I'll alert, or that the team will contact them.`
       : `Name, customer phone, and service address are not all captured yet. Ask exactly ONE question for the next missing field only (${missingLeadFields(state)[0] || "name"}). Do not diagnose, interrogate, or sell the service. Do not ask property type or preferred time. Do not give the business phone number. Do not say the request was recorded or that the team will contact them.`
 }
-Do NOT ask for gate codes, pets, parking, or access instructions.
+Do not invent gate/access/pet/parking questions. Complete explicit owner-required questions before handoff.
 Capture the customer's preference for the team — you do not have live scheduling.`;
     }
     case "CLOSE": {
@@ -1877,6 +1885,9 @@ export function validateSalesReply(
   latestUserMessage?: string
 ): ValidationResult {
   const reasons: string[] = [];
+  if (business && messageAsksPricingOrBilling(latestUserMessage || "") && feeOnlyPriceReply(reply, business, latestUserMessage)) {
+    reasons.push("Visit/diagnostic fee is not an answer to the overall service/project price question. Explain relevant price drivers and separate the fee.");
+  }
 
   if (FAKE_CAPABILITY_RE.test(reply)) {
     reasons.push("Unsupported scheduling/dispatch/availability claim.");
@@ -2309,7 +2320,7 @@ export function validateSalesReply(
     .map((s) => s.trim())
     .filter(Boolean).length;
   if (
-    sentenceCount > 3 &&
+    sentenceCount > (messageAsksPricingOrBilling(latestUserMessage || "") ? 6 : 3) &&
     (timingAckTurn ||
       mentionsSiteVisitFee(reply) ||
       state.currentObjective === "ADVANCE_TO_NEXT_STEP")

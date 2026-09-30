@@ -6,6 +6,7 @@ import {
   SalesChatMessage,
 } from "../../../lib/salesChat";
 import { scheduleLeadAlertDelivery } from "../../../lib/leadHandoff";
+import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
 import {
   businessIdentityKey,
   createInitialSalesState,
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const business = body.business;
+    let business = body.business;
     const messages = body.messages;
     const conversationId = body.conversationId;
 
@@ -87,6 +88,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    business = await resolveCurrentChatProfile(business, body.demoId);
 
     const businessKey = businessIdentityKey(business);
 

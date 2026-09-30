@@ -22,9 +22,12 @@ export type OwnerProfilePatch = Partial<
     | "leadNotificationEmail"
     | "leadNotificationPhone"
   >
->;
+> & {
+  /** Explicit owner corrections/removals only; additions are merged by default. */
+  removeValues?: Partial<Record<"leadQuestions" | "systemPrompt" | "pricingRules" | "services" | "serviceAreas" | "faqs", string[]>>;
+};
 
-const PATCH_KEYS: (keyof OwnerProfilePatch)[] = [
+const PATCH_KEYS: Array<Exclude<keyof OwnerProfilePatch, "removeValues">> = [
   "businessName",
   "tagline",
   "phone",
@@ -54,11 +57,49 @@ export function mergeOwnerProfileUpdate(
 ): BusinessProfile {
   const next = cloneBusinessProfile(current);
 
+  // Only exact targeted values can be removed; no LLM-generated whole-field replacement.
+  for (const [key, values] of Object.entries(patch.removeValues || {})) {
+    if (!Array.isArray(values) || !values.every((v) => typeof v === "string" && v.trim())) throw new Error("Invalid removal operation");
+    if (key === "systemPrompt" || key === "pricingRules") {
+      let text = next[key] || "";
+      for (const value of values) {
+        if (!text.includes(value)) throw new Error("Owner correction targets an unknown rule");
+        text = text.replace(value, "");
+      }
+      next[key] = text.trim();
+    } else if (key === "leadQuestions" || key === "services" || key === "serviceAreas") {
+      for (const value of values) if (!next[key].includes(value)) throw new Error("Owner correction targets an unknown item");
+      next[key] = next[key].filter((v) => !values.includes(v));
+    } else if (key === "faqs") {
+      for (const value of values) if (!next.faqs.some((f) => f.question === value)) throw new Error("Unknown FAQ correction");
+      next.faqs = next.faqs.filter((f) => !values.includes(f.question));
+    } else throw new Error("Unsupported removal field");
+  }
   for (const key of PATCH_KEYS) {
     if (!Object.prototype.hasOwnProperty.call(patch, key)) continue;
     const value = patch[key];
     if (value === undefined) continue;
-    (next as Record<string, unknown>)[key] = value;
+    if (key === "leadQuestions" || key === "services" || key === "serviceAreas") {
+      if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim())) throw new Error(`Invalid owner configuration: ${key}`);
+      next[key] = [...new Map([...next[key], ...value as string[]].map((item) => [item.trim().toLowerCase(), item.trim()])).values()];
+    } else if (key === "systemPrompt" || key === "pricingRules") {
+      if (typeof value !== "string") throw new Error(`Invalid owner configuration: ${key}`);
+      const old = typeof next[key] === "string" ? next[key]!.trim() : "";
+      const added = value.trim();
+      next[key] = !added || old.includes(added) ? old : added.includes(old) ? added : [old, added].filter(Boolean).join("\n");
+    } else if (key === "faqs") {
+      if (!Array.isArray(value) || !value.every((f) => f && typeof f === "object" && "question" in f && "answer" in f && typeof f.question === "string" && typeof f.answer === "string")) throw new Error("Invalid FAQs");
+      // Additions cannot silently overwrite an older FAQ answer.
+      const additions = value as BusinessProfile["faqs"];
+      for (const faq of additions) {
+        const existing = next.faqs.find((f) => f.question.toLowerCase() === faq.question.toLowerCase());
+        if (existing && existing.answer !== faq.answer) throw new Error("FAQ changes require an explicit targeted removal");
+        if (!existing) next.faqs.push({ ...faq });
+      }
+    } else {
+      if (typeof value !== "string") throw new Error(`Invalid owner configuration: ${key}`);
+      (next as Record<string, unknown>)[key] = value;
+    }
   }
 
   next.website = current.website;

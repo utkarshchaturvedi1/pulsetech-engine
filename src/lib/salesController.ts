@@ -1,5 +1,5 @@
 import { BusinessProfile } from "../types/business";
-import { captureOwnerQuestionAnswer, synchronizeOwnerQuestions } from "./ownerQuestions";
+import { captureExplicitOwnerAnswers, captureOwnerQuestionAnswer, synchronizeOwnerQuestions } from "./ownerQuestions";
 import { feeOnlyPriceReply } from "./pricingScope";
 import { pricingRulesKnowledgeText } from "./businessProfile";
 import { evaluateHandoffReadiness } from "./leadHandoffShared";
@@ -1406,6 +1406,8 @@ export function updateSalesStateFromTurn(
     );
   }
 
+  captureExplicitOwnerAnswers(state, text);
+
   if (
     state.leadCapturePaused &&
     state.requiredLeadFields.every(
@@ -2008,6 +2010,12 @@ export function validateSalesReply(
     reasons.push("PRESENT_SOLUTION turned into a full company brochure.");
   }
 
+  for (const [question, answer] of Object.entries(state.ownerQuestionAnswers || {})) {
+    if (answer && reply.includes(question)) {
+      reasons.push(`Re-asked an owner question the customer already answered: ${question}`);
+    }
+  }
+
   if (
     (state.currentObjective === "PRESENT_SOLUTION" ||
       state.currentObjective === "CLOSE" ||
@@ -2362,6 +2370,7 @@ Rewrite the response.
 Pursue ONLY currentObjective=${state.currentObjective}.
 Ask at most ONE question.
 Do not ask for already-collected or refused lead fields.
+Do not re-ask an owner-required question the customer already answered.
 Do not invent prices, availability, booking, or dispatch.
 Never arrange payment, say pay now, or collect a fee.
 Mention an owner-set site-visit fee at most once unless the customer asks about it again.

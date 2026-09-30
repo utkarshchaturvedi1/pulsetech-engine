@@ -60,3 +60,65 @@ Never invent services, products, locations, prices, policies, claims, benefits, 
 Only state pricing, visit/call-out charges, free estimates, or promises if they appear above because the owner provided them.
 `.trim();
 }
+
+const FACT_STOP = /^(?:your|yours|ours|our|the|this|that|with|from|about|have|does|what|there|they|them|their|would|will|were|been|into|just|only|also|please|property|business|company|someone|something|against|during|before|after|under|while|where|which|these|those|other|using|inside)$/i;
+
+function contentTerms(question: string): string[] {
+  const terms = question
+    .replace(/[?]/g, "")
+    .split(/\s+/)
+    .map((word) => word.toLowerCase().replace(/[^a-z-]/g, ""))
+    .filter((word) => word.length > 4 && !FACT_STOP.test(word))
+    .map((word) => (/^insur/i.test(word) ? "insur" : word));
+  return [...new Set(terms)];
+}
+
+function coversCompleteQuestion(text: string, terms: string[]): boolean {
+  return terms.every((term) => new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(text));
+}
+
+/** A customer question answered only from saved business facts. Missing facts stay uncertain. */
+export function answerBusinessFactQuestion(business: BusinessProfile, customerText: string): string | null {
+  const questions = customerText
+    .split(/(?<=[.?!])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => /\?\s*$/.test(sentence) && !/\b(?:how much|what(?:'s| is) the (?:price|cost)|overall cost|total cost)\b/i.test(sentence));
+  if (!questions.length) return null;
+  const faqQuestions = new Set(
+    business.faqs.map((faq) => faq.question.replace(/\s+/g, " ").trim().toLowerCase()).filter(Boolean)
+  );
+  const corpus = [
+    business.systemPrompt,
+    business.tagline,
+    typeof business.pricingRules === "string" ? business.pricingRules : "",
+    business.businessHours,
+    ...business.services,
+    ...business.serviceAreas,
+    ...business.faqs.map((faq) => faq.answer),
+  ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+  const answers: string[] = [];
+  for (const question of questions) {
+    const terms = contentTerms(question);
+    if (!terms.length) continue;
+    const faqHit = business.faqs.find((faq) => {
+      const answer = faq.answer.trim();
+      if (!answer) return false;
+      return coversCompleteQuestion(faq.question, terms) || coversCompleteQuestion(answer, terms);
+    });
+    if (faqHit) {
+      answers.push(faqHit.answer.replace(/\s+/g, " ").trim());
+      continue;
+    }
+    const sentence = corpus
+      .flatMap((part) => part.split(/\n+|(?<=[.?!])\s+/))
+      .map((part) => part.replace(/\s+/g, " ").trim())
+      .find((part) => part.length > 0 && !faqQuestions.has(part.toLowerCase()) && coversCompleteQuestion(part, terms));
+    if (!sentence) {
+      const label = terms.map((term) => (term === "insur" ? "insurance" : term)).join(" ");
+      answers.push(`I don't have information about ${label}.`);
+      continue;
+    }
+    answers.push(sentence.replace(/\s+/g, " ").trim());
+  }
+  return answers.length ? answers.join(" ") : null;
+}

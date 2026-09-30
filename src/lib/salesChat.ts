@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { BusinessProfile } from "../types/business";
-import { formatBusinessKnowledge } from "./businessKnowledge";
+import { answerBusinessFactQuestion, formatBusinessKnowledge } from "./businessKnowledge";
 import {
   applyLeadDeliveryResult,
   describeLeadAlertTransport,
@@ -24,7 +24,7 @@ import {
   validateSalesReply,
 } from "./salesController";
 import { SalesState } from "./salesState";
-import { explicitOwnerAnswer, ownerQuestionReply, ownerRequiredQuestions } from "./ownerQuestions";
+import { assistantPromptedOwnerQuestion, explicitOwnerAnswer, ownerQuestionClarification, ownerQuestionReply, ownerRequiredQuestions, replyNeedsOwnerClarification } from "./ownerQuestions";
 import { asksVisitPrice, scopedPricing, feeOnlyPriceReply } from "./pricingScope";
 import { buildIntentAwarePriceAnswer, buildPostContactPriceReply, buildPostContactNextStepReply } from "./salesConversation";
 import { messageAsksPricingOrBilling } from "./schedulingPolicy";
@@ -495,9 +495,10 @@ export async function generateSalesReply(
   const pending = previousState?.pendingOwnerQuestion;
   const previousAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const answer = latestUser?.content.trim() || "";
-  if (pending && ownerRequiredQuestions(business).includes(pending) && previousAssistant?.content.includes(pending) && explicitOwnerAnswer(pending, answer)) {
+  const prompted = assistantPromptedOwnerQuestion(previousAssistant?.content, pending || "");
+  if (pending && ownerRequiredQuestions(business).includes(pending) && prompted && explicitOwnerAnswer(pending, answer)) {
     ownerAnswerVerified = true;
-  } else if (pending && ownerRequiredQuestions(business).includes(pending) && previousAssistant?.content.includes(pending) && process.env.OPENAI_API_KEY &&
+  } else if (pending && ownerRequiredQuestions(business).includes(pending) && prompted && process.env.OPENAI_API_KEY &&
     !messageAsksPricingOrBilling(answer)) {
     try {
       const result = await getOpenAI().responses.create({
@@ -565,11 +566,14 @@ export async function generateSalesReply(
   // Direct price questions remain answer-first; append only the next owner question.
   const ownerAsk = ownerQuestionReply(salesState);
   const priceTurn = messageAsksPricingOrBilling(latestUser?.content || "");
-  if (ownerAsk) {
+  const clarifyOwnerAnswer = !!ownerAsk && previousState?.pendingOwnerQuestion === ownerAsk && replyNeedsOwnerClarification(ownerAsk, latestUser?.content || "");
+  const factAnswer = clarifyOwnerAnswer ? null : answerBusinessFactQuestion(business, latestUser?.content || "");
+  const ownerFollowUp = ownerAsk && (clarifyOwnerAnswer ? ownerQuestionClarification(ownerAsk) : ownerAsk);
+  if (ownerFollowUp) {
     salesState.currentObjective = priceTurn ? "HANDLE_PRICE_OBJECTION" : "ANSWER";
-    deterministicHandoffReply = priceTurn
-      ? `${buildIntentAwarePriceAnswer(salesState, business, latestUser?.content)} ${ownerAsk}`
-      : ownerAsk;
+    const pricePrefix = priceTurn ? `${buildIntentAwarePriceAnswer(salesState, business, latestUser?.content)} ` : "";
+    const factPrefix = factAnswer ? `${factAnswer} ` : "";
+    deterministicHandoffReply = `${pricePrefix}${factPrefix}${ownerFollowUp}`.trim();
   }
   if (
     !deterministicHandoffReply &&

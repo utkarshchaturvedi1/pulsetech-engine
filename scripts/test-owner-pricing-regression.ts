@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createBusinessProfile } from '../src/lib/businessProfile';
 import { mergeOwnerProfileUpdate } from '../src/lib/ownerProfileUpdate';
-import { buildIntentAwarePriceAnswer } from '../src/lib/salesConversation';
+import { buildIntentAwarePriceAnswer, PRE_CONTACT_ASK_ADDRESS, PRE_CONTACT_ASK_FIRST_NAME, PRE_CONTACT_ASK_PHONE } from '../src/lib/salesConversation';
 import { createInitialSalesState } from '../src/lib/salesState';
 
 const business = createBusinessProfile({
@@ -29,7 +29,7 @@ import { generateSalesReply } from '../src/lib/salesChat';
 import { evaluateHandoffReadiness, shouldAttemptLeadHandoff, buildLeadNotificationEmail } from '../src/lib/leadHandoff';
 import { buildPricingApproachAnswer } from '../src/lib/schedulingPolicy';
 import { validateSalesReply, updateSalesStateFromTurn } from '../src/lib/salesController';
-import { synchronizeOwnerQuestions, ownerQuestionReply } from '../src/lib/ownerQuestions';
+import { synchronizeOwnerQuestions, ownerQuestionReply, ownerQuestionClarification } from '../src/lib/ownerQuestions';
 import { commitSharedProfile, loadSharedProfile, resolveCurrentChatProfile, ProfileUpdateConflict } from '../src/lib/sharedProfileStore';
 import { promises as fs } from 'node:fs';
 
@@ -210,6 +210,508 @@ async function run() {
     globalThis.fetch=(async()=>new Response(JSON.stringify({error:{message:'Unavailable'}}),{status:400,headers:{'Content-Type':'application/json'}})) as typeof fetch;
     const failed=await generateSalesReply({...business,leadQuestions:[]},[{role:'user',content:'How much is the full project?'}],secured());
     assert(/depends/.test(failed.reply),'Model failure must still return scoped safe pricing');
+    const checkerRejects = (async () => new Response(JSON.stringify({ id: 'resp_check', object: 'response', output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '{"answersQuestion":true}', annotations: [] }] }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+    const checkerFails = (async () => { throw new Error('checker unavailable'); }) as typeof fetch;
+
+    async function walk(profile: ReturnType<typeof createBusinessProfile>, turns: string[], fetchImpl?: typeof fetch) {
+      if (fetchImpl) globalThis.fetch = fetchImpl;
+      let state = createInitialSalesState({ conversationId: `conv_${profile.website}`, businessKey: profile.website });
+      const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+      let reply = '';
+      const steps: Array<{ user: string; reply: string; state: typeof state }> = [];
+      for (const turn of turns) {
+        messages.push({ role: 'user', content: turn });
+        const result = await generateSalesReply(profile, messages, state);
+        reply = result.reply;
+        state = result.salesState;
+        messages.push({ role: 'assistant', content: reply });
+        steps.push({ user: turn, reply, state });
+      }
+      return { reply, state, steps };
+    }
+
+    const sinkPhone = '(214) 555-0190';
+    const sinkOpening = 'My kitchen sink is clogged and water is backing up.';
+    const emergencyPitch = `We offer 24/7 emergency service. You can call us at ${sinkPhone} anytime.`;
+    const propertyQuestion = 'Is the property residential or commercial?';
+    const scopeQuestion = 'Do you need a repair or a replacement?';
+    const dogsQuestion = 'Do you have dogs at the property?';
+    const sinkBusiness = createBusinessProfile({
+      ...business,
+      website: 'https://sink-emergency.test',
+      businessName: 'Field Service',
+      phone: sinkPhone,
+      services: ['On-site equipment service'],
+      leadQuestions: [propertyQuestion, scopeQuestion, dogsQuestion],
+      leadNotificationEmail: 'alerts@example.test',
+    });
+    globalThis.fetch = checkerFails;
+    const sink = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'The second one.',
+    ]);
+    assert(sink.steps[0].reply.includes(PRE_CONTACT_ASK_FIRST_NAME), `sink opening must ask for the name, got ${sink.steps[0].reply}`);
+    assert(!sink.steps[0].reply.includes(sinkPhone), 'sink opening must not expose the business phone without an emergency');
+    assert(!/residential or commercial|preferred time|what day|what time/i.test(sink.steps[0].reply), `sink opening must not discover or ask timing, got ${sink.steps[0].reply}`);
+    assert(!validateSalesReply(emergencyPitch, sink.steps[0].state, sinkBusiness, sinkOpening).ok, 'emergency service pitch must fail before the lead is secured');
+    assert.equal(sink.steps[0].state.leadDeliveryStatus, 'NOT_SENT');
+    assert(sink.steps[1].reply.includes(PRE_CONTACT_ASK_PHONE), `sink name turn must ask for the phone, got ${sink.steps[1].reply}`);
+    assert(!sink.steps[1].reply.includes(sinkPhone));
+    assert(sink.steps[2].reply.includes(PRE_CONTACT_ASK_ADDRESS), `sink phone turn must ask for the address, got ${sink.steps[2].reply}`);
+    assert.equal(sink.steps[3].reply, propertyQuestion, `address turn must ask the first owner question, got ${sink.steps[3].reply}`);
+    assert.equal(sink.steps[3].state.lead.name, 'Alex');
+    assert((sink.steps[3].state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(sink.steps[3].state.lead.address || ''));
+    assert.equal(sink.steps[4].state.ownerQuestionAnswers[propertyQuestion], 'commercial', 'ordinal either/or must select the second option during checker failure');
+    assert.equal(sink.steps[4].reply, scopeQuestion, `answered property question must advance, got ${sink.steps[4].reply}`);
+    assert.equal(sink.steps[4].state.lead.name, 'Alex');
+    assert.equal(sink.steps[4].state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(sink.steps[4].state).handoffReady);
+    assert.equal(sinkBusiness.pricingRules, business.pricingRules);
+    assert.equal(sinkBusiness.systemPrompt, business.systemPrompt);
+
+    const emergencyOpening = `${sinkOpening} This is an emergency.`;
+    const emergency = await walk(sinkBusiness, [emergencyOpening]);
+    assert(emergency.reply.includes(PRE_CONTACT_ASK_FIRST_NAME), `emergency opening must still collect the name, got ${emergency.reply}`);
+    assert(emergency.reply.includes(sinkPhone), 'an explicit emergency may include the business phone');
+    assert(!/residential or commercial/i.test(emergency.reply));
+    assert.equal(emergency.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!emergency.state.lead.name);
+
+    const emergencyQuestion = "Is this an emergency?";
+    const emergencyAnswer = "This is an emergency.";
+    const emergencyBusiness = createBusinessProfile({
+      ...sinkBusiness,
+      website: "https://emergency-question.test",
+      leadQuestions: [emergencyQuestion, dogsQuestion],
+    });
+    const emergencyConversation = await walk(emergencyBusiness, [
+      sinkOpening,
+      "Alex",
+      "5125550198",
+      "400 Main St, Dallas TX 75201",
+      emergencyAnswer,
+    ]);
+    assert.equal(emergencyConversation.steps[3].reply, emergencyQuestion, `address turn must ask the emergency question, got ${emergencyConversation.steps[3].reply}`);
+    const emergencyFollowUp = emergencyConversation.steps[4];
+    const emergencyRecorded = emergencyFollowUp.state.ownerQuestionAnswers[emergencyQuestion] === emergencyAnswer;
+    const emergencyClarified = /\?/.test(emergencyFollowUp.reply) && !/is this an emergency/i.test(emergencyFollowUp.reply);
+    assert(emergencyRecorded || emergencyClarified, `emergency reply must be recorded or clarified, got ${emergencyFollowUp.reply}`);
+    assert(!emergencyFollowUp.reply.includes(emergencyQuestion), `must not repeat the emergency question, got ${emergencyFollowUp.reply}`);
+    assert.equal(emergencyFollowUp.state.lead.name, "Alex");
+    assert((emergencyFollowUp.state.lead.phone || "").replace(/\D/g, "").includes("5125550198"));
+    assert(/400 Main St/i.test(emergencyFollowUp.state.lead.address || ""));
+    assert.equal(emergencyFollowUp.state.leadDeliveryStatus, "NOT_SENT");
+    assert(!evaluateHandoffReadiness(emergencyFollowUp.state).handoffReady);
+    if (emergencyRecorded) assert.equal(emergencyFollowUp.reply, dogsQuestion);
+
+    const checkerFalse = (async () => new Response(JSON.stringify({ id: 'resp_check', object: 'response', output: [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '{"answersQuestion":false}', annotations: [] }] }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })) as typeof fetch;
+    process.env.OPENAI_API_KEY = 'test-only';
+    const emergencyChecked = await walk(emergencyBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      emergencyAnswer,
+    ], checkerFalse);
+    assert.equal(emergencyChecked.state.ownerQuestionAnswers[emergencyQuestion], emergencyAnswer, 'exact emergency reply must be stored when the checker returns false');
+    assert.equal(emergencyChecked.reply, dogsQuestion);
+    assert(!emergencyChecked.reply.includes(emergencyQuestion));
+    assert.equal(emergencyChecked.state.lead.name, 'Alex');
+    assert((emergencyChecked.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(emergencyChecked.state.lead.address || ''));
+    assert.equal(emergencyChecked.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(emergencyChecked.state).handoffReady);
+    const emergencyUncertain = await walk(emergencyBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      "I'm not sure if this is an emergency.",
+    ], checkerFails);
+    assert.equal(emergencyUncertain.state.ownerQuestionAnswers[emergencyQuestion], undefined);
+    assert.equal(emergencyUncertain.reply, ownerQuestionClarification(emergencyQuestion));
+    assert(!emergencyUncertain.reply.includes(emergencyQuestion));
+    assert.equal(emergencyUncertain.state.lead.name, 'Alex');
+    assert((emergencyUncertain.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(emergencyUncertain.state.lead.address || ''));
+    assert.equal(emergencyUncertain.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(emergencyUncertain.state).handoffReady);
+
+    process.env.OPENAI_API_KEY = 'test-only';
+    const pair1Question = 'Is this an emergency that needs immediate attention, or can we schedule a convenient time for a service visit?';
+    const pair1Customer = "yes. My kitchen sink is clogged and I can't use it.";
+    const pair1Business = createBusinessProfile({
+      ...sinkBusiness,
+      website: 'https://pair1-emergency-schedule.test',
+      leadQuestions: [pair1Question, dogsQuestion],
+      systemPrompt: business.systemPrompt,
+      faqs: [],
+    });
+    const pair1 = await walk(pair1Business, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      pair1Customer,
+    ], checkerFails);
+    assert.equal(pair1.steps[3].reply, pair1Question, `address turn must ask the exact emergency scheduling question, got ${pair1.steps[3].reply}`);
+    const pair1Stored = pair1.state.ownerQuestionAnswers[pair1Question];
+    const pair1Clarified = !pair1.reply.includes(pair1Question) && /\?/.test(pair1.reply);
+    assert(pair1Stored || pair1Clarified, `pair 1 must record a supported answer or ask a specific clarification, got ${pair1.reply}`);
+    assert(!pair1.reply.includes(pair1Question), `pair 1 must not repeat the original question, got ${pair1.reply}`);
+    assert.equal(pair1.state.lead.name, 'Alex');
+    assert((pair1.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(pair1.state.lead.address || ''));
+    assert.equal(pair1.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(pair1.state).handoffReady);
+    assert.equal(pair1.state.ownerQuestionAnswers[dogsQuestion], undefined);
+    assert.equal(pair1.state.ownerQuestionAnswers[pair1Question], undefined, 'ambiguous yes must not select an either/or alternative by phrase length');
+    assert.equal(pair1.reply, ownerQuestionClarification(pair1Question));
+    const ambiguousYes = await walk(pair1Business, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'Yes.',
+    ], checkerFails);
+    assert.equal(ambiguousYes.state.ownerQuestionAnswers[pair1Question], undefined, 'bare yes must not select the longer either/or alternative');
+    assert.equal(ambiguousYes.reply, ownerQuestionClarification(pair1Question));
+    assert(!ambiguousYes.reply.includes(pair1Question));
+    assert.equal(ambiguousYes.state.lead.name, 'Alex');
+    assert((ambiguousYes.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(ambiguousYes.state.lead.address || ''));
+    assert.equal(ambiguousYes.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(ambiguousYes.state).handoffReady);
+
+    const pair2Question = 'Do you have dogs at the property?';
+    const pair2Customer = 'No. Is your property insured?';
+    const parkingQuestion = 'Is there a parking restriction?';
+    const pair2Business = createBusinessProfile({
+      ...business,
+      website: 'https://pair2-dogs-insurance.test',
+      businessName: 'Field Service',
+      phone: sinkPhone,
+      services: ['On-site equipment service'],
+      leadQuestions: [pair2Question, parkingQuestion],
+      leadNotificationEmail: 'alerts@example.test',
+      systemPrompt: 'Use protective covers inside the property.',
+      faqs: [],
+    });
+    const pair2 = await walk(pair2Business, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      pair2Customer,
+    ], checkerFails);
+    assert.equal(pair2.steps[3].reply, pair2Question);
+    assert(/^no\.?$/i.test(pair2.state.ownerQuestionAnswers[pair2Question] || ''), `pair 2 must retain No, got ${pair2.state.ownerQuestionAnswers[pair2Question]}`);
+    assert(/insur/i.test(pair2.reply), `pair 2 must address insurance, got ${pair2.reply}`);
+    assert(/don'?t have|do not have|not sure|cannot confirm|can'?t confirm|no information/i.test(pair2.reply), `absent insurance facts must be acknowledged, got ${pair2.reply}`);
+    assert(!/\b(?:we are|we're|yes,?\s+we are)\s+insured\b/i.test(pair2.reply), `must not invent insurance, got ${pair2.reply}`);
+    assert(!pair2.reply.includes(pair2Question), `pair 2 must not repeat the dogs question, got ${pair2.reply}`);
+    assert.equal(pair2.state.ownerQuestionAnswers[parkingQuestion], undefined);
+    assert.equal(pair2.state.lead.name, 'Alex');
+    assert((pair2.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(pair2.state.lead.address || ''));
+    assert.equal(pair2.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(pair2.state).handoffReady);
+    const insuredBusiness = createBusinessProfile({
+      ...pair2Business,
+      website: 'https://pair2-insured.test',
+      faqs: [{ question: 'Do you have insurance?', answer: 'Yes, the business carries liability insurance.' }],
+    });
+    const pair2Insured = await walk(insuredBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      pair2Customer,
+    ], checkerFails);
+    assert(/^no\.?$/i.test(pair2Insured.state.ownerQuestionAnswers[pair2Question] || ''));
+    assert(/liability insurance/i.test(pair2Insured.reply), `insurance facts must be used, got ${pair2Insured.reply}`);
+    assert(!/don'?t have information/i.test(pair2Insured.reply));
+    assert.equal(pair2Insured.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(pair2Insured.state).handoffReady);
+    const shortFaqQuestion = 'Do you have insurance?';
+    const shortFaqBusiness = createBusinessProfile({
+      ...pair2Business,
+      website: 'https://pair2-short-faq.test',
+      faqs: [{ question: shortFaqQuestion, answer: 'Yes.' }],
+    });
+    const shortFaq = await walk(shortFaqBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      pair2Customer,
+    ], checkerFails);
+    assert(/^no\.?$/i.test(shortFaq.state.ownerQuestionAnswers[pair2Question] || ''));
+    assert(shortFaq.reply.includes('Yes.'), `a short FAQ answer must be used, got ${shortFaq.reply}`);
+    assert(!shortFaq.reply.includes(shortFaqQuestion), `an FAQ question must not be returned as the fact, got ${shortFaq.reply}`);
+    assert(!/don'?t have information/i.test(shortFaq.reply));
+    assert(shortFaq.reply.includes(parkingQuestion));
+    assert.equal(shortFaq.state.ownerQuestionAnswers[parkingQuestion], undefined);
+    assert.equal(shortFaq.state.lead.name, 'Alex');
+    assert((shortFaq.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(shortFaq.state.lead.address || ''));
+    assert.equal(shortFaq.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(shortFaq.state).handoffReady);
+
+    const negativeBusiness = createBusinessProfile({
+      ...pair2Business,
+      website: 'https://compound-negative.test',
+    });
+    for (const negativeReply of ['No, we don\'t.', 'No; we do not.', 'No — we don\'t.', 'No: we don\'t.', 'We don\u2019t have dogs.']) {
+      const negative = await walk(negativeBusiness, [
+        sinkOpening,
+        'Alex',
+        '5125550198',
+        '400 Main St, Dallas TX 75201',
+        negativeReply,
+      ], checkerFails);
+      assert.equal(negative.steps[3].reply, pair2Question);
+      const storedNegative = negative.state.ownerQuestionAnswers[pair2Question] || '';
+      assert(/no|not|n['\u2019]t/i.test(storedNegative), `compound negative must survive punctuation, got ${storedNegative} from ${negativeReply}`);
+      assert.equal(negative.reply, parkingQuestion, `compound negative must advance, got ${negative.reply} from ${negativeReply}`);
+      assert(!negative.reply.includes(pair2Question));
+      assert.equal(negative.state.ownerQuestionAnswers[parkingQuestion], undefined);
+      assert.equal(negative.state.lead.name, 'Alex');
+      assert((negative.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+      assert(/400 Main St/i.test(negative.state.lead.address || ''));
+      assert.equal(negative.state.leadDeliveryStatus, 'NOT_SENT');
+      assert(!evaluateHandoffReadiness(negative.state).handoffReady);
+    }
+
+    const sharedKeyword = await walk(pair2Business, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'No. Do you use protective covers on the driveway?',
+    ], checkerFails);
+    assert(/^no\.?$/i.test(sharedKeyword.state.ownerQuestionAnswers[pair2Question] || ''));
+    assert(!/inside the property/i.test(sharedKeyword.reply), `a shared keyword must not answer a different question, got ${sharedKeyword.reply}`);
+    assert(/don'?t have information/i.test(sharedKeyword.reply), `an unmatched complete question must stay uncertain, got ${sharedKeyword.reply}`);
+    assert(sharedKeyword.reply.includes(parkingQuestion));
+    assert.equal(sharedKeyword.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(sharedKeyword.state).handoffReady);
+    const partialInsurance = await walk(insuredBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'No. Is the parking area insured against flood damage?',
+    ], checkerFails);
+    assert(/^no\.?$/i.test(partialInsurance.state.ownerQuestionAnswers[pair2Question] || ''));
+    assert(!/liability insurance/i.test(partialInsurance.reply), `insurance wording must not answer a different insurance question, got ${partialInsurance.reply}`);
+    assert(/don'?t have information/i.test(partialInsurance.reply));
+    assert(partialInsurance.reply.includes(parkingQuestion));
+    assert.equal(partialInsurance.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(partialInsurance.state).handoffReady);
+
+    process.env.OPENAI_API_KEY = 'test-only';
+    const emergencyCompound = await walk(emergencyBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      `I'm not sure about the parking. ${emergencyAnswer}`,
+    ], checkerFails);
+    assert.equal(emergencyCompound.state.ownerQuestionAnswers[emergencyQuestion], emergencyAnswer, 'a clear emergency answer must survive inside a compound reply when the checker fails');
+    assert.equal(emergencyCompound.reply, dogsQuestion);
+    assert(!emergencyCompound.reply.includes(emergencyQuestion), `compound emergency reply must not repeat the original question, got ${emergencyCompound.reply}`);
+    assert.equal(emergencyCompound.state.lead.name, 'Alex');
+    assert((emergencyCompound.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(emergencyCompound.state.lead.address || ''));
+    assert.equal(emergencyCompound.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(emergencyCompound.state).handoffReady);
+
+    const outOfRange = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'The third one.',
+    ], checkerFails);
+    assert.equal(outOfRange.state.ownerQuestionAnswers[propertyQuestion], undefined, 'an ordinal past the last option must not select one');
+    assert.equal(outOfRange.reply, ownerQuestionClarification(propertyQuestion));
+    assert(!outOfRange.reply.includes(propertyQuestion), `out-of-range ordinal must not repeat the original question, got ${outOfRange.reply}`);
+    assert.equal(outOfRange.state.lead.name, 'Alex');
+    assert((outOfRange.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(outOfRange.state.lead.address || ''));
+    assert.equal(outOfRange.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(outOfRange.state).handoffReady);
+
+    const scheduleQuestion = 'Do you need emergency service today or scheduled service tomorrow?';
+    const scheduleBusiness = createBusinessProfile({
+      ...sinkBusiness,
+      website: 'https://sentence-alternative.test',
+      leadQuestions: [scheduleQuestion, dogsQuestion],
+    });
+    const scheduleReply = 'We need scheduled service tomorrow.';
+    const schedule = await walk(scheduleBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      scheduleReply,
+    ], checkerFails);
+    assert.equal(schedule.state.ownerQuestionAnswers[scheduleQuestion], 'scheduled service tomorrow', 'a sentence-length alternative must be stored when the checker fails');
+    assert.equal(schedule.reply, dogsQuestion);
+    assert(!schedule.reply.includes(scheduleQuestion), `sentence-length answer must not repeat the original question, got ${schedule.reply}`);
+    assert.equal(schedule.state.lead.name, 'Alex');
+    assert((schedule.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(schedule.state.lead.address || ''));
+    assert.equal(schedule.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(schedule.state).handoffReady);
+    const scheduleOrdinal = await walk(scheduleBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'The second one.',
+    ], checkerFails);
+    assert.equal(scheduleOrdinal.state.ownerQuestionAnswers[scheduleQuestion], 'scheduled service tomorrow');
+    assert.equal(scheduleOrdinal.reply, dogsQuestion);
+    assert(!scheduleOrdinal.reply.includes(scheduleQuestion));
+    assert.equal(scheduleOrdinal.state.leadDeliveryStatus, 'NOT_SENT');
+
+    const optionQuestion = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'Is commercial the right choice?',
+    ], checkerRejects);
+    assert.equal(optionQuestion.state.ownerQuestionAnswers[propertyQuestion], undefined, 'mentioning an option inside a question must not select it');
+    assert.equal(optionQuestion.reply, ownerQuestionClarification(propertyQuestion));
+    assert(!optionQuestion.reply.includes(propertyQuestion));
+    assert.equal(optionQuestion.state.lead.name, 'Alex');
+    assert((optionQuestion.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(optionQuestion.state.lead.address || ''));
+    assert.equal(optionQuestion.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(optionQuestion.state).handoffReady);
+
+    const optionUncertain = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      "Maybe commercial, I'm not sure.",
+    ], checkerRejects);
+    assert.equal(optionUncertain.state.ownerQuestionAnswers[propertyQuestion], undefined, 'an uncertain mention must not select an option');
+    assert.equal(optionUncertain.reply, ownerQuestionClarification(propertyQuestion));
+    assert(!optionUncertain.reply.includes(propertyQuestion));
+    assert.equal(optionUncertain.state.lead.name, 'Alex');
+    assert((optionUncertain.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(optionUncertain.state.lead.address || ''));
+    assert.equal(optionUncertain.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(optionUncertain.state).handoffReady);
+
+    const compound = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      "It's commercial, not residential, and we need a replacement rather than a repair.",
+    ]);
+    assert.equal(compound.state.ownerQuestionAnswers[propertyQuestion], 'commercial');
+    assert.equal(compound.state.ownerQuestionAnswers[scopeQuestion], 'replacement');
+    assert.equal(compound.reply, dogsQuestion, `compound answers must advance to the remaining question, got ${compound.reply}`);
+    assert(!compound.reply.includes(propertyQuestion));
+    assert(!compound.reply.includes(scopeQuestion));
+    assert.equal(compound.state.leadDeliveryStatus, 'NOT_SENT');
+    assert.equal(compound.state.lead.name, 'Alex');
+    assert(/400 Main St/i.test(compound.state.lead.address || ''));
+
+    globalThis.fetch = checkerRejects;
+    const ambiguous = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'Residential or commercial, not sure.',
+    ]);
+    assert.equal(ambiguous.state.ownerQuestionAnswers[propertyQuestion], undefined, 'both options with no choice must stay unanswered when the checker accepts them');
+    assert.equal(ambiguous.reply, ownerQuestionClarification(propertyQuestion));
+    assert(!ambiguous.reply.includes(propertyQuestion));
+    const phoneOnly = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      '214-555-0148',
+    ]);
+    assert.equal(phoneOnly.state.ownerQuestionAnswers[propertyQuestion], undefined, 'a phone-only reply must not answer the owner question');
+    assert.equal(phoneOnly.state.lead.phone?.replace(/\D/g, '').includes('5125550198'), true);
+    assert.equal(phoneOnly.reply, propertyQuestion);
+    delete process.env.OPENAI_API_KEY;
+    const priceOnly = await walk(sinkBusiness, [
+      sinkOpening,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      'How much will it cost?',
+    ]);
+    assert.equal(priceOnly.state.ownerQuestionAnswers[propertyQuestion], undefined);
+    assert(priceOnly.reply.includes(propertyQuestion), `a bare price question must still leave the owner question, got ${priceOnly.reply}`);
+    assert(/not the total|depends/i.test(priceOnly.reply));
+
+    const descriptionQuestion = 'Can you describe the electrical problem or project you need help with?';
+    const chargerReply = 'I want to install a car charger in my garage I bought a new electric car';
+    const chargerBusiness = createBusinessProfile({
+      ...business,
+      website: 'https://charger-description.test',
+      businessName: 'Field Service',
+      phone: sinkPhone,
+      services: ['Equipment installation'],
+      leadQuestions: [descriptionQuestion, dogsQuestion],
+      leadNotificationEmail: 'alerts@example.test',
+    });
+    const charger = await walk(chargerBusiness, [
+      'Install a charger in my garage',
+      'Jamie',
+      '2145550199',
+      '100 Main St, Dallas TX 75201',
+      chargerReply,
+    ]);
+    assert(charger.steps[0].reply.includes(PRE_CONTACT_ASK_FIRST_NAME), `charger opening must ask for the name, got ${charger.steps[0].reply}`);
+    assert(!charger.steps[0].reply.includes(descriptionQuestion));
+    assert(!charger.steps[0].reply.includes(sinkPhone));
+    assert(charger.steps[1].reply.includes(PRE_CONTACT_ASK_PHONE));
+    assert(charger.steps[2].reply.includes(PRE_CONTACT_ASK_ADDRESS));
+    assert.equal(charger.steps[3].reply, descriptionQuestion, `charger address turn must ask the description question, got ${charger.steps[3].reply}`);
+    assert.equal(charger.steps[3].state.lead.name, 'Jamie');
+    assert((charger.steps[3].state.lead.phone || '').replace(/\D/g, '').includes('2145550199'));
+    assert(/100 Main St/i.test(charger.steps[3].state.lead.address || ''));
+    assert.equal(charger.steps[4].state.ownerQuestionAnswers[descriptionQuestion], chargerReply, 'exact charger description must persist during checker failure');
+    assert.equal(charger.steps[4].reply, dogsQuestion, `answered description must advance, got ${charger.steps[4].reply}`);
+    assert(!charger.steps[4].reply.includes(descriptionQuestion));
+    assert.equal(charger.steps[4].state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(charger.steps[4].state).handoffReady);
+    assert.equal(chargerBusiness.pricingRules, business.pricingRules);
+    const chargerPrice = buildIntentAwarePriceAnswer(charger.state, chargerBusiness, 'What is the overall cost?');
+    assert(chargerPrice.includes('$20') && /not the total/.test(chargerPrice));
+
+    process.env.OPENAI_API_KEY = 'test-only';
+    globalThis.fetch = checkerFails;
+    const chargerChecked = await walk(chargerBusiness, [
+      'Install a charger in my garage',
+      'Jamie',
+      '2145550199',
+      '100 Main St, Dallas TX 75201',
+      chargerReply,
+    ]);
+    assert.equal(chargerChecked.state.ownerQuestionAnswers[descriptionQuestion], chargerReply);
+    assert.equal(chargerChecked.reply, dogsQuestion);
+    assert.equal(chargerChecked.state.leadDeliveryStatus, 'NOT_SENT');
+
+    console.log('PASS — sink/emergency and charger-description conversations, either/or selection, checker rejection');
     console.log('PASS — 100 accumulated instructions, targeted correction, malformed patch rejection, reload/isolation, concurrent-save conflict');
     console.log('PASS — generic pricing scopes, visit waiver, repeat questions, handoff pricing, semantic generation, checker retry/fallback');
     console.log('PASS — mandatory owner questions, interrupted answers, core order, no premature/inactivity/duplicate handoff');

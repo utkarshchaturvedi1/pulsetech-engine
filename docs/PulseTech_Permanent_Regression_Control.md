@@ -1,5 +1,9 @@
 # PulseTech Permanent Regression Control
 
+## 1 October 2026 — pricing checker clause scope
+
+Expanded live testing found a generic fallback on the first EV-charger price question despite a relevant reply on the repeated question. A local `generateSalesReply` regression reproduces one confirmed cause: the checker rejects a valid total-price explanation and a separately labelled visit fee when both share one sentence. Price scope must follow the clause containing the amount. Preserve rejection of visit amounts asserted as total project prices, including claims split across conjunctions and currency amounts containing commas. The permanent owner/pricing suite covers the first question verbatim (`yes. How much will it cost though?`), semicolon/comma/conjunction separation, and unsafe total-price claims. This rule applies across services; never introduce an EV-charger or business-specific runtime exception.
+
 This file is the in-repo source of truth for historical PulseTech failures and mandatory regression rules. Do not weaken, skip, or replace earlier rules when adding new ones.
 
 **Provenance:** the original Word document (`PulseTech_Permanent_Regression_Control.docx`) was not found. This Markdown Guardian was reconstructed from the complete 19 Sep 2026 A–H Guardian report and later live-production failures. It is now the canonical in-repo source of truth.

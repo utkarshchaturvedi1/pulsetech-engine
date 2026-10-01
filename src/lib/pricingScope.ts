@@ -30,8 +30,15 @@ export function feeOnlyPriceReply(reply: string, business: BusinessProfile, mess
   if (!visit || asksVisitPrice(message)) return false;
   const visitAmounts = visit.match(/\$\s?\d[\d,]*(?:\.\d+)?/g) || [];
   for (const sentence of reply.split(/(?<=[.!?])\s+/)) {
-    if (/\b(total|overall|entire|full)\b/i.test(sentence) && !/\b(not|separate|only)\b/i.test(sentence) &&
-      visitAmounts.some((amount) => sentence.includes(amount) && !service.includes(amount))) return true;
+    // Price scope belongs to the clause containing the amount. A total-price
+    // explanation and a visit fee may share a sentence without sharing scope.
+    // Keep commas within currency amounts intact (e.g. $1,000).
+    if (/\b(total|overall|entire|full)\b/i.test(sentence) && !/\b(not|separate|only)\b/i.test(sentence)) {
+      for (const clause of sentence.split(/;\s*|,(?!\d)\s*|\s+(?:and|but)\s+/i)) {
+        if (visitAmounts.some((amount) => clause.includes(amount) && !service.includes(amount)) &&
+          (/\b(total|overall|entire|full)\b/i.test(clause) || !VISIT_SCOPE_RE.test(clause))) return true;
+      }
+    }
   }
   return VISIT_SCOPE_RE.test(reply) && !/\b(materials|equipment|labor|scope|requirements|extent|depends|varies|capacity|wiring|panel|site conditions)\b/i.test(reply) && !service;
 }

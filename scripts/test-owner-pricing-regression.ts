@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createBusinessProfile } from '../src/lib/businessProfile';
 import { mergeOwnerProfileUpdate } from '../src/lib/ownerProfileUpdate';
 import { buildIntentAwarePriceAnswer, PRE_CONTACT_ASK_ADDRESS, PRE_CONTACT_ASK_FIRST_NAME, PRE_CONTACT_ASK_PHONE } from '../src/lib/salesConversation';
+import { feeOnlyPriceReply } from '../src/lib/pricingScope';
 import { createInitialSalesState } from '../src/lib/salesState';
 
 const business = createBusinessProfile({
@@ -198,6 +199,18 @@ async function run() {
     const ownerUpdate=await applyOwnerFeedbackToProfile(business,'Also check parking availability');
     assert(ownerUpdate.profile.leadQuestions.includes(firstAsk));assert(ownerUpdate.profile.systemPrompt.includes(business.systemPrompt));
     let modelCalls=0;
+    const scopedSameSentence = 'The total depends on equipment capacity and installation distance; a $20 diagnostic visit fee applies and is waived if work proceeds. Would you like to arrange a consultation?';
+    for (const separator of ['; ', ', ', ' and ', ' but ']) {
+      assert.equal(feeOnlyPriceReply(`The total depends on capacity${separator}a $20 diagnostic visit fee applies.`,business,'What is the total?'),false);
+    }
+    for (const invalid of ['The total project cost is $20.', 'The total equipment and labor cost is $20; the diagnostic visit is included.', 'The entire project, including the diagnostic visit, costs $20.']) {
+      assert.equal(feeOnlyPriceReply(invalid,business,'What is the total?'),true,'Clause splitting must not allow a visit amount to become the project total');
+    }
+    const largeVisit={...business,pricingRules:'Diagnostic visit fee is $1,000.'};
+    assert.equal(feeOnlyPriceReply('The total price is $1,000.',largeVisit,'What is the total?'),true);
+    globalThis.fetch=(async()=>new Response(JSON.stringify({id:'resp_scoped_clause',object:'response',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:scopedSameSentence,annotations:[]}]}]}),{status:200,headers:{'Content-Type':'application/json'}})) as typeof fetch;
+    const clauseScoped = await generateSalesReply({...business,leadQuestions:[]},[{role:'user',content:'yes. How much will it cost though?'}],secured());
+    assert.equal(clauseScoped.reply,scopedSameSentence,'A total-price explanation and separately scoped visit fee in one sentence must not be replaced by a generic fallback');
     globalThis.fetch=(async (_input:RequestInfo|URL,init?:RequestInit)=>{
       modelCalls++;const body=JSON.parse(String(init?.body));
       assert(body.instructions.includes('PRICE SCOPE CHECK'));assert(body.instructions.includes('Install equipment in my garage'));

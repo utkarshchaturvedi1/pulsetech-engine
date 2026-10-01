@@ -29,9 +29,11 @@ import { generateSalesReply } from '../src/lib/salesChat';
 import { evaluateHandoffReadiness, shouldAttemptLeadHandoff, buildLeadNotificationEmail } from '../src/lib/leadHandoff';
 import { buildPricingApproachAnswer } from '../src/lib/schedulingPolicy';
 import { validateSalesReply, updateSalesStateFromTurn } from '../src/lib/salesController';
-import { synchronizeOwnerQuestions, ownerQuestionReply, ownerQuestionClarification } from '../src/lib/ownerQuestions';
+import { synchronizeOwnerQuestions, ownerQuestionReply, ownerQuestionClarification, ownerRequiredQuestions, ownerQuestionParts, recognizedEitherOrAnswer } from '../src/lib/ownerQuestions';
 import { commitSharedProfile, loadSharedProfile, resolveCurrentChatProfile, ProfileUpdateConflict } from '../src/lib/sharedProfileStore';
+import { applyReviewedOwnerConfiguration, reviewedOwnerConfiguration } from './migrations/dallasplumbing-26c9ac5c-owner-questions';
 import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 function secured() {
   const s = createInitialSalesState({conversationId:'conv_owner_scope_test',businessKey:business.website});
@@ -711,6 +713,341 @@ async function run() {
     assert.equal(chargerChecked.reply, dogsQuestion);
     assert.equal(chargerChecked.state.leadDeliveryStatus, 'NOT_SENT');
 
+    delete process.env.OPENAI_API_KEY;
+    const dogsRequirement = 'Do you have dogs at the property?';
+    const feeConfirmation = 'What is the visiting fee?';
+    const dogSecurityReply = 'No. Is there a security system?';
+    const websiteConversation = await walk(correctedWebsiteFact, [
+      `${sinkOpening} This is an emergency.`,
+      'Alex',
+      '5125550198',
+      '400 Main St, Dallas TX 75201',
+      feeConfirmation,
+      dogSecurityReply,
+    ], checkerFails);
+    assert(websiteConversation.steps[0].reply.includes(PRE_CONTACT_ASK_FIRST_NAME), `website emergency opening must ask for the name, got ${websiteConversation.steps[0].reply}`);
+    assert(websiteConversation.steps[0].reply.includes(correctedWebsiteFact.phone), 'website emergency opening may include the saved business phone');
+    assert.equal(websiteConversation.steps[0].state.leadDeliveryStatus, 'NOT_SENT');
+    assert.equal(websiteConversation.steps[3].reply, dogsRequirement, `website address turn must ask the accumulated dogs question, got ${websiteConversation.steps[3].reply}`);
+    const feeStep = websiteConversation.steps[4];
+    assert(feeStep.reply.includes('Visiting charge is $20'), `fee confirmation must use the saved visiting charge, got ${feeStep.reply}`);
+    assert(/waiv/i.test(feeStep.reply), `fee confirmation must keep the waiver, got ${feeStep.reply}`);
+    assert(!/\b(?:total|project) (?:price|cost) is \$20\b/i.test(feeStep.reply), `fee confirmation must not become the project total, got ${feeStep.reply}`);
+    assert(feeStep.reply.includes(dogsRequirement), `fee confirmation must still ask the dogs question, got ${feeStep.reply}`);
+    assert.equal(feeStep.state.ownerQuestionAnswers[dogsRequirement], undefined);
+    assert.equal(feeStep.state.leadDeliveryStatus, 'NOT_SENT');
+    const dogSecurity = websiteConversation.steps[5];
+    assert(/^no\.?$/i.test(dogSecurity.state.ownerQuestionAnswers[dogsRequirement] || ''), `dogs answer must stay recorded, got ${dogSecurity.state.ownerQuestionAnswers[dogsRequirement]}`);
+    assert(/don'?t have information about security/i.test(dogSecurity.reply), `security part must be answered from saved facts, got ${dogSecurity.reply}`);
+    assert(!dogSecurity.reply.includes(dogsRequirement), `answered dogs question must not be repeated, got ${dogSecurity.reply}`);
+    assert.equal(dogSecurity.state.lead.name, 'Alex');
+    assert((dogSecurity.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
+    assert(/400 Main St/i.test(dogSecurity.state.lead.address || ''));
+    assert.equal(dogSecurity.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(dogSecurity.state).handoffReady);
+    for (const key of ['website', 'businessName', 'tagline', 'phone', 'email', 'address', 'logo', 'services', 'serviceAreas', 'businessHours', 'faqs'] as const) {
+      assert.deepEqual(correctedWebsiteFact[key], websiteProfile[key], `conversation must preserve website field ${key}`);
+    }
+    assert(correctedWebsiteFact.systemPrompt.includes('protective covers are used'));
+    assert(correctedWebsiteFact.systemPrompt.includes('manager approval'));
+    assert(correctedWebsiteFact.systemPrompt.includes('dogs are present'));
+    assert(correctedWebsiteFact.pricingRules?.includes('Visiting charge is $20'));
+    assert(correctedWebsiteFact.pricingRules?.includes('Waived if work proceeds'));
+    assert(correctedWebsiteFact.leadQuestions.includes(dogsRequirement));
+
+    const reportedEmergencyQuestion = 'Are you calling about an emergency right now or scheduling a non-urgent service?';
+    const dogSecurityRequirement = 'Are dogs present, and can they be secured during the visit?';
+    const websiteDiscovery = 'Is the property residential or commercial?';
+    const reportedCustomer = 'Its and emergency';
+    const nonEmergencyCustomer = 'This is a non-emergency';
+    const reportedProfile = mergeOwnerProfileUpdate(createBusinessProfile({
+      ...websiteProfile,
+      website: 'https://reported-sink.test',
+      leadQuestions: [websiteDiscovery, reportedEmergencyQuestion],
+      ownerLeadQuestions: [reportedEmergencyQuestion],
+    }), {
+      leadQuestions: [dogSecurityRequirement],
+      pricingRules: 'Visiting charge is $20. Waived if work proceeds.',
+      systemPrompt: 'Ask whether dogs are present and can be secured during the visit before handing off.',
+    });
+    assert.deepEqual(reportedProfile.ownerLeadQuestions, [reportedEmergencyQuestion, dogSecurityRequirement]);
+    assert(reportedProfile.leadQuestions.includes(websiteDiscovery));
+    assert(!reportedProfile.ownerLeadQuestions?.includes(websiteDiscovery));
+    const reported = await walk(reportedProfile, [
+      'my kitchen sink is clogged',
+      'TRE',
+      '2145550101',
+      '1500 Marilla St, Dallas TX 75201',
+      reportedCustomer,
+    ], checkerFails);
+    assert.equal(reported.steps[0].reply.includes('This is an emergency'), false);
+    assert(reported.steps[0].reply.includes(PRE_CONTACT_ASK_FIRST_NAME), `reported opening must ask for the name, got ${reported.steps[0].reply}`);
+    assert(!reported.steps[0].reply.includes(reportedEmergencyQuestion));
+    assert(reported.steps[1].reply.includes(PRE_CONTACT_ASK_PHONE), `reported name turn must ask for the phone, got ${reported.steps[1].reply}`);
+    assert.equal(reported.steps[1].state.lead.name, 'TRE');
+    assert(reported.steps[2].reply.includes(PRE_CONTACT_ASK_ADDRESS), `reported phone turn must ask for the address, got ${reported.steps[2].reply}`);
+    assert((reported.steps[2].state.lead.phone || '').replace(/\D/g, '').includes('2145550101'));
+    assert.equal(reported.steps[3].reply, reportedEmergencyQuestion, `reported address turn must ask the emergency question, got ${reported.steps[3].reply}`);
+    assert(!reported.steps[3].reply.includes(websiteDiscovery));
+    assert(/1500 Marilla St/i.test(reported.steps[3].state.lead.address || ''));
+    assert.equal(reported.steps[3].state.requiredOwnerQuestions.includes(websiteDiscovery), false);
+    const reportedAnswer = reported.steps[4];
+    assert.equal(reportedAnswer.state.ownerQuestionAnswers[reportedEmergencyQuestion], 'calling about an emergency right now');
+    assert(!reportedAnswer.reply.includes(reportedEmergencyQuestion), `emergency question must not repeat, got ${reportedAnswer.reply}`);
+    assert.equal(reportedAnswer.reply, dogSecurityRequirement, `dogs must still be asked after the emergency answer, got ${reportedAnswer.reply}`);
+    assert.equal(reportedAnswer.state.ownerQuestionAnswers[dogSecurityRequirement], undefined);
+    const accessQuestion = 'Is parking available, and is the entrance unlocked?';
+    const accessBusiness = createBusinessProfile({
+      ...business,
+      website: 'https://access-parts.test',
+      leadQuestions: [accessQuestion],
+      leadNotificationEmail: 'alerts@example.test',
+      leadNotificationPhone: '+12145550199',
+    });
+    const accessState = synchronizeOwnerQuestions(secured(), accessBusiness);
+    const accessAsk = ownerQuestionReply(accessState);
+    assert.equal(accessAsk, accessQuestion);
+    const accessPartial = updateSalesStateFromTurn(accessState, [
+      { role: 'assistant', content: accessQuestion },
+      { role: 'user', content: 'Parking is available.' },
+    ], accessBusiness);
+    assert.equal(accessPartial.ownerQuestionAnswers['Is parking available?'], 'Parking is available.');
+    assert.equal(accessPartial.ownerQuestionAnswers['Is the entrance unlocked?'], undefined);
+    assert.equal(ownerQuestionReply(accessPartial), 'Is the entrance unlocked?');
+    const accessDone = updateSalesStateFromTurn(accessPartial, [
+      { role: 'assistant', content: 'Is the entrance unlocked?' },
+      { role: 'user', content: 'Yes' },
+    ], accessBusiness);
+    assert.equal(accessDone.ownerQuestionAnswers['Is parking available?'], 'Parking is available.');
+    assert.equal(accessDone.ownerQuestionAnswers['Is the entrance unlocked?'], 'Yes');
+    assert.equal(reportedAnswer.state.ownerQuestionAnswers[websiteDiscovery], undefined);
+    assert.equal(reportedAnswer.state.lead.name, 'TRE');
+    assert((reportedAnswer.state.lead.phone || '').replace(/\D/g, '').includes('2145550101'));
+    assert(/1500 Marilla St/i.test(reportedAnswer.state.lead.address || ''));
+    assert.equal(reportedAnswer.state.leadDeliveryStatus, 'NOT_SENT');
+    assert(!evaluateHandoffReadiness(reportedAnswer.state).handoffReady);
+    assert(reportedProfile.pricingRules?.includes('Visiting charge is $20'));
+    assert(/waiv/i.test(reportedProfile.pricingRules || ''));
+    assert(reportedProfile.systemPrompt.includes('protective covers are used'));
+    assert(reportedProfile.systemPrompt.includes('dogs are present and can be secured'));
+    assert.deepEqual(reportedProfile.services, websiteProfile.services);
+    assert.deepEqual(reportedProfile.faqs, websiteProfile.faqs);
+    const nonEmergency = await walk(reportedProfile, [
+      'my kitchen sink is clogged',
+      'TRE',
+      '2145550101',
+      '1500 Marilla St, Dallas TX 75201',
+      nonEmergencyCustomer,
+    ], checkerFails);
+    assert.notEqual(nonEmergency.state.ownerQuestionAnswers[reportedEmergencyQuestion], 'calling about an emergency right now');
+    assert.equal(nonEmergency.state.ownerQuestionAnswers[reportedEmergencyQuestion], 'scheduling a non-urgent service');
+    assert(!nonEmergency.reply.includes(reportedEmergencyQuestion), `non-emergency must not repeat the emergency question, got ${nonEmergency.reply}`);
+    assert.equal(nonEmergency.reply, dogSecurityRequirement);
+    assert.equal(nonEmergency.state.leadDeliveryStatus, 'NOT_SENT');
+    const discoveryOnly = mergeOwnerProfileUpdate(createBusinessProfile({
+      ...websiteProfile,
+      website: 'https://website-discovery.test',
+      leadQuestions: [reportedEmergencyQuestion, websiteDiscovery],
+      ownerLeadQuestions: [],
+    }), {
+      leadQuestions: [dogSecurityRequirement],
+      pricingRules: 'Visiting charge is $20. Waived if work proceeds.',
+      systemPrompt: 'Ask whether dogs are present and can be secured during the visit before handing off.',
+    });
+    const discovery = await walk(discoveryOnly, [
+      'my kitchen sink is clogged',
+      'TRE',
+      '2145550101',
+      '1500 Marilla St, Dallas TX 75201',
+    ], checkerFails);
+    assert.equal(discovery.steps[3].reply, dogSecurityRequirement, `website discovery must not be compulsory, got ${discovery.steps[3].reply}`);
+    assert.equal(discovery.state.requiredOwnerQuestions.includes(reportedEmergencyQuestion), false);
+    assert.equal(discovery.state.requiredOwnerQuestions.includes(websiteDiscovery), false);
+    assert(discovery.state.requiredOwnerQuestions.includes(dogSecurityRequirement));
+    assert(discoveryOnly.pricingRules?.includes('Visiting charge is $20'));
+    assert(discoveryOnly.systemPrompt.includes('protective covers are used'));
+    assert.deepEqual(discoveryOnly.faqs, websiteProfile.faqs);
+
+    const unknownOwnerQuestion = 'Is approval from the property owner needed?';
+    const legacyId = 'legacy-saved-profile-' + Date.now();
+    const legacySaved = createBusinessProfile({
+      ...websiteProfile,
+      website: 'https://legacy-saved-profile.test',
+      leadQuestions: [reportedEmergencyQuestion, dogSecurityRequirement, unknownOwnerQuestion],
+      pricingRules: 'Visiting charge is $20. Waived if work proceeds.',
+      systemPrompt: `${websiteProfile.systemPrompt}\nAsk whether dogs are present and can be secured during the visit before handing off.`,
+      configurationHistory: [
+        { source: 'website', leadQuestions: [reportedEmergencyQuestion, websiteDiscovery] },
+        { source: 'owner', leadQuestions: [dogSecurityRequirement] },
+      ],
+    });
+    const noHistoryId = 'legacy-no-history-' + Date.now();
+    const noHistorySaved = createBusinessProfile({
+      ...legacySaved,
+      website: 'https://legacy-no-history.test',
+      configurationHistory: undefined,
+    });
+    try {
+      await commitSharedProfile(legacyId, legacySaved);
+      await commitSharedProfile(noHistoryId, noHistorySaved);
+      const legacyFile = JSON.parse(await fs.readFile(`.data/demos/${legacyId}.json`, 'utf8')) as { profile: { ownerLeadQuestions?: string[] } };
+      assert.equal(Object.prototype.hasOwnProperty.call(legacyFile.profile, 'ownerLeadQuestions'), false, 'saved legacy profile must not gain ownerLeadQuestions on disk');
+      const reloaded = await loadSharedProfile(legacyId);
+      assert(reloaded?.profile, 'legacy profile must reload');
+      assert.deepEqual(reloaded!.profile.ownerLeadQuestions, [dogSecurityRequirement, unknownOwnerQuestion]);
+      assert.equal(reloaded!.profile.ownerLeadQuestions?.includes(reportedEmergencyQuestion), false);
+      assert(reloaded!.profile.pricingRules?.includes('Visiting charge is $20'));
+      assert(/waiv/i.test(reloaded!.profile.pricingRules || ''));
+      assert(reloaded!.profile.systemPrompt.includes('protective covers are used'));
+      assert(reloaded!.profile.systemPrompt.includes('dogs are present and can be secured'));
+      assert.deepEqual(reloaded!.profile.services, websiteProfile.services);
+      assert.deepEqual(reloaded!.profile.faqs, websiteProfile.faqs);
+      const legacyWalk = await walk(reloaded!.profile, [
+        'my kitchen sink is clogged',
+        'TRE',
+        '2145550101',
+        '1500 Marilla St, Dallas TX 75201',
+      ], checkerFails);
+      assert.equal(legacyWalk.steps[3].reply, dogSecurityRequirement, `reloaded legacy profile must not force the emergency question, got ${legacyWalk.steps[3].reply}`);
+      assert(!legacyWalk.steps[3].reply.includes(reportedEmergencyQuestion));
+      assert.equal(legacyWalk.state.requiredOwnerQuestions.includes(reportedEmergencyQuestion), false);
+      assert(legacyWalk.state.requiredOwnerQuestions.includes(dogSecurityRequirement));
+      assert(legacyWalk.state.requiredOwnerQuestions.includes(unknownOwnerQuestion), 'a question with no recorded origin must stay required');
+      assert.equal(legacyWalk.state.leadDeliveryStatus, 'NOT_SENT');
+      const untouched = await loadSharedProfile(noHistoryId);
+      assert.equal(untouched?.profile.ownerLeadQuestions, undefined);
+      assert(ownerRequiredQuestions(untouched!.profile).includes(reportedEmergencyQuestion), 'missing history must not drop a lead question');
+      assert(ownerRequiredQuestions(untouched!.profile).includes(dogSecurityRequirement));
+      assert(untouched!.profile.pricingRules?.includes('Visiting charge is $20'));
+    } finally {
+      await fs.rm(`.data/demos/${legacyId}.json`, { force: true });
+      await fs.rm(`.data/demos/${noHistoryId}.json`, { force: true });
+    }
+
+    const autreySaved = JSON.parse(await fs.readFile(path.join(process.cwd(), 'scripts/fixtures/dallasplumbing-26c9ac5c.json'), 'utf8')) as { id: string; profile: ReturnType<typeof createBusinessProfile> };
+    const autreyRaw = autreySaved.profile;
+    assert.equal(autreySaved.id, reviewedOwnerConfiguration.demoId);
+    const autreyFeeQuestion = reviewedOwnerConfiguration.ownerLeadQuestions[0];
+    const autreyDogQuestion = reviewedOwnerConfiguration.ownerLeadQuestions[1];
+    assert(autreyRaw.leadQuestions.includes(autreyFeeQuestion), 'reviewed fee question must be the saved wording');
+    assert(autreyRaw.leadQuestions.includes(autreyDogQuestion), 'reviewed dog question must be the saved wording');
+    const autreyDogParts = ownerQuestionParts(autreyDogQuestion);
+    assert.deepEqual(autreyDogParts, [
+      'Do you have any dogs or other pets?',
+      'Can they be secured away from the technician during the visit?',
+    ]);
+    const autreyDiscovery = autreyRaw.leadQuestions.filter((question) => !reviewedOwnerConfiguration.ownerLeadQuestions.includes(question));
+    assert.equal(autreyDiscovery.length, 10);
+    assert.equal(Object.prototype.hasOwnProperty.call(autreyRaw, 'ownerLeadQuestions'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(autreyRaw, 'configurationHistory'), false);
+    const autreyId = 'saved-demo-profile-' + Date.now();
+    const autreyOtherId = 'unmigrated-copy-' + Date.now();
+    const autreyPersistedId = 'migrated-demo-profile-' + Date.now();
+    try {
+      await commitSharedProfile(autreyId, autreyRaw);
+      const autreyFile = JSON.parse(await fs.readFile(`.data/demos/${autreyId}.json`, 'utf8')) as { profile: { ownerLeadQuestions?: string[]; configurationHistory?: unknown } };
+      assert.equal(Object.prototype.hasOwnProperty.call(autreyFile.profile, 'ownerLeadQuestions'), false);
+      assert.equal(Object.prototype.hasOwnProperty.call(autreyFile.profile, 'configurationHistory'), false);
+      const autreyLoaded = await loadSharedProfile(autreyId);
+      assert(autreyLoaded?.profile);
+      assert.equal(autreyLoaded!.profile.ownerLeadQuestions, undefined, 'loading the saved demo must not invent owner questions');
+      assert(ownerRequiredQuestions(autreyLoaded!.profile).includes(reportedEmergencyQuestion), 'an unmigrated saved demo still requires every lead question');
+      const migrated = applyReviewedOwnerConfiguration(autreyRaw, reviewedOwnerConfiguration);
+      assert.deepEqual(migrated.ownerLeadQuestions, reviewedOwnerConfiguration.ownerLeadQuestions);
+      assert.deepEqual(ownerRequiredQuestions(migrated), reviewedOwnerConfiguration.ownerLeadQuestions);
+      for (const question of autreyDiscovery) {
+        assert.equal(migrated.ownerLeadQuestions?.includes(question), false, `discovery question must stay optional: ${question}`);
+      }
+      assert(!migrated.systemPrompt.includes('Begin by quickly confirming whether this is an emergency or a scheduled service request.'));
+      assert(migrated.systemPrompt.includes('24/7 emergency plumbing'));
+      assert(migrated.systemPrompt.includes('LIC# RMP41900'));
+      assert(migrated.systemPrompt.includes('$20 visit charge that will be waived'));
+      assert(migrated.systemPrompt.includes('dogs or other pets'));
+      assert.equal(migrated.pricingRules, autreyRaw.pricingRules);
+      assert(/\$20/.test(migrated.pricingRules || '') && /waiv/i.test(migrated.pricingRules || ''));
+      assert.deepEqual(migrated.services, autreyRaw.services);
+      assert.deepEqual(migrated.faqs, autreyRaw.faqs);
+      assert.deepEqual(migrated.serviceAreas, autreyRaw.serviceAreas);
+      const autreyWalk = await walk(migrated, [
+        'my kitchen sink is clogged',
+        'TRE',
+        '2145550101',
+        '1500 Marilla St, Dallas TX 75201',
+        'Yes.',
+        'We have dogs and other pets.',
+      ], checkerFails);
+      assert(autreyWalk.steps[0].reply.includes(PRE_CONTACT_ASK_FIRST_NAME), `saved demo opening must ask for the name, got ${autreyWalk.steps[0].reply}`);
+      assert(!autreyWalk.steps[0].reply.includes(reportedEmergencyQuestion));
+      assert.equal(autreyWalk.steps[3].reply, autreyFeeQuestion, `saved demo address turn must ask the fee confirmation, got ${autreyWalk.steps[3].reply}`);
+      assert(!autreyWalk.steps[3].reply.includes(reportedEmergencyQuestion));
+      assert.equal(autreyWalk.steps[4].state.ownerQuestionAnswers[autreyFeeQuestion], 'Yes.');
+      assert.equal(autreyWalk.steps[4].reply, autreyDogQuestion, `fee answer must advance to the saved dog question, got ${autreyWalk.steps[4].reply}`);
+      const dogPartial = autreyWalk.steps[5];
+      assert.equal(dogPartial.state.ownerQuestionAnswers[autreyDogParts[0]], 'We have dogs and other pets.');
+      assert.equal(dogPartial.state.ownerQuestionAnswers[autreyDogParts[1]], undefined);
+      assert.equal(dogPartial.reply, autreyDogParts[1]);
+      assert(!dogPartial.reply.includes(autreyDogParts[0]));
+      assert.equal(dogPartial.state.leadDeliveryStatus, 'NOT_SENT');
+      const dogSecured = await generateSalesReply(migrated, [
+        { role: 'assistant', content: dogPartial.reply },
+        { role: 'user', content: 'Yes' },
+      ], dogPartial.state);
+      assert.equal(dogSecured.salesState.ownerQuestionAnswers[autreyDogParts[0]], 'We have dogs and other pets.');
+      assert.equal(dogSecured.salesState.ownerQuestionAnswers[autreyDogParts[1]], 'Yes');
+      assert(!dogSecured.reply.includes(autreyDogQuestion));
+      assert.deepEqual(autreyWalk.state.requiredOwnerQuestions, reviewedOwnerConfiguration.ownerLeadQuestions);
+      assert.equal(autreyWalk.state.lead.name, 'TRE');
+      assert((autreyWalk.state.lead.phone || '').replace(/\D/g, '').includes('2145550101'));
+      assert(/1500 Marilla St/i.test(autreyWalk.state.lead.address || ''));
+      assert.equal(autreyWalk.state.leadDeliveryStatus, 'NOT_SENT');
+      assert(!evaluateHandoffReadiness(dogPartial.state).handoffReady);
+      await commitSharedProfile(autreyPersistedId, migrated);
+      const autreyAgain = await loadSharedProfile(autreyPersistedId);
+      assert.deepEqual(autreyAgain?.profile.ownerLeadQuestions, reviewedOwnerConfiguration.ownerLeadQuestions);
+      assert(!autreyAgain!.profile.systemPrompt.includes('Begin by quickly confirming whether this is an emergency or a scheduled service request.'));
+      assert.equal(autreyAgain!.profile.pricingRules, autreyRaw.pricingRules);
+      const otherBusiness = { ...autreyRaw, website: 'https://other-plumber.test', businessName: 'Other Plumbing LLC' };
+      await commitSharedProfile(autreyOtherId, otherBusiness);
+      const otherLoaded = await loadSharedProfile(autreyOtherId);
+      assert.equal(otherLoaded?.profile.ownerLeadQuestions, undefined);
+      assert(ownerRequiredQuestions(otherLoaded!.profile).includes(reportedEmergencyQuestion), 'an unmigrated profile must keep its own lead questions required');
+      assert(otherLoaded!.profile.systemPrompt.includes('Begin by quickly confirming whether this is an emergency or a scheduled service request.'));
+    } finally {
+      await fs.rm(`.data/demos/${autreyId}.json`, { force: true });
+      await fs.rm(`.data/demos/${autreyOtherId}.json`, { force: true });
+      await fs.rm(`.data/demos/${autreyPersistedId}.json`, { force: true });
+    }
+
+    // The actual saved wording must accept partial presence and natural capability,
+    // and a missing antecedent must not trigger an irrelevant dependent question.
+    process.env.OPENAI_API_KEY = 'test-only';
+    const accessProfile = applyReviewedOwnerConfiguration(autreyRaw, reviewedOwnerConfiguration);
+    const accessParts = ownerQuestionParts(reviewedOwnerConfiguration.ownerLeadQuestions[1]);
+    for (const check of [checkerFails, checkerFalse]) {
+      const partial = await walk(accessProfile, ['my kitchen sink is clogged', 'TRE', '2145550101', '1500 Marilla St, Dallas TX 75201', 'Yes.', 'Yes, I have dogs.'], check);
+      assert.equal(partial.reply, accessParts[1]);
+      assert.equal(partial.state.ownerQuestionAnswers[accessParts[1]], undefined);
+      assert.equal(partial.state.leadDeliveryStatus, 'NOT_SENT');
+      const complete = await walk(accessProfile, ['my kitchen sink is clogged', 'TRE', '2145550101', '1500 Marilla St, Dallas TX 75201', 'Yes.', 'Yes, I have dogs.', 'Yes, I can secure them.'], check);
+      assert(complete.state.ownerQuestionAnswers[accessParts[0]]);
+      assert.equal(complete.state.ownerQuestionAnswers[accessParts[1]], 'Yes, I can secure them.');
+      assert(!complete.reply.includes(accessParts[1]));
+      const absent = await walk(accessProfile, ['my kitchen sink is clogged', 'TRE', '2145550101', '1500 Marilla St, Dallas TX 75201', 'Yes.', 'No pets.'], check);
+      assert(/Not applicable/.test(absent.state.ownerQuestionAnswers[accessParts[1]] || ''));
+      assert(!absent.reply.includes(accessParts[1]));
+    }
+    const objectQuestion = 'Do you have equipment, and can it be disconnected before the visit?';
+    const objectParts = ownerQuestionParts(objectQuestion);
+    const objectProfile = createBusinessProfile({ ...business, leadQuestions: [objectQuestion, 'Is parking available?'], ownerLeadQuestions: [objectQuestion, 'Is parking available?'] });
+    const objectAbsent = await walk(objectProfile, ['I need to repair equipment', 'Alex', '2145550101', '400 Main St, Dallas TX 75201', 'No equipment.'], checkerFails);
+    assert(/Not applicable/.test(objectAbsent.state.ownerQuestionAnswers[objectParts[1]] || ''));
+    assert(!objectAbsent.reply.includes(objectParts[1]));
+    assert.equal(recognizedEitherOrAnswer(reportedEmergencyQuestion, 'non-urgent'), 'scheduling a non-urgent service');
+    assert.equal(recognizedEitherOrAnswer(reportedEmergencyQuestion, 'It is not really an emergency'), 'scheduling a non-urgent service');
+    const reclassified = mergeOwnerProfileUpdate(autreyRaw, { ownerLeadQuestions: reviewedOwnerConfiguration.ownerLeadQuestions });
+    assert.deepEqual(reclassified.leadQuestions, autreyRaw.leadQuestions);
+    assert.deepEqual(reclassified.ownerLeadQuestions, reviewedOwnerConfiguration.ownerLeadQuestions);
+    assert.throws(() => mergeOwnerProfileUpdate(autreyRaw, { ownerLeadQuestions: ['invented question?'] }));
     console.log('PASS — sink/emergency and charger-description conversations, either/or selection, checker rejection');
     console.log('PASS — 100 accumulated instructions, targeted correction, malformed patch rejection, reload/isolation, concurrent-save conflict');
     console.log('PASS — generic pricing scopes, visit waiver, repeat questions, handoff pricing, semantic generation, checker retry/fallback');

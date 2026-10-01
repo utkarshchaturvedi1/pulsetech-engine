@@ -33,7 +33,7 @@ Return ONLY valid JSON with this shape:
 
 Rules:
 - Identify explicit corrections or additions only.
-- Allowed patch fields: businessName, tagline, phone, email, address, services, serviceAreas, faqs, leadQuestions, systemPrompt, agentName, agentIntroduction, businessHours, pricingRules, tone, leadNotificationEmail, leadNotificationPhone.
+- Allowed patch fields: businessName, tagline, phone, email, address, services, serviceAreas, faqs, leadQuestions, ownerLeadQuestions, systemPrompt, agentName, agentIntroduction, businessHours, pricingRules, tone, leadNotificationEmail, leadNotificationPhone.
 - Do not remove existing accurate information unless the owner clearly corrects it.
 - For additions, return only NEW items/text. The application accumulates them without a small instruction-count cap.
 - For an explicit correction/removal, use patch.removeValues: an object mapping affected fields to exact OLD text/items to remove. For faqs, target the exact old question. Then put only replacement/new values in patch fields. Remove only the specific outdated rule, never unrelated facts or a whole field. Apply the targeted correction wherever that fact exists, including systemPrompt. Never remove values for ordinary additions.
@@ -41,6 +41,7 @@ Rules:
 - For every owner request to check/ask/confirm something with a customer, add a natural customer-facing question ending in ? to leadQuestions. It is mandatory after core contact capture and before handoff, even for access, pets, parking or other topics excluded by generic defaults.
 - Do not invent prices, visit charges, free estimates, or promises. Set pricingRules only if the owner explicitly stated them.
 - Put hours into businessHours, tone into tone, qualifying questions into leadQuestions, lead-alert recipients into leadNotificationEmail / leadNotificationPhone, agent intro/name into agentName / agentIntroduction.
+- Only set ownerLeadQuestions when the owner explicitly selects which existing questions are mandatory or optional. Use exact saved question strings, preserve all leadQuestions and unrelated facts. For ordinary additions, omit ownerLeadQuestions; the application marks newly added owner questions required.
 - Also fold the new facts into systemPrompt so the sales employee knows them.
 - Never change website.
 - reply must be a short confirmation of the actual change.

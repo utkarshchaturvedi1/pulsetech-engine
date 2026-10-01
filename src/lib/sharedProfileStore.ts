@@ -7,6 +7,7 @@ import {
 } from "./demoRepository";
 import { StoredDemo } from "./demoStore";
 import { mergeOwnerProfileUpdate, type OwnerProfilePatch } from "./ownerProfileUpdate";
+import { recoverOwnerLeadQuestions } from "./ownerQuestions";
 import { businessIdentityKey } from "./salesState";
 
 export type ProfileStoreBackend = "supabase" | "filesystem" | "none";
@@ -165,6 +166,14 @@ async function saveFilesystemRecord(
   }
 }
 
+/** Fill a missing ownerLeadQuestions field from recorded website and owner origin. */
+function applyRecoveredOwnerQuestions(demo: StoredDemo): StoredDemo {
+  if (demo.profile.ownerLeadQuestions !== undefined) return demo;
+  const recovered = recoverOwnerLeadQuestions(demo.profile);
+  if (!recovered) return demo;
+  return { ...demo, profile: { ...demo.profile, ownerLeadQuestions: recovered } };
+}
+
 /** Shared BusinessProfile lookup for website demo and inbound voice. */
 export async function loadSharedProfile(
   id: string
@@ -173,12 +182,13 @@ export async function loadSharedProfile(
   if (!safe) return null;
 
   const fromSupabase = await loadSupabaseRecord(safe);
-  if (fromSupabase) return markTestData(safe, fromSupabase);
+  if (fromSupabase) return applyRecoveredOwnerQuestions(markTestData(safe, fromSupabase));
 
   const fromDisk = await loadDemoRecord(safe);
-  if (fromDisk) return markTestData(safe, fromDisk);
+  if (fromDisk) return applyRecoveredOwnerQuestions(markTestData(safe, fromDisk));
 
-  return getBundledTestDemo(safe);
+  const bundled = getBundledTestDemo(safe);
+  return bundled ? applyRecoveredOwnerQuestions(bundled) : null;
 }
 
 export async function commitSharedProfile(

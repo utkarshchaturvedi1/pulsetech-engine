@@ -24,7 +24,7 @@ import {
   validateSalesReply,
 } from "./salesController";
 import { SalesState } from "./salesState";
-import { assistantPromptedOwnerQuestion, explicitOwnerAnswer, ownerQuestionClarification, ownerQuestionReply, ownerRequiredQuestions, replyNeedsOwnerClarification } from "./ownerQuestions";
+import { assistantPromptedOwnerQuestion, explicitOwnerAnswer, ownerQuestionClarification, ownerQuestionReply, ownerRequiredQuestions, ownerQuestionParts, replyNeedsOwnerClarification } from "./ownerQuestions";
 import { asksVisitPrice, scopedPricing, feeOnlyPriceReply } from "./pricingScope";
 import { buildIntentAwarePriceAnswer, buildPostContactPriceReply, buildPostContactNextStepReply } from "./salesConversation";
 import { messageAsksPricingOrBilling } from "./schedulingPolicy";
@@ -495,10 +495,11 @@ export async function generateSalesReply(
   const pending = previousState?.pendingOwnerQuestion;
   const previousAssistant = [...messages].reverse().find((m) => m.role === "assistant");
   const answer = latestUser?.content.trim() || "";
+  const requiredPending = !!pending && ownerRequiredQuestions(business).some(question => question === pending || ownerQuestionParts(question).includes(pending));
   const prompted = assistantPromptedOwnerQuestion(previousAssistant?.content, pending || "");
-  if (pending && ownerRequiredQuestions(business).includes(pending) && prompted && explicitOwnerAnswer(pending, answer)) {
+  if (pending && requiredPending && prompted && explicitOwnerAnswer(pending, answer)) {
     ownerAnswerVerified = true;
-  } else if (pending && ownerRequiredQuestions(business).includes(pending) && prompted && process.env.OPENAI_API_KEY &&
+  } else if (pending && requiredPending && prompted && process.env.OPENAI_API_KEY &&
     !messageAsksPricingOrBilling(answer)) {
     try {
       const result = await getOpenAI().responses.create({
@@ -565,7 +566,7 @@ export async function generateSalesReply(
   // Mandatory owner qualification is a state gate, not optional model prompting.
   // Direct price questions remain answer-first; append only the next owner question.
   const ownerAsk = ownerQuestionReply(salesState);
-  const priceTurn = messageAsksPricingOrBilling(latestUser?.content || "");
+  const priceTurn = messageAsksPricingOrBilling(latestUser?.content || "") || asksVisitPrice(latestUser?.content);
   const clarifyOwnerAnswer = !!ownerAsk && previousState?.pendingOwnerQuestion === ownerAsk && replyNeedsOwnerClarification(ownerAsk, latestUser?.content || "");
   const factAnswer = clarifyOwnerAnswer ? null : answerBusinessFactQuestion(business, latestUser?.content || "");
   const ownerFollowUp = ownerAsk && (clarifyOwnerAnswer ? ownerQuestionClarification(ownerAsk) : ownerAsk);
@@ -605,6 +606,14 @@ export async function generateSalesReply(
       business,
       latestUser?.content
     );
+  }
+  // A fact question still needs its saved answer on the turn that completes the
+  // last owner question. Leaving it only on the owner-follow-up path drops it.
+  // Contact capture stays first, so this does not run before name, phone, and address.
+  if (!ownerFollowUp && factAnswer && salesState.lead.name && salesState.lead.phone && salesState.lead.address) {
+    salesState.currentObjective = priceTurn ? "HANDLE_PRICE_OBJECTION" : "ANSWER";
+    const pricePrefix = priceTurn ? `${buildIntentAwarePriceAnswer(salesState, business, latestUser?.content)} ` : "";
+    deterministicHandoffReply = `${pricePrefix}${factAnswer}${deterministicHandoffReply ? ` ${deterministicHandoffReply}` : ""}`.trim();
   }
   const pricing = scopedPricing(business);
   // Unknown service pricing merits a need-specific explanation. Deterministic

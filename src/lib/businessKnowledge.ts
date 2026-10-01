@@ -1,5 +1,6 @@
 import { BusinessProfile } from "../types/business";
 import { verifiedPricingRulesText } from "./businessProfile";
+import { ownerRequiredQuestions, websiteDiscoveryQuestions } from "./ownerQuestions";
 
 /**
  * Business knowledge only (WHAT the business sells / knows).
@@ -47,8 +48,11 @@ ${business.serviceAreas.length > 0 ? business.serviceAreas.map((a) => `- ${a}`).
 FAQs:
 ${faqs}
 
-Owner-required business questions (NOT a script): Ask these naturally before completing the customer handoff. Do not skip an owner-provided question. Keep the existing core lead-capture order unchanged.
-${business.leadQuestions.length > 0 ? business.leadQuestions.map((q) => `- ${q}`).join("\n") : "- None provided"}
+Owner-required questions (ask these before completing the customer handoff; do not skip one the owner required):
+${ownerRequiredQuestions(business).length > 0 ? ownerRequiredQuestions(business).map((q) => `- ${q}`).join("\n") : "- None provided"}
+
+Website discovery questions (optional context only; ask one only when it helps, and do not block handoff on them):
+${websiteDiscoveryQuestions(business).length > 0 ? websiteDiscoveryQuestions(business).map((q) => `- ${q}`).join("\n") : "- None provided"}
 
 Pricing / visit charges / estimates:
 ${pricingText}
@@ -82,7 +86,7 @@ export function answerBusinessFactQuestion(business: BusinessProfile, customerTe
   const questions = customerText
     .split(/(?<=[.?!])\s+/)
     .map((sentence) => sentence.trim())
-    .filter((sentence) => /\?\s*$/.test(sentence) && !/\b(?:how much|what(?:'s| is) the (?:price|cost)|overall cost|total cost)\b/i.test(sentence));
+    .filter((sentence) => /\?\s*$/.test(sentence) && !/\b(?:how much|what(?:'s| is) the (?:price|cost|fee|charge)|overall cost|total cost|visiting (?:fee|charge)|visit(?:ing)? charge)\b/i.test(sentence));
   if (!questions.length) return null;
   const faqQuestions = new Set(
     business.faqs.map((faq) => faq.question.replace(/\s+/g, " ").trim().toLowerCase()).filter(Boolean)

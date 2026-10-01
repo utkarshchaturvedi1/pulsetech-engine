@@ -4,6 +4,7 @@ import { normalizePhoneNumber } from "./phoneNumbers";
 import { StoredDemo } from "./demoStore";
 import { BusinessProfile } from "../types/business";
 import { verifiedPricingRulesText } from "./businessProfile";
+import { ownerRequiredQuestions, websiteDiscoveryQuestions } from "./ownerQuestions";
 import {
   ASK_PREFERRED_DAY_TIME,
   CALLBACK_REQUEST_VOICE_ACK,
@@ -159,7 +160,7 @@ export function dynamicVariablesFromProfile(
     tone:
       profile.tone ||
       "Warm, confident, concise, commercially aware. One question at a time.",
-    qualifying_questions: profile.leadQuestions.join("; "),
+    qualifying_questions: ownerRequiredQuestions(profile).join("; "),
     lead_notification_email: leadNotificationEmailForProfile(profile),
     phone_number: profile.leadNotificationPhone || profile.phone || "",
     tagline: profile.tagline || "",
@@ -196,9 +197,13 @@ function formatVoiceBusinessFacts(profile: BusinessProfile): string {
       (profile.serviceAreas.length
         ? profile.serviceAreas.join("; ")
         : "Not provided"),
-    "Qualifying questions (ask only if needed, one at a time): " +
-      (profile.leadQuestions.length
-        ? profile.leadQuestions.join("; ")
+    "Owner-required questions (complete before handoff): " +
+      (ownerRequiredQuestions(profile).length
+        ? ownerRequiredQuestions(profile).join("; ")
+        : "None provided"),
+    "Website discovery questions (optional; do not block handoff): " +
+      (websiteDiscoveryQuestions(profile).length
+        ? websiteDiscoveryQuestions(profile).join("; ")
         : "None provided"),
     "Pricing / visit charges / estimates: " +
       (verifiedPricingRulesText(profile.pricingRules) ||

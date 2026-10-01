@@ -1,5 +1,10 @@
-import { BusinessProfile } from "../types/business";
+import { BusinessProfile, ConfigurationHistoryEvent } from "../types/business";
 import { cloneBusinessProfile } from "./businessProfile";
+import { recoverOwnerLeadQuestions } from "./ownerQuestions";
+
+function appendConfigurationEvent(profile: BusinessProfile, event: ConfigurationHistoryEvent) {
+  profile.configurationHistory = [...(profile.configurationHistory || []), event];
+}
 
 export type OwnerProfilePatch = Partial<
   Pick<
@@ -13,6 +18,7 @@ export type OwnerProfilePatch = Partial<
     | "serviceAreas"
     | "faqs"
     | "leadQuestions"
+    | "ownerLeadQuestions"
     | "systemPrompt"
     | "agentName"
     | "agentIntroduction"
@@ -37,6 +43,7 @@ const PATCH_KEYS: Array<Exclude<keyof OwnerProfilePatch, "removeValues">> = [
   "serviceAreas",
   "faqs",
   "leadQuestions",
+  "ownerLeadQuestions",
   "systemPrompt",
   "agentName",
   "agentIntroduction",
@@ -64,12 +71,16 @@ export function mergeOwnerProfileUpdate(
       let text = next[key] || "";
       for (const value of values) {
         if (!text.includes(value)) throw new Error("Owner correction targets an unknown rule");
-        text = text.replace(value, "");
+        text = text.split(value).join("");
       }
       next[key] = text.trim();
     } else if (key === "leadQuestions" || key === "services" || key === "serviceAreas") {
       for (const value of values) if (!next[key].includes(value)) throw new Error("Owner correction targets an unknown item");
       next[key] = next[key].filter((v) => !values.includes(v));
+      if (key === "leadQuestions") {
+        if (next.ownerLeadQuestions) next.ownerLeadQuestions = next.ownerLeadQuestions.filter((v) => !values.includes(v));
+        appendConfigurationEvent(next, { source: "owner", removedLeadQuestions: values });
+      }
     } else if (key === "faqs") {
       for (const value of values) if (!next.faqs.some((f) => f.question === value)) throw new Error("Unknown FAQ correction");
       next.faqs = next.faqs.filter((f) => !values.includes(f.question));
@@ -79,9 +90,23 @@ export function mergeOwnerProfileUpdate(
     if (!Object.prototype.hasOwnProperty.call(patch, key)) continue;
     const value = patch[key];
     if (value === undefined) continue;
-    if (key === "leadQuestions" || key === "services" || key === "serviceAreas") {
+    if (key === "ownerLeadQuestions") {
+      if (!Array.isArray(value) || !value.every(item => typeof item === "string" && next.leadQuestions.includes(item))) {
+        throw new Error("Required questions must be selected from saved lead questions");
+      }
+      next.ownerLeadQuestions = [...new Set(value as string[])];
+    } else if (key === "leadQuestions" || key === "services" || key === "serviceAreas") {
       if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim())) throw new Error(`Invalid owner configuration: ${key}`);
-      next[key] = [...new Map([...next[key], ...value as string[]].map((item) => [item.trim().toLowerCase(), item.trim()])).values()];
+      const added = value as string[];
+      next[key] = [...new Map([...next[key], ...added].map((item) => [item.trim().toLowerCase(), item.trim()])).values()];
+      if (key === "leadQuestions") {
+        const recorded = current.ownerLeadQuestions !== undefined
+          ? current.ownerLeadQuestions
+          : recoverOwnerLeadQuestions(current);
+        const requiredBase = (recorded ?? current.leadQuestions).filter((item) => !(patch.removeValues?.leadQuestions || []).includes(item));
+        next.ownerLeadQuestions = [...new Map([...requiredBase, ...added].map((item) => [item.trim().toLowerCase(), item.trim()])).values()];
+        appendConfigurationEvent(next, { source: "owner", leadQuestions: added.map((item) => item.trim()) });
+      }
     } else if (key === "systemPrompt" || key === "pricingRules") {
       if (typeof value !== "string") throw new Error(`Invalid owner configuration: ${key}`);
       const old = typeof next[key] === "string" ? next[key]!.trim() : "";
@@ -123,6 +148,7 @@ export function summarizeOwnerProfileChanges(
     serviceAreas: "service areas",
     faqs: "FAQs",
     leadQuestions: "qualifying questions",
+    ownerLeadQuestions: "required owner questions",
     systemPrompt: "business rules",
     agentName: "agent name",
     agentIntroduction: "agent introduction",

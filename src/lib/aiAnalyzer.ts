@@ -181,6 +181,8 @@ Rules:
     serviceAreas: data.serviceAreas ?? [],
     faqs: data.faqs ?? [],
     leadQuestions: data.leadQuestions ?? [],
+    ownerLeadQuestions: [],
+    configurationHistory: [{ source: "website", leadQuestions: data.leadQuestions ?? [] }],
     systemPrompt: data.systemPrompt ?? "",
     isTestData: false,
   });

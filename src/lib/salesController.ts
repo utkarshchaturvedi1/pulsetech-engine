@@ -882,6 +882,11 @@ function isV1LeadComplete(state: SalesState): boolean {
   );
 }
 
+export function visitorRequestsBusinessPhone(message?: string): boolean {
+  const contactNumber = '(?:(?:business|company|office|contact)\\s+)?(?:(?:phone|telephone)\\s+)?number';
+  return new RegExp(`\\b(?:what(?:'s| is) (?:your|the) ${contactNumber}|your ${contactNumber}|number to (?:call|reach)|give me (?:your|the) ${contactNumber}|can i (?:have|get) (?:your|the) ${contactNumber})\\b`, 'i').test(message || '');
+}
+
 function visitorAllowsBusinessPhone(
   latestUserMessage: string | undefined,
   deliveryFailed: boolean
@@ -889,13 +894,7 @@ function visitorAllowsBusinessPhone(
   if (deliveryFailed) return true;
   const t = (latestUserMessage || "").toLowerCase();
   if (!t) return false;
-  if (
-    /\b(what(?:'s| is) (your|the) (phone )?number|your (phone )?number|number to (call|reach)|give me (your|the) number|can i (have|get) (your|the) number)\b/.test(
-      t
-    )
-  ) {
-    return true;
-  }
+  if (visitorRequestsBusinessPhone(t)) return true;
   return /\b(emergency|danger|dangerous|immediate help|life[- ]threat|gas leak|carbon monoxide|on fire)\b/.test(
     t
   );

@@ -22,6 +22,7 @@ import {
   resolvePostContactConversationReply,
   updateSalesStateFromTurn,
   validateSalesReply,
+  visitorRequestsBusinessPhone,
 } from "./salesController";
 import { SalesState } from "./salesState";
 import { assistantPromptedOwnerQuestion, explicitOwnerAnswer, ownerQuestionClarification, ownerQuestionReply, ownerRequiredQuestions, ownerQuestionParts, replyNeedsOwnerClarification } from "./ownerQuestions";
@@ -616,6 +617,12 @@ export async function generateSalesReply(
     deterministicHandoffReply = `${pricePrefix}${factAnswer}${deterministicHandoffReply ? ` ${deterministicHandoffReply}` : ""}`.trim();
   }
   const pricing = scopedPricing(business);
+  // An explicit request for a saved contact fact must survive model/checker
+  // failure. Keep any pending contact or owner question on the same turn.
+  if (visitorRequestsBusinessPhone(latestUser?.content) && business.phone?.trim() &&
+      !handoff.attempted && !alreadyScheduled && !deterministicHandoffReply?.includes(business.phone.trim())) {
+    deterministicHandoffReply = `You can reach us at ${business.phone.trim()}.${deterministicHandoffReply ? ` ${deterministicHandoffReply}` : ''}`;
+  }
   // Unknown service pricing merits a need-specific explanation. Deterministic
   // handoff acknowledgements stay fast; no model call just to close a lead.
   const enrichPrice = priceTurn && !asksVisitPrice(latestUser?.content) && !pricing.service &&

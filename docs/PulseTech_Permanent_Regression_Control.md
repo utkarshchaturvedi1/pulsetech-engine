@@ -1,5 +1,9 @@
 # PulseTech Permanent Regression Control
 
+## 1 October 2026 — explicit business phone requests
+
+The live question `What is your business phone number?` received generic consultation wording. The phone-request recognizer omitted business/office/telephone wording, so validation could reject the saved number. Explicit requests for the saved business phone must work without a model, preserve the next required contact/owner question, and never populate the customer's phone with the business number. Normal service inquiries must still follow name → customer phone → service address without unsolicited business-phone handoff. The owner/pricing regression covers business phone, office telephone, ordinary phone wording, interrupted capture, and pending owner qualification.
+
 ## 1 October 2026 — pricing checker clause scope
 
 Expanded live testing found a generic fallback on the first EV-charger price question despite a relevant reply on the repeated question. A local `generateSalesReply` regression reproduces one confirmed cause: the checker rejects a valid total-price explanation and a separately labelled visit fee when both share one sentence. Price scope must follow the clause containing the amount. Preserve rejection of visit amounts asserted as total project prices, including claims split across conjunctions and currency amounts containing commas. The permanent owner/pricing suite covers the first question verbatim (`yes. How much will it cost though?`), semicolon/comma/conjunction separation, and unsafe total-price claims. This rule applies across services; never introduce an EV-charger or business-specific runtime exception.

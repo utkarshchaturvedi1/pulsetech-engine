@@ -199,6 +199,20 @@ async function run() {
     const ownerUpdate=await applyOwnerFeedbackToProfile(business,'Also check parking availability');
     assert(ownerUpdate.profile.leadQuestions.includes(firstAsk));assert(ownerUpdate.profile.systemPrompt.includes(business.systemPrompt));
     let modelCalls=0;
+    const phoneProfile={...business,phone:'(214) 555-0190',ownerLeadQuestions:[],leadQuestions:[]};
+    globalThis.fetch=(async()=>{throw new Error('model unavailable');}) as typeof fetch;
+    for (const question of ['What is your business phone number?','What is your office telephone number?','Can I get your phone number?']) {
+      const requested=await generateSalesReply(phoneProfile,[{role:'user',content:question}],createInitialSalesState());
+      assert(requested.reply.includes(phoneProfile.phone),'An explicit business phone request must return the saved number even without the model');
+      assert.equal(requested.salesState.lead.phone,null,'Business phone must not become the customer phone');
+      assert.equal(requested.salesState.leadDeliveryStatus,'NOT_SENT');
+    }
+    const requestedDuringCapture=await generateSalesReply(phoneProfile,[{role:'user',content:'My kitchen sink is clogged. What is your business phone number?'}],createInitialSalesState());
+    assert(requestedDuringCapture.reply.includes(phoneProfile.phone));
+    assert(requestedDuringCapture.reply.includes(PRE_CONTACT_ASK_FIRST_NAME),'A phone request must not bypass high-intent contact capture');
+    const requestedDuringQualification=await generateSalesReply({...phoneProfile,leadQuestions:business.leadQuestions,ownerLeadQuestions:business.leadQuestions},[{role:'user',content:'What is your business phone number?'}],secured());
+    assert(requestedDuringQualification.reply.includes(phoneProfile.phone));
+    assert(requestedDuringQualification.reply.includes(business.leadQuestions[0]),'A phone request must not discard pending owner qualification');
     const scopedSameSentence = 'The total depends on equipment capacity and installation distance; a $20 diagnostic visit fee applies and is waived if work proceeds. Would you like to arrange a consultation?';
     for (const separator of ['; ', ', ', ' and ', ' but ']) {
       assert.equal(feeOnlyPriceReply(`The total depends on capacity${separator}a $20 diagnostic visit fee applies.`,business,'What is the total?'),false);

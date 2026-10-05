@@ -12,9 +12,11 @@
     "test:owner-pricing-regression": "npx --yes tsx scripts/test-owner-pricing-regression.ts",
     "test:demo-chat": "npx --yes tsx scripts/test-demo-chat.ts",
     "test:handoff-timing": "npx --yes tsx scripts/test-handoff-timing.ts",
-    "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts"
+    "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts",
+    "test:client-account-regression": "npx --yes tsx scripts/test-client-account-regression.ts"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.111.0",
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",

@@ -901,3 +901,58 @@
   }
   .pt-hero-video-wash{display:none!important}
 }
+
+/* Matte-black hero preview: solid canvas, no artwork or color effects. */
+.pt-hero{
+  background:#08090B!important;
+  color:#f4f5f7!important;
+}
+.pt-hero-cinema{
+  background:#08090B!important;
+}
+.pt-hero:before,
+.pt-hero:after,
+.pt-hero-cinema:before,
+.pt-hero-cinema:after,
+.pt-hero-video,
+.pt-hero-video-wash,
+.pt-hero-video-grid,
+.pt-light-ribbon,
+.pt-light-orb,
+.pt-hero-halo,
+.pt-hero-visual:before,
+.pt-hero-visual:after,
+.pt-hero-chat-wrap:before,
+.pt-hero-chat-wrap:after{
+  display:none!important;
+  content:none!important;
+  background:none!important;
+  box-shadow:none!important;
+  animation:none!important;
+  opacity:0!important;
+}
+.pt-hero .pt-eyebrow{color:#c5cbd4!important}
+.pt-hero h1,
+.pt-hero h1 span{
+  background:none!important;
+  -webkit-background-clip:border-box!important;
+  background-clip:border-box!important;
+  color:#f5f6f8!important;
+  -webkit-text-fill-color:#f5f6f8!important;
+  text-shadow:none!important;
+}
+.pt-hero .pt-lead{color:#d5dae2!important}
+.pt-hero .pt-micro{color:#a8b0bc!important}
+.pt-landing .pt-hero .pt-button{
+  background:#f3f4f6!important;
+  color:#08090B!important;
+  border:1px solid #f3f4f6!important;
+  box-shadow:none!important;
+}
+.pt-landing .pt-hero .pt-button:hover{
+  background:#ffffff!important;
+  color:#08090B!important;
+  box-shadow:none!important;
+}
+.pt-hero .pt-button-ghost,
+.pt-hero .pt-button-ghost span{color:#f3f4f6!important}

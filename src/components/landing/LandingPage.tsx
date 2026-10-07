@@ -67,11 +67,7 @@ export default function LandingPage() {
 
       <main id="top">
         <section className="pt-hero">
-          <div className="pt-hero-cinema" aria-hidden="true">
-            <img className="pt-hero-video" src="/assets/website/pulsetech-hero-ai.png.png" alt="" />
-            <div className="pt-hero-video-wash" />
-            <div className="pt-hero-video-grid" /><div className="pt-light-ribbon pt-light-ribbon-a" /><div className="pt-light-ribbon pt-light-ribbon-b" /><div className="pt-light-ribbon pt-light-ribbon-c" /><div className="pt-light-orb pt-light-orb-a" /><div className="pt-light-orb pt-light-orb-b" />
-          </div>
+          <div className="pt-hero-cinema" aria-hidden="true" />
           <div className="pt-hero-copy">
             <p className="pt-eyebrow">AI SALES EMPLOYEE FOR HIGH-INTENT BUSINESSES</p>
             <h1>Every customer inquiry matters.<span>Make sure none are missed.</span></h1>

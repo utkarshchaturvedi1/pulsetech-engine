@@ -956,3 +956,132 @@
 }
 .pt-hero .pt-button-ghost,
 .pt-hero .pt-button-ghost span{color:#f3f4f6!important}
+
+
+/* Reference-matched split hero preview: dark copy card beside the live demo. */
+.pt-hero{
+  width:min(1240px,calc(100% - 40px))!important;
+  max-width:1240px!important;
+  min-height:0!important;
+  margin:0 auto!important;
+  padding:42px 0 64px!important;
+  grid-template-columns:minmax(0,1.08fr) minmax(390px,.92fr)!important;
+  gap:28px!important;
+  align-items:stretch!important;
+  background:#fff!important;
+  color:#111216!important;
+}
+.pt-hero:after{display:none!important;content:none!important}
+.pt-hero-cinema{display:none!important}
+.pt-hero-copy{
+  align-self:stretch!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  max-width:none!important;
+  padding:clamp(28px,4vw,52px)!important;
+  border-radius:22px!important;
+  background:#111216!important;
+  color:#f5f6f8!important;
+}
+.pt-hero .pt-eyebrow{
+  margin:0 0 22px!important;
+  color:#3477ff!important;
+  letter-spacing:.04em!important;
+  font-size:14px!important;
+}
+.pt-hero h1{
+  max-width:560px!important;
+  margin:0 0 24px!important;
+  color:#f8f8fa!important;
+  font-family:var(--font-plus-jakarta-sans,Inter,system-ui,sans-serif)!important;
+  font-size:clamp(44px,4.25vw,58px)!important;
+  line-height:1.08!important;
+  letter-spacing:-.04em!important;
+  font-weight:850!important;
+}
+.pt-hero h1 span{
+  display:block!important;
+  margin-top:8px!important;
+  background:none!important;
+  color:#c7ff4b!important;
+  -webkit-text-fill-color:#c7ff4b!important;
+}
+.pt-hero .pt-lead{
+  max-width:540px!important;
+  margin:0 0 28px!important;
+  color:#f0f1f3!important;
+  font-size:15px!important;
+  line-height:1.5!important;
+}
+.pt-hero .pt-actions{
+  margin:18px 0 0!important;
+  align-items:flex-start!important;
+}
+.pt-hero .pt-button-ghost,
+.pt-hero .pt-micro{display:none!important}
+.pt-landing .pt-hero .pt-button{
+  border:0!important;
+  border-radius:999px!important;
+  padding:15px 24px!important;
+  background:linear-gradient(105deg,#159dff 0%,#346ff7 45%,#7958ff 100%)!important;
+  color:#fff!important;
+  box-shadow:none!important;
+  text-transform:uppercase;
+  letter-spacing:.01em;
+}
+.pt-hero .pt-button:hover{transform:translateY(-1px)!important;box-shadow:0 8px 24px rgba(61,105,247,.25)!important}
+.pt-hero-visual{
+  align-self:stretch!important;
+  min-height:0!important;
+  padding:10px!important;
+  border:1px solid #e6ebf2!important;
+  border-radius:24px!important;
+  background:#f6f9fd!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:hidden!important;
+}
+.pt-hero-visual:before,
+.pt-hero-visual:after,
+.pt-hero-halo,
+.pt-cyborg-art{display:none!important;content:none!important}
+.pt-hero-chat-wrap{
+  width:100%!important;
+  max-width:510px!important;
+  margin:0!important;
+  transform:none!important;
+  filter:none!important;
+}
+.pt-live-chat{
+  width:100%!important;
+  border:1px solid #e2e9f2!important;
+  border-radius:22px!important;
+  background:#fff!important;
+  box-shadow:0 14px 32px rgba(20,38,69,.11)!important;
+}
+.pt-live-chat-body{height:470px!important}
+
+@media(max-width:900px){
+  .pt-hero{
+    width:min(700px,calc(100% - 32px))!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:20px!important;
+    padding:28px 0 48px!important;
+  }
+  .pt-hero-copy{padding:32px!important}
+  .pt-hero h1{font-size:clamp(42px,8vw,58px)!important}
+  .pt-hero-visual{min-height:0!important}
+  .pt-hero-chat-wrap{max-width:none!important}
+}
+@media(max-width:699px){
+  .pt-hero{width:calc(100% - 24px)!important;padding:18px 0 38px!important;gap:16px!important}
+  .pt-hero-copy{padding:26px 22px!important;border-radius:18px!important}
+  .pt-hero .pt-eyebrow{font-size:11px!important;margin-bottom:18px!important}
+  .pt-hero h1{font-size:clamp(38px,11vw,48px)!important;line-height:1.03!important;margin-bottom:20px!important}
+  .pt-hero .pt-lead{font-size:15px!important;line-height:1.55!important}
+  .pt-hero-visual{padding:6px!important;border-radius:20px!important}
+  .pt-live-chat-body{height:460px!important}
+  .pt-hero .pt-button{font-size:12px!important;padding:14px 18px!important}
+}

@@ -1213,19 +1213,6 @@
 }
 
 
-/* Pure-white website canvas; preserve foreground cards and the dark hero copy card. */
-html,body{background:#fff!important}
-.pt-landing,
-.pt-landing .pt-hero,
-.pt-landing .pt-section,
-.pt-landing .pt-final-cta,
-.pt-landing .pt-footer,
-.pt-landing .pt-legal-main{
-  background-color:#fff!important;
-}
-.pt-process-section:before,
-.pt-revenue-section:before,
-.pt-peter-section:before,
-.pt-final-cta:before{
-  background:#fff!important;
-}
+/* Set only the overall page canvas to white; retain each section's original styling. */
+html,body,.pt-landing{background:#fff!important}
+.pt-live-chat-top{box-shadow:none!important}

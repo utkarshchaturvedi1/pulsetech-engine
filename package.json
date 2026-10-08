@@ -12,7 +12,8 @@
     "test:owner-pricing-regression": "npx --yes tsx scripts/test-owner-pricing-regression.ts",
     "test:demo-chat": "npx --yes tsx scripts/test-demo-chat.ts",
     "test:handoff-timing": "npx --yes tsx scripts/test-handoff-timing.ts",
-    "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts"
+    "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts",
+    "test:paddle-sandbox-webhook": "npx --yes tsx scripts/test-paddle-sandbox-webhook.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",

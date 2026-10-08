@@ -134,7 +134,7 @@ export default function LandingPage() {
         <section className="pt-section pt-peter-section">
           <div className="pt-heading">
             <p className="pt-eyebrow">YOUR BUSINESS. YOUR RULES.</p>
-            <h2>Not another generic AI. Yours.</h2>
+            <h2>Not another generic AI. It’s yours.</h2>
             <p>Your AI Sales Employee is built specifically around your business, your services and the way you work. And your website doesn't need to contain everything.</p>
           </div>
           <PeterTransfer />

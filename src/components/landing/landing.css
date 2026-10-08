@@ -1205,3 +1205,9 @@
 .pt-live-chat-body [data-chat-messages]{
   background:transparent!important;
 }
+
+
+/* Give the transparent chat panel a clearer, slightly darker lift from the page. */
+.pt-live-chat-body{
+  box-shadow:0 22px 46px rgba(14,26,48,.22),0 6px 16px rgba(14,26,48,.12)!important;
+}

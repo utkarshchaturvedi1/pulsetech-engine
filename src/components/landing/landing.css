@@ -1085,3 +1085,61 @@
   .pt-live-chat-body{height:460px!important}
   .pt-hero .pt-button{font-size:12px!important;padding:14px 18px!important}
 }
+
+
+/* White hero refinement: remove the two outer panels and let the content sit on the page. */
+.pt-hero{
+  background:#fff!important;
+  color:#071d36!important;
+}
+.pt-hero-copy{
+  background:transparent!important;
+  color:#071d36!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+.pt-hero .pt-eyebrow{color:#3477cf!important}
+.pt-hero h1{
+  color:#071d36!important;
+  text-shadow:none!important;
+}
+.pt-hero h1 span{
+  background:linear-gradient(100deg,#0878ff,#6659ff 72%)!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  color:transparent!important;
+  -webkit-text-fill-color:transparent!important;
+}
+.pt-hero .pt-lead{color:#5d6c7d!important}
+.pt-hero-visual{
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  padding:0!important;
+  overflow:visible!important;
+}
+.pt-live-chat{
+  overflow:visible!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.pt-live-chat-top{
+  position:relative!important;
+  z-index:5!important;
+  width:calc(100% - 42px)!important;
+  height:58px!important;
+  margin:0 auto 14px!important;
+  border:1px solid #e0e8f3!important;
+  border-radius:16px!important;
+  background:#fff!important;
+  box-shadow:0 12px 28px rgba(20,38,69,.12)!important;
+}
+.pt-live-chat-body{
+  border:1px solid #e2e9f2!important;
+  border-radius:22px!important;
+  background:#fff!important;
+  box-shadow:0 14px 32px rgba(20,38,69,.11)!important;
+}

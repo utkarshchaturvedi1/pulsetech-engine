@@ -1211,3 +1211,21 @@
 .pt-live-chat-body{
   box-shadow:0 22px 46px rgba(14,26,48,.22),0 6px 16px rgba(14,26,48,.12)!important;
 }
+
+
+/* Pure-white website canvas; preserve foreground cards and the dark hero copy card. */
+html,body{background:#fff!important}
+.pt-landing,
+.pt-landing .pt-hero,
+.pt-landing .pt-section,
+.pt-landing .pt-final-cta,
+.pt-landing .pt-footer,
+.pt-landing .pt-legal-main{
+  background-color:#fff!important;
+}
+.pt-process-section:before,
+.pt-revenue-section:before,
+.pt-peter-section:before,
+.pt-final-cta:before{
+  background:#fff!important;
+}

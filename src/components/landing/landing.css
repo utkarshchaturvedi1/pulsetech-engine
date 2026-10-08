@@ -1216,3 +1216,25 @@
 /* Set only the overall page canvas to white; retain each section's original styling. */
 html,body,.pt-landing{background:#fff!important}
 .pt-live-chat-top{box-shadow:none!important}
+
+
+/* Final CTA panel aligned with the matte-black hero, with a high-contrast button. */
+.pt-final-cta{
+  background:#08090b!important;
+  color:#f5f6f8!important;
+}
+.pt-final-cta:before{display:none!important}
+.pt-final-cta .pt-eyebrow{color:#c5cbd4!important}
+.pt-final-cta p:not(.pt-eyebrow){color:#d5dae2!important}
+.pt-final-cta .pt-final-orb{display:none!important}
+.pt-final-cta .pt-button{
+  background:#c7ff4b!important;
+  color:#111216!important;
+  border:1px solid #c7ff4b!important;
+  box-shadow:0 8px 24px rgba(199,255,75,.22)!important;
+}
+.pt-final-cta .pt-button:hover{
+  background:#d6ff78!important;
+  color:#111216!important;
+  box-shadow:0 10px 28px rgba(199,255,75,.3)!important;
+}

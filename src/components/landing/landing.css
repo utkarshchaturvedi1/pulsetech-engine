@@ -1143,3 +1143,7 @@
   background:#fff!important;
   box-shadow:0 14px 32px rgba(20,38,69,.11)!important;
 }
+
+
+/* Restore dark text fill for the first headline line on the white hero. */
+.pt-hero h1{-webkit-text-fill-color:#071d36!important}

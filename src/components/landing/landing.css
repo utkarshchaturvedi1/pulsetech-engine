@@ -1195,3 +1195,13 @@
   .pt-hero-copy{padding:26px 22px!important;border-radius:18px!important}
   .pt-live-chat-body{height:490px!important}
 }
+
+
+/* Keep the chat frame and controls, but let the hero canvas show through the chat body. */
+.pt-hero{background:transparent!important}
+.pt-live-chat-body,
+.pt-live-chat-body [data-customer-widget-shell],
+.pt-live-chat-body [data-chat-window],
+.pt-live-chat-body [data-chat-messages]{
+  background:transparent!important;
+}

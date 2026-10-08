@@ -1147,3 +1147,51 @@
 
 /* Restore dark text fill for the first headline line on the white hero. */
 .pt-hero h1{-webkit-text-fill-color:#071d36!important}
+
+
+/* Restore the approved two-panel hero composition while keeping the page canvas white. */
+.pt-hero-copy{
+  background:#111216!important;
+  color:#f5f6f8!important;
+  border:0!important;
+  border-radius:22px!important;
+  box-shadow:none!important;
+  padding:clamp(28px,4vw,52px)!important;
+}
+.pt-hero .pt-eyebrow{color:#3477ff!important}
+.pt-hero h1,
+.pt-hero h1 span{
+  background:none!important;
+  -webkit-background-clip:border-box!important;
+  background-clip:border-box!important;
+  color:#f5f6f8!important;
+  -webkit-text-fill-color:#f5f6f8!important;
+}
+.pt-hero h1 span{color:#c7ff4b!important;-webkit-text-fill-color:#c7ff4b!important}
+.pt-hero .pt-lead{color:#f0f1f3!important}
+.pt-hero-visual{
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  padding:0!important;
+  overflow:visible!important;
+}
+.pt-live-chat{
+  width:100%!important;
+  max-width:510px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+}
+.pt-live-chat-top{
+  width:100%!important;
+  margin:0 0 12px!important;
+}
+.pt-live-chat-body{width:100%!important;height:515px!important}
+@media(max-width:699px){
+  .pt-hero-copy{padding:26px 22px!important;border-radius:18px!important}
+  .pt-live-chat-body{height:490px!important}
+}

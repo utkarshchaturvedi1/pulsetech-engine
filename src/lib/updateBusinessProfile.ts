@@ -7,10 +7,16 @@ import {
   type OwnerProfilePatch,
 } from "./ownerProfileUpdate";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  timeout: 60000,
-});
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured.");
+  }
+  return new OpenAI({
+    apiKey,
+    timeout: 60000,
+  });
+}
 
 export async function applyOwnerFeedbackToProfile(
   business: BusinessProfile,
@@ -47,7 +53,7 @@ Rules:
 - Return JSON only.
 `;
 
-  const response = await openai.responses.create({
+  const response = await getOpenAI().responses.create({
     model: "gpt-5-mini",
     input: prompt,
     text: {

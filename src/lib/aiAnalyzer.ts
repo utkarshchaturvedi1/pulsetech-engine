@@ -1,6 +1,100 @@
-import OpenAI from "openai";
+import OpenAI, {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIError,
+} from "openai";
 import { BusinessProfile } from "../types/business";
 import { createBusinessProfile } from "./businessProfile";
+
+export type OpenAIFailureCategory =
+  | "missing_key"
+  | "authentication"
+  | "permissions"
+  | "quota"
+  | "rate_limit"
+  | "timeout"
+  | "connection"
+  | "request"
+  | "not_found"
+  | "upstream"
+  | "unknown";
+
+export type OpenAIFailureDiagnostic = {
+  category: OpenAIFailureCategory;
+  name: string;
+  status: number | null;
+  type: string | null;
+  code: string | null;
+  requestID: string | null;
+  message: string;
+};
+
+function safeDiagnosticMessage(value: unknown): string {
+  return String(value ?? "")
+    .replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-REDACTED")
+    .replace(/Bearer\s+\S+/gi, "Bearer REDACTED")
+    .slice(0, 300);
+}
+
+export function describeOpenAIFailure(error: unknown): OpenAIFailureDiagnostic {
+  const message = safeDiagnosticMessage(
+    error instanceof Error ? error.message : error
+  );
+  const name = error instanceof Error ? error.name : "UnknownError";
+  const base = {
+    name,
+    status: null,
+    type: null,
+    code: null,
+    requestID: null,
+    message,
+  };
+
+  if (/OPENAI_API_KEY is not configured/i.test(message)) {
+    return { ...base, category: "missing_key" };
+  }
+
+  if (error instanceof APIConnectionTimeoutError) {
+    return { ...base, category: "timeout" };
+  }
+
+  if (error instanceof APIConnectionError) {
+    return { ...base, category: "connection" };
+  }
+
+  if (!(error instanceof APIError) && /timed out|timeout/i.test(message)) {
+    return { ...base, category: "timeout" };
+  }
+
+  if (error instanceof APIError) {
+    const code = typeof error.code === "string" ? error.code : null;
+    const type = typeof error.type === "string" ? error.type : null;
+    const status = typeof error.status === "number" ? error.status : null;
+    const quota =
+      code === "credit_balance_exhausted" ||
+      code === "insufficient_quota" ||
+      type === "insufficient_quota" ||
+      /credits remaining|insufficient[_\s-]?quota|billing/i.test(message);
+    let category: OpenAIFailureCategory = "unknown";
+    if (status === 401) category = "authentication";
+    else if (status === 403) category = "permissions";
+    else if (status === 404) category = "not_found";
+    else if (status === 400 || status === 422) category = "request";
+    else if (status === 429) category = quota ? "quota" : "rate_limit";
+    else if (status !== null && status >= 500) category = "upstream";
+    return {
+      category,
+      name: error.name,
+      status,
+      type,
+      code,
+      requestID: error.requestID ?? null,
+      message: safeDiagnosticMessage(error.message),
+    };
+  }
+
+  return { ...base, category: "unknown" };
+}
 
 function openaiClient() {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -118,7 +212,8 @@ Rules:
       },
     });
   } catch (error) {
-    console.error("OpenAI analyzeBusiness failed:", error);
+    const diagnostic = describeOpenAIFailure(error);
+    console.error("OpenAI analyzeBusiness failed:", diagnostic);
     throw new Error("OpenAI analysis failed.");
   }
 
@@ -181,6 +276,8 @@ Rules:
     serviceAreas: data.serviceAreas ?? [],
     faqs: data.faqs ?? [],
     leadQuestions: data.leadQuestions ?? [],
+    ownerLeadQuestions: [],
+    configurationHistory: [{ source: "website", leadQuestions: data.leadQuestions ?? [] }],
     systemPrompt: data.systemPrompt ?? "",
     isTestData: false,
   });

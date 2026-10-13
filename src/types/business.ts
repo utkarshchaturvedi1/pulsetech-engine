@@ -1,3 +1,9 @@
+export type ConfigurationHistoryEvent = {
+  source: "website" | "owner";
+  leadQuestions?: string[];
+  removedLeadQuestions?: string[];
+};
+
 export type BusinessProfile = {
   website: string;
 
@@ -23,6 +29,24 @@ export type BusinessProfile = {
   }[];
 
   leadQuestions: string[];
+
+  /**
+   * Questions the owner explicitly told Peter to ask before handoff.
+   * Undefined, with no configuration history, keeps every lead question required.
+   * An empty array means website-generated discovery questions are not compulsory.
+   * When this field is missing, configuration history can recover which questions
+   * the website generated and which the owner required. A question with no
+   * recorded origin stays required.
+   */
+  ownerLeadQuestions?: string[];
+
+  /**
+   * Append-only origin of lead questions. Website analysis and owner updates
+   * record the questions they added or removed. Load uses this to repair saved
+   * profiles that predate ownerLeadQuestions, and does not infer origin when
+   * an entry is missing.
+   */
+  configurationHistory?: ConfigurationHistoryEvent[];
 
   systemPrompt: string;
 

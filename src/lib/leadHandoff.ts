@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { BusinessProfile } from "../types/business";
-import { synchronizeOwnerQuestions } from "./ownerQuestions";
+import { recordedOwnerAnswerLines, synchronizeOwnerQuestions } from "./ownerQuestions";
 import { SalesState } from "./salesState";
 import {
   resolveWebsiteChatLeadAlert,
@@ -57,7 +57,7 @@ function formatCustomerStatus(state: SalesState): string {
 }
 
 function buildCustomerContextSection(state: SalesState): string | null {
-  const lines = [...(state.customerContext || []), ...(state.requiredOwnerQuestions || []).filter((q) => state.ownerQuestionAnswers?.[q]).map((q) => `${q} ${state.ownerQuestionAnswers[q]}`)];
+  const lines = [...(state.customerContext || []), ...recordedOwnerAnswerLines(state)];
   return lines.length ? lines.map((c) => `- ${c}`).join("\n") : null;
 }
 
@@ -282,7 +282,7 @@ export function buildWebsiteLeadSms(
     (state.lead.name || "Unknown") + " | " + (state.lead.phone || "no phone"),
     state.lead.address || "",
     state.preferredTiming ? `Preferred visit time: ${state.preferredTiming}` : "",
-    ...(state.requiredOwnerQuestions || []).filter((q) => state.ownerQuestionAnswers?.[q]).map((q) => `${q} ${state.ownerQuestionAnswers[q]}`),
+    ...recordedOwnerAnswerLines(state),
   ]
     .filter(Boolean)
     .join("\n")

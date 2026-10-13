@@ -24,7 +24,8 @@ import {
   validateSalesReply,
 } from "./salesController";
 import { SalesState } from "./salesState";
-import { assistantPromptedOwnerQuestion, explicitOwnerAnswer, ownerQuestionClarification, ownerQuestionReply, ownerRequiredQuestions, replyNeedsOwnerClarification } from "./ownerQuestions";
+import { describeOpenAIFailure } from "./aiAnalyzer";
+import { assistantPromptedOwnerQuestion, explicitOwnerAnswer, ownerQuestionClarification, ownerQuestionReply, ownerRequiredQuestions, replyNeedsOwnerClarification, replyRepeatsAnsweredOwnerQuestion } from "./ownerQuestions";
 import { asksVisitPrice, scopedPricing, feeOnlyPriceReply } from "./pricingScope";
 import { buildIntentAwarePriceAnswer, buildPostContactPriceReply, buildPostContactNextStepReply } from "./salesConversation";
 import { messageAsksPricingOrBilling } from "./schedulingPolicy";
@@ -34,6 +35,19 @@ function getOpenAI() {
     apiKey: process.env.OPENAI_API_KEY,
     timeout: 60000,
   });
+}
+
+function replyWithoutRepeatedOwnerQuestion(
+  reply: string,
+  state: SalesState,
+  business: BusinessProfile
+): string {
+  const repeated = replyRepeatsAnsweredOwnerQuestion(reply, state);
+  if (!repeated) return reply;
+  state.responseChecks = [...(state.responseChecks || []), `repeated_owner_question:${repeated}`];
+  const next = ownerQuestionReply(state);
+  if (next && !replyRepeatsAnsweredOwnerQuestion(next, state)) return next;
+  return buildPostContactNextStepReply(state, business);
 }
 
 export type SalesChatMessage = {
@@ -519,6 +533,15 @@ export async function generateSalesReply(
     business,
     ownerAnswerVerified
   );
+  const stillPending = salesState.pendingOwnerQuestion;
+  if (
+    stillPending &&
+    !salesState.ownerQuestionAnswers?.[stillPending] &&
+    previousAssistant?.content.trim() === ownerQuestionClarification(stillPending)
+  ) {
+    salesState.unresolvedOwnerQuestions = [...(salesState.unresolvedOwnerQuestions || []), stillPending];
+    salesState.pendingOwnerQuestion = null;
+  }
   const leadDetectionMs = Date.now() - detectStarted;
 
   const handoffStarted = Date.now();
@@ -565,7 +588,7 @@ export async function generateSalesReply(
   // Mandatory owner qualification is a state gate, not optional model prompting.
   // Direct price questions remain answer-first; append only the next owner question.
   const ownerAsk = ownerQuestionReply(salesState);
-  const priceTurn = messageAsksPricingOrBilling(latestUser?.content || "");
+  const priceTurn = messageAsksPricingOrBilling(latestUser?.content || "") || asksVisitPrice(latestUser?.content);
   const clarifyOwnerAnswer = !!ownerAsk && previousState?.pendingOwnerQuestion === ownerAsk && replyNeedsOwnerClarification(ownerAsk, latestUser?.content || "");
   const factAnswer = clarifyOwnerAnswer ? null : answerBusinessFactQuestion(business, latestUser?.content || "");
   const ownerFollowUp = ownerAsk && (clarifyOwnerAnswer ? ownerQuestionClarification(ownerAsk) : ownerAsk);
@@ -606,6 +629,14 @@ export async function generateSalesReply(
       latestUser?.content
     );
   }
+  // A fact question still needs its saved answer on the turn that completes the
+  // last owner question. Leaving it only on the owner-follow-up path drops it.
+  // Contact capture stays first, so this does not run before name, phone, and address.
+  if (!ownerFollowUp && factAnswer && salesState.lead.name && salesState.lead.phone && salesState.lead.address) {
+    salesState.currentObjective = priceTurn ? "HANDLE_PRICE_OBJECTION" : "ANSWER";
+    const pricePrefix = priceTurn ? `${buildIntentAwarePriceAnswer(salesState, business, latestUser?.content)} ` : "";
+    deterministicHandoffReply = `${pricePrefix}${factAnswer}${deterministicHandoffReply ? ` ${deterministicHandoffReply}` : ""}`.trim();
+  }
   const pricing = scopedPricing(business);
   // Unknown service pricing merits a need-specific explanation. Deterministic
   // handoff acknowledgements stay fast; no model call just to close a lead.
@@ -628,7 +659,7 @@ export async function generateSalesReply(
       ...transport,
     });
     return {
-      reply: deterministicHandoffReply,
+      reply: replyWithoutRepeatedOwnerQuestion(deterministicHandoffReply, salesState, business),
       salesState,
       leadDelivery: handoff.delivery,
     };
@@ -675,8 +706,20 @@ ${extra}`
   try {
     reply = await requestReply();
   } catch (error) {
-    if (!enrichPrice) throw error;
-    reply = safePriceFallback;
+    const failure = describeOpenAIFailure(error);
+    console.error("[openai]", failure.category, failure.status ?? "", failure.message);
+    const retryable = failure.category === "rate_limit" || failure.category === "timeout" || failure.category === "upstream" || failure.category === "connection";
+    if (retryable) {
+      try {
+        reply = await requestReply();
+      } catch (retryError) {
+        const retryFailure = describeOpenAIFailure(retryError);
+        console.error("[openai:retry]", retryFailure.category, retryFailure.status ?? "", retryFailure.message);
+        reply = safePriceFallback || resolveDeterministicPreContactReply(salesState, business, latestUser?.content) || ownerAsk || buildPostContactNextStepReply(salesState, business);
+      }
+    } else {
+      reply = safePriceFallback || resolveDeterministicPreContactReply(salesState, business, latestUser?.content) || ownerAsk || buildPostContactNextStepReply(salesState, business);
+    }
   }
   let validation = validateSalesReply(
     reply,
@@ -726,7 +769,7 @@ ${extra}`
   });
 
   return {
-    reply,
+    reply: replyWithoutRepeatedOwnerQuestion(reply, salesState, business),
     salesState,
     leadDelivery: handoff.delivery,
   };

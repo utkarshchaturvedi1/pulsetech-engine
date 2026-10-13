@@ -76,7 +76,11 @@ export type SalesState = {
   requiredOwnerQuestions: string[];
   ownerQuestionAnswers: Record<string, string>;
   pendingOwnerQuestion: string | null;
+  /** Owner questions clarified once that the customer still did not answer. */
+  unresolvedOwnerQuestions: string[];
   priceQuestionCount: number;
+  /** Checker blocks, recorded as stable codes. Not customer-facing. */
+  responseChecks: string[];
   summary: string;
 };
 
@@ -146,7 +150,9 @@ export function createInitialSalesState(
     requiredOwnerQuestions: [],
     ownerQuestionAnswers: {},
     pendingOwnerQuestion: null,
+    unresolvedOwnerQuestions: [],
     priceQuestionCount: 0,
+    responseChecks: [],
     summary: "New conversation. No lead secured yet.",
   };
 }
@@ -198,7 +204,9 @@ export function normalizeSalesState(value: SalesState): SalesState {
     requiredOwnerQuestions: [...(value.requiredOwnerQuestions || [])],
     ownerQuestionAnswers: { ...(value.ownerQuestionAnswers || {}) },
     pendingOwnerQuestion: value.pendingOwnerQuestion ?? null,
+    unresolvedOwnerQuestions: [...(value.unresolvedOwnerQuestions || [])],
     priceQuestionCount: value.priceQuestionCount ?? 0,
+    responseChecks: [...(value.responseChecks || [])],
     conversationId: value.conversationId ?? "",
     businessKey: value.businessKey ?? "",
   };

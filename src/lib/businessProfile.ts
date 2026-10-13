@@ -42,6 +42,16 @@ export function cloneBusinessProfile(business: BusinessProfile): BusinessProfile
     services: [...(business.services || [])],
     serviceAreas: [...(business.serviceAreas || [])],
     leadQuestions: [...(business.leadQuestions || [])],
+    ownerLeadQuestions: Array.isArray(business.ownerLeadQuestions)
+      ? [...business.ownerLeadQuestions]
+      : undefined,
+    configurationHistory: Array.isArray(business.configurationHistory)
+      ? business.configurationHistory.map((event) => ({
+          source: event.source,
+          leadQuestions: Array.isArray(event.leadQuestions) ? [...event.leadQuestions] : undefined,
+          removedLeadQuestions: Array.isArray(event.removedLeadQuestions) ? [...event.removedLeadQuestions] : undefined,
+        }))
+      : undefined,
     faqs: (business.faqs || []).map((faq) => ({ ...faq })),
   };
 }

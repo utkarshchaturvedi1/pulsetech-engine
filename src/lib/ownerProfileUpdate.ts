@@ -1,5 +1,10 @@
-import { BusinessProfile } from "../types/business";
+import { BusinessProfile, ConfigurationHistoryEvent } from "../types/business";
 import { cloneBusinessProfile } from "./businessProfile";
+import { recoverOwnerLeadQuestions } from "./ownerQuestions";
+
+function appendConfigurationEvent(profile: BusinessProfile, event: ConfigurationHistoryEvent) {
+  profile.configurationHistory = [...(profile.configurationHistory || []), event];
+}
 
 export type OwnerProfilePatch = Partial<
   Pick<
@@ -70,6 +75,10 @@ export function mergeOwnerProfileUpdate(
     } else if (key === "leadQuestions" || key === "services" || key === "serviceAreas") {
       for (const value of values) if (!next[key].includes(value)) throw new Error("Owner correction targets an unknown item");
       next[key] = next[key].filter((v) => !values.includes(v));
+      if (key === "leadQuestions") {
+        if (next.ownerLeadQuestions) next.ownerLeadQuestions = next.ownerLeadQuestions.filter((v) => !values.includes(v));
+        appendConfigurationEvent(next, { source: "owner", removedLeadQuestions: values });
+      }
     } else if (key === "faqs") {
       for (const value of values) if (!next.faqs.some((f) => f.question === value)) throw new Error("Unknown FAQ correction");
       next.faqs = next.faqs.filter((f) => !values.includes(f.question));
@@ -81,7 +90,16 @@ export function mergeOwnerProfileUpdate(
     if (value === undefined) continue;
     if (key === "leadQuestions" || key === "services" || key === "serviceAreas") {
       if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim())) throw new Error(`Invalid owner configuration: ${key}`);
-      next[key] = [...new Map([...next[key], ...value as string[]].map((item) => [item.trim().toLowerCase(), item.trim()])).values()];
+      const added = value as string[];
+      next[key] = [...new Map([...next[key], ...added].map((item) => [item.trim().toLowerCase(), item.trim()])).values()];
+      if (key === "leadQuestions") {
+        const recorded = current.ownerLeadQuestions !== undefined
+          ? current.ownerLeadQuestions
+          : recoverOwnerLeadQuestions(current);
+        const requiredBase = (recorded ?? current.leadQuestions).filter((item) => !(patch.removeValues?.leadQuestions || []).includes(item));
+        next.ownerLeadQuestions = [...new Map([...requiredBase, ...added].map((item) => [item.trim().toLowerCase(), item.trim()])).values()];
+        appendConfigurationEvent(next, { source: "owner", leadQuestions: added.map((item) => item.trim()) });
+      }
     } else if (key === "systemPrompt" || key === "pricingRules") {
       if (typeof value !== "string") throw new Error(`Invalid owner configuration: ${key}`);
       const old = typeof next[key] === "string" ? next[key]!.trim() : "";

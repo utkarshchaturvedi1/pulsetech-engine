@@ -1,5 +1,5 @@
 import { BusinessProfile } from "../types/business";
-import { captureExplicitOwnerAnswers, captureOwnerQuestionAnswer, synchronizeOwnerQuestions } from "./ownerQuestions";
+import { captureExplicitOwnerAnswers, captureOwnerQuestionAnswer, replyRepeatsAnsweredOwnerQuestion, synchronizeOwnerQuestions } from "./ownerQuestions";
 import { feeOnlyPriceReply } from "./pricingScope";
 import { pricingRulesKnowledgeText } from "./businessProfile";
 import { evaluateHandoffReadiness } from "./leadHandoffShared";
@@ -2010,10 +2010,9 @@ export function validateSalesReply(
     reasons.push("PRESENT_SOLUTION turned into a full company brochure.");
   }
 
-  for (const [question, answer] of Object.entries(state.ownerQuestionAnswers || {})) {
-    if (answer && reply.includes(question)) {
-      reasons.push(`Re-asked an owner question the customer already answered: ${question}`);
-    }
+  const repeatedOwnerQuestion = replyRepeatsAnsweredOwnerQuestion(reply, state);
+  if (repeatedOwnerQuestion) {
+    reasons.push(`Re-asked an owner question the customer already answered: ${repeatedOwnerQuestion}`);
   }
 
   if (

@@ -43,6 +43,88 @@ function cleanOptionSide(side: string): string {
   return value;
 }
 
+const PART_START = /^(?:do|does|did|is|are|was|were|can|could|will|would|have|has|should|what|when|where|which|who|how)\b/i;
+
+/**
+ * Separate interrogative clauses joined by "and". An either/or choice stays one
+ * question. A clause that does not itself ask something stays with the original.
+ */
+export function ownerQuestionParts(question: string): string[] {
+  const text = question.trim();
+  if (!text) return [];
+  const pieces = text.replace(/[?]+$/g, "").trim().split(/\s*,?\s+\band\b\s+/i);
+  if (pieces.length < 2) return [text];
+  const parts: string[] = [];
+  for (let index = 0; index < pieces.length; index += 1) {
+    const clause = pieces[index].trim().replace(/[?.!]+$/g, "");
+    if (!clause || !PART_START.test(clause)) return [text];
+    const asked = clause.charAt(0).toUpperCase() + clause.slice(1);
+    parts.push(asked.endsWith("?") ? asked : `${asked}?`);
+  }
+  return parts.length > 1 ? parts : [text];
+}
+
+const OPTION_FUNCTION = new Set([
+  "a", "an", "the", "this", "that", "these", "those", "for", "about", "regarding", "of", "to",
+  "your", "our", "my", "any", "some", "is", "are", "do", "does", "did", "was", "were",
+  "can", "could", "will", "would", "should", "have", "has", "you", "we", "they", "i",
+  "it", "there", "please", "just", "also", "with", "from", "into", "onto", "and",
+]);
+
+function stripLeadingFunctions(value: string): string {
+  const words = value.split(/\s+/).filter(Boolean);
+  let index = 0;
+  while (index < words.length - 1 && OPTION_FUNCTION.has(words[index])) index += 1;
+  return words.slice(index).join(" ") || value;
+}
+
+/**
+ * Remove question scaffolding from either/or sides without collapsing a real
+ * multi-word alternative. Shared trailing nouns stay attached to both choices.
+ */
+function canonicalizeEitherOrPair(left: string, right: string): [string, string] {
+  let a = stripLeadingFunctions(left);
+  let b = stripLeadingFunctions(right);
+  const aWords = a.split(/\s+/);
+  const bWords = b.split(/\s+/);
+  if (
+    aWords.length > 1 &&
+    bWords.length > 1 &&
+    aWords[aWords.length - 1] === bWords[bWords.length - 1]
+  ) {
+    a = stripLeadingFunctions(aWords.slice(0, -1).join(" "));
+    b = stripLeadingFunctions(bWords.slice(0, -1).join(" "));
+  }
+  const reduceStem = (long: string, short: string): string => {
+    const longWords = long.split(/\s+/);
+    const shortWords = short.split(/\s+/);
+    if (shortWords.length !== 1 || longWords.length < 2) return long;
+    if (!longWords.some((word) => OPTION_FUNCTION.has(word))) return long;
+    const lastFunction = longWords.reduce(
+      (found, word, index) => (OPTION_FUNCTION.has(word) ? index : found),
+      -1
+    );
+    if (lastFunction >= 0 && lastFunction < longWords.length - 1) {
+      return longWords.slice(lastFunction + 1).join(" ");
+    }
+    return long;
+  };
+  if (a.split(/\s+/).length > b.split(/\s+/).length) a = reduceStem(a, b);
+  if (b.split(/\s+/).length > a.split(/\s+/).length) b = reduceStem(b, a);
+  const shareHead = (short: string, long: string): [string, string] => {
+    const longWords = long.split(/\s+/);
+    if (short.split(/\s+/).length !== 1 || longWords.length !== 2) return [short, long];
+    if (OPTION_FUNCTION.has(longWords[0]) || OPTION_FUNCTION.has(longWords[1])) return [short, long];
+    return [`${short} ${longWords[1]}`, long];
+  };
+  if (a.split(/\s+/).length === 1 && b.split(/\s+/).length === 2) {
+    [a, b] = shareHead(a, b);
+  } else if (b.split(/\s+/).length === 1 && a.split(/\s+/).length === 2) {
+    [b, a] = shareHead(b, a);
+  }
+  return [a, b];
+}
+
 function eitherOrOptions(question: string): [string, string] | null {
   if (!/\b(?:is|are|do|does|did|was|were)\b/i.test(question)) return null;
   const cleaned = question.replace(/[?]+$/g, "").trim();
@@ -51,10 +133,14 @@ function eitherOrOptions(question: string): [string, string] | null {
   let right = cleanOptionSide(cleaned.slice(orAt + 4));
   let left = cleanOptionSide(cleaned.slice(0, orAt));
   if (!left || !right) return null;
+  if (/^(?:have|has|do|does|did)\b/.test(left)) return null;
   const leftWords = left.split(/\s+/).filter(Boolean);
   const rightWords = right.split(/\s+/).filter(Boolean);
+  // The left side often still contains the question stem. Keep its last word
+  // when the right side is already a single choice. Do not collapse a longer
+  // right-hand alternative to its final word.
   if (rightWords.length === 1 && leftWords.length > 1) left = leftWords[leftWords.length - 1];
-  if (leftWords.length === 1 && rightWords.length > 1) right = rightWords[rightWords.length - 1];
+  [left, right] = canonicalizeEitherOrPair(left, right);
   if (!/^[a-z][a-z\s-]*$/i.test(left) || !/^[a-z][a-z\s-]*$/i.test(right) || left === right) return null;
   return [left, right];
 }
@@ -139,6 +225,47 @@ export function recognizedEitherOrAnswer(question: string, reply: string, allowO
     if (selected) picks.add(selected);
   }
   if (picks.size === 1) return [...picks][0];
+  if (picks.size > 1) return null;
+  return choiceByDistinctiveTerms(full, options);
+}
+
+const OPTION_TERM_STOP = /^(?:about|after|again|being|could|every|other|right|their|there|these|those|under|where|which|while|would)$/i;
+
+function optionTerms(option: string): string[] {
+  return [...new Set(option.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 4 && !OPTION_TERM_STOP.test(word)))];
+}
+
+function termPolarity(text: string, term: string): "positive" | "negated" | null {
+  const word = escapeRegExp(term);
+  if (new RegExp(`\\b(?:non[-\\s]?${word}|(?:not|no|isn'?t|aren'?t|rather than)\\s+(?:a\\s+|an\\s+|the\\s+)?${word})\\b`, "i").test(text)) return "negated";
+  if (new RegExp(`\\b${word}\\b`, "i").test(text)) return "positive";
+  return null;
+}
+
+/** Select the option named by a term that appears on only one side, including a negated term. */
+function choiceByDistinctiveTerms(reply: string, options: [string, string]): string | null {
+  if (isUncertainChoice(reply) || /[?]/.test(reply)) return null;
+  const owner = new Map<string, string>();
+  const counts = new Map<string, number>();
+  for (const option of options) {
+    for (const term of optionTerms(option)) {
+      counts.set(term, (counts.get(term) || 0) + 1);
+      if (!owner.has(term)) owner.set(term, option);
+    }
+  }
+  const distinctive = [...owner.entries()].filter(([term]) => counts.get(term) === 1);
+  const positive = new Set<string>();
+  const negated = new Set<string>();
+  for (const clause of decisiveClauses(reply)) {
+    for (const [term, option] of distinctive) {
+      const polarity = termPolarity(clause, term);
+      if (polarity === "positive") positive.add(option);
+      if (polarity === "negated") negated.add(option);
+    }
+  }
+  for (const option of positive) negated.delete(option);
+  if (positive.size === 1) return [...positive][0];
+  if (positive.size === 0 && negated.size === 1) return options.find((option) => !negated.has(option)) || null;
   return null;
 }
 
@@ -231,9 +358,41 @@ export function ownerQuestionClarification(question: string): string {
   return "Could you tell me which part applies?";
 }
 
+function questionContentWords(value: string): string[] {
+  return [...new Set(
+    value
+      .toLowerCase()
+      .replace(/[?.!,;:'"]/g, " ")
+      .split(/\s+/)
+      .filter((word) => word.length > 4 && !OPTION_FUNCTION.has(word) && !YES_NO_STOP.test(word))
+  )];
+}
+
 export function assistantPromptedOwnerQuestion(previous: string | undefined, question: string): boolean {
   if (!previous || !question) return false;
-  return previous.includes(question) || previous.trim() === ownerQuestionClarification(question);
+  if (previous.includes(question) || previous.trim() === ownerQuestionClarification(question)) return true;
+  const parts = ownerQuestionParts(question);
+  if (parts.length > 1 && parts.some((part) => part !== question && previous.includes(part))) return true;
+  const expected = questionContentWords(question);
+  if (!expected.length) return false;
+  const said = new Set(questionContentWords(previous));
+  const overlap = expected.filter((word) => said.has(word));
+  return overlap.length >= Math.min(2, expected.length);
+}
+
+/** True when customer-facing text asks an owner question that already has an answer. */
+export function replyRepeatsAnsweredOwnerQuestion(reply: string, state: SalesState): string | null {
+  const text = reply.trim();
+  if (!text) return null;
+  for (const [question, answer] of Object.entries(state.ownerQuestionAnswers || {})) {
+    if (!answer) continue;
+    if (text.includes(question)) return question;
+    const options = eitherOrOptions(question);
+    if (!options || !text.includes("?")) continue;
+    const mentions = options.filter((option) => new RegExp(`\\b${escapeRegExp(option)}\\b`, "i").test(text));
+    if (mentions.length === options.length) return question;
+  }
+  return null;
 }
 
 /** An attempted answer whose meaning is still not a choice. Price and phone interruptions stay on their own path. */
@@ -242,8 +401,7 @@ export function replyNeedsOwnerClarification(question: string, reply: string): b
   if (!text || isPhoneOnly(text) || isPriceOnlyMessage(text) || explicitOwnerAnswer(question, text)) return false;
   if (outOfRangeOrdinal(question, text) || isUncertainChoice(text)) return true;
   if (!eitherOrOptions(question) || recognizedEitherOrAnswer(question, text)) return false;
-  const ambiguousYesNo = decisiveClauses(text).filter((clause) => BARE_YES_NO.test(clause)).length === 1;
-  return /\?/.test(text) || ambiguousYesNo;
+  return true;
 }
 
 /** Narrow, explicit answers that do not require a remote classifier. */
@@ -258,22 +416,101 @@ export function explicitOwnerAnswer(question: string, reply: string): boolean {
   return descriptionQuestion && clausesOf(text).some((clause) => !PRICE_CLAUSE.test(clause) && DESCRIPTION_ANSWER.test(clause));
 }
 
+function questionKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/**
+ * When ownerLeadQuestions was never saved, use recorded website and owner
+ * events. Questions the history does not mention stay required.
+ * Returns undefined when there is no usable history, so callers keep the
+ * legacy "every lead question is required" behavior instead of guessing.
+ */
+export function recoverOwnerLeadQuestions(business: BusinessProfile): string[] | undefined {
+  if (business.ownerLeadQuestions !== undefined) return [...business.ownerLeadQuestions];
+  const history = business.configurationHistory;
+  if (!Array.isArray(history)) return undefined;
+  const origin = new Map<string, "website" | "owner">();
+  let sawOrigin = false;
+  for (const event of history) {
+    if (!event || (event.source !== "website" && event.source !== "owner")) continue;
+    sawOrigin = true;
+    for (const raw of event.removedLeadQuestions || []) {
+      if (typeof raw === "string" && raw.trim()) origin.delete(questionKey(raw));
+    }
+    for (const raw of event.leadQuestions || []) {
+      if (typeof raw === "string" && raw.trim()) origin.set(questionKey(raw), event.source);
+    }
+  }
+  if (!sawOrigin) return undefined;
+  const required: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of business.leadQuestions || []) {
+    if (typeof raw !== "string" || !raw.trim()) continue;
+    const trimmed = raw.trim();
+    const key = questionKey(trimmed);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (origin.get(key) === "website") continue;
+    required.push(trimmed);
+  }
+  return required;
+}
+
 export function ownerRequiredQuestions(business: BusinessProfile): string[] {
-  return [...new Set((business.leadQuestions || []).map((q) => q.trim()).filter((q) => q && !CORE_QUESTION.test(q)))];
+  const source = recoverOwnerLeadQuestions(business) ?? business.leadQuestions ?? [];
+  return [...new Set(source.map((q) => q.trim()).filter((q) => q && !CORE_QUESTION.test(q)))];
+}
+
+export function websiteDiscoveryQuestions(business: BusinessProfile): string[] {
+  const required = new Set(ownerRequiredQuestions(business));
+  return [...new Set((business.leadQuestions || []).map((q) => q.trim()).filter((q) => q && !CORE_QUESTION.test(q) && !required.has(q)))];
+}
+
+function parentOwnerQuestion(state: SalesState, pending: string): string {
+  if ((state.requiredOwnerQuestions || []).includes(pending)) return pending;
+  return (state.requiredOwnerQuestions || []).find((question) => ownerQuestionParts(question).includes(pending)) || pending;
+}
+
+export function ownerQuestionSatisfied(state: SalesState, question: string): boolean {
+  const parts = ownerQuestionParts(question);
+  if (parts.length <= 1) return !!state.ownerQuestionAnswers?.[question];
+  return parts.every((part) => !!state.ownerQuestionAnswers?.[part]);
 }
 
 export function synchronizeOwnerQuestions(state: SalesState, business: BusinessProfile): SalesState {
   const required = ownerRequiredQuestions(business);
+  const pending = state.pendingOwnerQuestion;
+  const pendingStillOpen = !!pending && required.some((question) => question === pending || ownerQuestionParts(question).includes(pending));
   return {
     ...state,
     ownerQuestionAnswers: { ...(state.ownerQuestionAnswers || {}) },
     requiredOwnerQuestions: required,
-    pendingOwnerQuestion: required.includes(state.pendingOwnerQuestion || "") ? state.pendingOwnerQuestion : null,
+    pendingOwnerQuestion: pendingStillOpen ? pending : null,
   };
 }
 
 export function missingOwnerQuestions(state: SalesState): string[] {
-  return (state.requiredOwnerQuestions || []).filter((q) => !state.ownerQuestionAnswers?.[q]);
+  const unresolved = new Set(state.unresolvedOwnerQuestions || []);
+  return (state.requiredOwnerQuestions || []).filter((question) => !unresolved.has(question) && !ownerQuestionSatisfied(state, question));
+}
+
+/** Answered owner instructions, with each part of a compound instruction kept separately. */
+export function recordedOwnerAnswerLines(state: SalesState): string[] {
+  const lines: string[] = [];
+  for (const question of state.requiredOwnerQuestions || []) {
+    const parts = ownerQuestionParts(question);
+    if (parts.length <= 1) {
+      const answer = state.ownerQuestionAnswers?.[question];
+      if (answer) lines.push(`${question} ${answer}`);
+      continue;
+    }
+    for (const part of parts) {
+      const answer = state.ownerQuestionAnswers?.[part];
+      if (answer) lines.push(`${part} ${answer}`);
+    }
+  }
+  return lines;
 }
 
 function storeOwnerAnswer(state: SalesState, question: string, latest: string): void {
@@ -281,12 +518,88 @@ function storeOwnerAnswer(state: SalesState, question: string, latest: string): 
   if (state.pendingOwnerQuestion === question) state.pendingOwnerQuestion = null;
 }
 
+function partContentTerms(part: string): string[] {
+  return part
+    .replace(/[?.!]/g, "")
+    .split(/\s+/)
+    .map((word) => word.toLowerCase())
+    .filter((word) => word.length > 3 && !YES_NO_STOP.test(word) && !PART_START.test(word));
+}
+
+function sentenceCoveringPart(part: string, reply: string): string | null {
+  const terms = partContentTerms(part);
+  if (!terms.length || eitherOrOptions(part)) return null;
+  const hit = sentenceList(reply).find((sentence) =>
+    !/[?]$/.test(sentence)
+    && !isUncertainChoice(sentence)
+    && terms.every((term) => new RegExp(`\\b${escapeRegExp(term)}\\b`, "i").test(sentence))
+  );
+  return hit || null;
+}
+
+function partAnswerText(part: string, reply: string): string | null {
+  const selected = recognizedEitherOrAnswer(part, reply);
+  if (selected) return selected;
+  const covered = sentenceCoveringPart(part, reply);
+  if (covered) return covered;
+  if (restatesYesNo(part, reply)) {
+    const preserved = preservedYesNoAnswer(part, reply);
+    if (preserved) return preserved;
+    const sentences = sentenceList(reply).filter((sentence) =>
+      !/[?]$/.test(sentence) && (clauseRestatesYesNo(part, sentence) || clausesOf(sentence).some((clause) => clauseRestatesYesNo(part, clause)))
+    );
+    return sentences.length === 1 ? sentences[0] : reply.trim();
+  }
+  const descriptionQuestion = /\b(?:describe|what)\b.*\b(?:problem|project|work|service|help)\b/i.test(part);
+  if (descriptionQuestion && clausesOf(reply).some((clause) => !PRICE_CLAUSE.test(clause) && DESCRIPTION_ANSWER.test(clause))) return reply.trim();
+  return null;
+}
+
+/** Attribute a reply to the parts it actually addresses. A bare yes or no fills only the first open part. */
+function assignPartAnswers(parts: string[], reply: string): Array<[string, string]> {
+  const assigned: Array<[string, string]> = [];
+  const used = new Set<string>();
+  for (const part of parts) {
+    const text = partAnswerText(part, reply);
+    if (!text || (BARE_YES_NO.test(text) && !restatesYesNo(part, reply) && !recognizedEitherOrAnswer(part, reply))) continue;
+    assigned.push([part, text]);
+    used.add(part);
+  }
+  const bare = bareYesNoSentence(reply);
+  if (bare) {
+    const open = parts.find((part) => !used.has(part) && /^(?:do|does|did|is|are|was|were|can|could|will|would|should|have|has)\b/i.test(part.trim()) && !eitherOrOptions(part));
+    if (open) assigned.push([open, bare]);
+  }
+  return assigned;
+}
+
+function storePartAnswers(state: SalesState, assigned: Array<[string, string]>): void {
+  for (const [part, answer] of assigned) state.ownerQuestionAnswers[part] = answer;
+  state.pendingOwnerQuestion = null;
+}
+
 /** Only consume an answer to the question the server actually asked. */
 export function captureOwnerQuestionAnswer(state: SalesState, latest: string, previousAssistant?: string, verified?: boolean): void {
   const pending = state.pendingOwnerQuestion;
   if (!pending || !assistantPromptedOwnerQuestion(previousAssistant, pending)) return;
+  const parent = parentOwnerQuestion(state, pending);
+  const parts = ownerQuestionParts(parent);
+  if (parts.length > 1) {
+    if (isPhoneOnly(latest) || isPriceOnlyMessage(latest)) return;
+    if (/\b(prefer not to answer|do not want to answer|don'?t want to answer|rather not say)\b/i.test(latest)) {
+      storePartAnswers(state, parts.filter((part) => !state.ownerQuestionAnswers[part]).map((part) => [part, latest.trim()]));
+      return;
+    }
+    const open = parts.filter((part) => !state.ownerQuestionAnswers[part]);
+    const focus = pending === parent ? open : open.filter((part) => part === pending);
+    const assigned = assignPartAnswers(focus.length ? focus : open, latest);
+    if (!assigned.length) return;
+    storePartAnswers(state, assigned);
+    return;
+  }
   if (explicitOwnerAnswer(pending, latest)) verified = true;
   if (deterministicOwnerRejection(pending, latest)) return;
+  if (eitherOrOptions(pending) && !recognizedEitherOrAnswer(pending, latest)) return;
   if (verified === false) return;
   // Semantic verification is question-specific; generic interruption patterns must
   // not veto a valid description, requested day, or other natural answer.
@@ -311,6 +624,15 @@ export function captureExplicitOwnerAnswers(state: SalesState, latest: string): 
   // A refusal or a bare yes/no completes only the question that was asked.
   if (/\b(prefer not to answer|do not want to answer|don'?t want to answer|rather not say)\b/i.test(latest)) return;
   for (const question of missingOwnerQuestions(state)) {
+    const parts = ownerQuestionParts(question);
+    if (parts.length > 1) {
+      const open = parts.filter((part) => !state.ownerQuestionAnswers[part]);
+      for (const [part, answer] of assignPartAnswers(open, latest)) {
+        if (BARE_YES_NO.test(answer)) continue;
+        state.ownerQuestionAnswers[part] = answer;
+      }
+      continue;
+    }
     if (deterministicOwnerRejection(question, latest)) continue;
     const selected = recognizedEitherOrAnswer(question, latest, false);
     const described =
@@ -326,6 +648,9 @@ export function ownerQuestionReply(state: SalesState): string | null {
   if (state.leadDeliveryStatus === "QUEUED" || state.leadDeliveryStatus === "SENT") return null;
   const question = missingOwnerQuestions(state)[0];
   if (!question) return null;
-  state.pendingOwnerQuestion = question;
-  return question;
+  const parts = ownerQuestionParts(question);
+  const missing = parts.filter((part) => !state.ownerQuestionAnswers?.[part] && !state.ownerQuestionAnswers?.[question]);
+  const ask = missing.length === parts.length || missing.length === 0 ? question : missing.join(" ");
+  state.pendingOwnerQuestion = missing.length === 1 ? missing[0] : question;
+  return ask;
 }

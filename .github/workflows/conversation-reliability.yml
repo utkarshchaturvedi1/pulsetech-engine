@@ -1,0 +1,25 @@
+name: Conversation reliability
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - preview/hero-matte-black
+      - fix/universal-conversation-reliability
+
+jobs:
+  conversation-reliability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run test:conversation-reliability
+      - run: npm run test:owner-pricing-regression
+      - run: npm run test:demo-chat
+      - run: npm run test:handoff-timing
+      - run: npm run test:inbound-voice
+      - run: npm run build

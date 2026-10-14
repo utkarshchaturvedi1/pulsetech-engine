@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 23069)
-Total output lines: 2401
-
 import { BusinessProfile } from "../types/business";
 import { captureExplicitOwnerAnswers, captureOwnerQuestionAnswer, replyRepeatsAnsweredOwnerQuestion, synchronizeOwnerQuestions } from "./ownerQuestions";
 import { feeOnlyPriceReply } from "./pricingScope";
@@ -1219,7 +1216,372 @@ export function updateSalesStateFromTurn(
     return state;
   }
 
-  const detectedIntent = dete…3069 tokens truncated…dQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}" If the customer asked a new question, answer that question and do not repeat delivery language.`
+  const detectedIntent = detectIntent(text);
+  const confirmationReply = isFieldConfirmationReply(text);
+  // Low-intent browsing should not permanently overwrite an active high-intent journey
+  // unless the conversation is still in discovery with no lead progress.
+  // Confirmation replies ("yes", "correct") never reset an in-progress capture.
+  if (
+    detectedIntent === "LOW" &&
+    state.leadStatus === "NOT_SECURED" &&
+    !state.lead.name &&
+    !confirmationReply &&
+    !isBareAffirmative(text)
+  ) {
+    state.intent = "LOW";
+  } else {
+    state.intent = maxIntent(state.intent, detectedIntent);
+  }
+
+  const urgency = detectSchedulingUrgency(text);
+  if (urgency) {
+    state.urgency = maxUrgency(state.urgency, urgency);
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      `Customer stated urgency: ${state.urgency}`
+    );
+  }
+
+  const timing =
+    extractPreferredTiming(text) ||
+    state.preferredTiming ||
+    extractPreferredTimingFromHistory(messages);
+  if (timing) {
+    const refined = refinePreferredTiming(state.preferredTiming, timing);
+    state.preferredTiming = refined;
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      `preferredTiming=${refined}`
+    );
+  }
+
+  const contactPreference = extractContactPreference(text);
+  if (contactPreference) {
+    state.contactPreference = contactPreference;
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      `contactPreference=${contactPreference}`
+    );
+  }
+
+  if (/\b(i(?:'m| am) home|someone (will be|is) home|i(?:'ll| will) be home)\b/i.test(text)) {
+    state.customerAvailable = true;
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      "Customer indicated someone will be available"
+    );
+  }
+
+  if (
+    /\b(don'?t want (an )?appointment|no appointment|not ready to (book|schedule))\b/i.test(
+      text
+    )
+  ) {
+    state.appointmentIntent = false;
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      "Customer does not want an appointment right now"
+    );
+  }
+
+  if (
+    state.appointmentIntent !== false &&
+    (detectVisitPreferenceRequest(text) ||
+      /\b(schedule|book|come out|send someone|need someone|appointment|arrange)\b/i.test(
+        text
+      ))
+  ) {
+    state.appointmentIntent = true;
+  }
+
+  const priorAssistant = lastAssistantMessage(messages);
+  if (
+    state.preferredTiming &&
+    extractPreferredTiming(text) &&
+    state.appointmentIntent !== false &&
+    assistantAskedForPreferredTime(priorAssistant)
+  ) {
+    state.appointmentIntent = true;
+  }
+  const confirmingName =
+    confirmationReply && assistantAskedToConfirmName(priorAssistant);
+  if (confirmingName && !isAuthoritativePersonName(state.lead.name)) {
+    const candidate =
+      extractName(previousUserMessage(messages), "COLLECT_NAME") ||
+      extractNameCandidateFromAssistant(priorAssistant) ||
+      (state.lead.name && isPlausiblePersonName(state.lead.name)
+        ? state.lead.name
+        : null);
+    if (candidate) {
+      assignLeadName(state, candidate);
+    }
+  }
+
+  if (detectCustomerAgreement(text) && (!answeredOwnerQuestion || /\b(proceed|go ahead|schedule|book|arrange|move forward)\b/i.test(text))) {
+    state.customerAgreed = true;
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      "Customer agreed to proceed"
+    );
+  } else if (!confirmingName && isBareAffirmative(text)) {
+    // Agreeing to the prior proposal (visit/estimate) — not final conversation closure.
+    if (
+      assistantProposedNextStep(priorAssistant) &&
+      state.appointmentIntent !== false
+    ) {
+      state.appointmentIntent = true;
+      state.establishedFacts = addFact(
+        state.establishedFacts,
+        "Customer agreed to the proposed next step"
+      );
+    }
+  }
+
+  const refusal = detectLeadRefusal(text);
+  if (refusal.refused.length > 0) {
+    state.refusedLeadFields = Array.from(
+      new Set([...state.refusedLeadFields, ...refusal.refused])
+    );
+    state.leadCapturePaused = true;
+    state.objections = addObjection(
+      state.objections,
+      refusal.priceGated
+        ? "Customer refused lead details until pricing is clear"
+        : "Customer refused to provide lead information"
+    );
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      `Lead capture paused; refused fields: ${refusal.refused.join(", ")}`
+    );
+  }
+
+  // If customer later volunteers a refused field, clear that refusal.
+  state.customerNeed = inferCustomerNeed(
+    text,
+    state.primaryNeed || state.customerNeed
+  );
+  if (!state.primaryNeed && state.customerNeed) {
+    state.primaryNeed = state.customerNeed;
+  } else if (state.primaryNeed) {
+    state.customerNeed = state.primaryNeed;
+  }
+
+  for (const note of extractCustomerContextNotes(text)) {
+    state.customerContext = addFact(state.customerContext, note);
+  }
+
+  if (!confirmationReply) {
+    const name = extractName(text, state.currentObjective, priorAssistant);
+    if (name) {
+      if (!state.lead.name || shouldReplaceCapturedName(state.lead.name, name, text)) {
+        assignLeadName(state, name);
+      }
+    }
+  }
+
+  const phone = extractPhone(text);
+  if (phone && !state.lead.phone) {
+    state.lead.phone = phone;
+    state.establishedFacts = addFact(state.establishedFacts, `phone=${phone}`);
+    state.refusedLeadFields = state.refusedLeadFields.filter((f) => f !== "phone");
+  }
+
+  const email = extractEmail(text);
+  if (email && !state.lead.email) {
+    state.lead.email = email;
+    state.establishedFacts = addFact(state.establishedFacts, `email=${email}`);
+    state.refusedLeadFields = state.refusedLeadFields.filter((f) => f !== "email");
+  }
+
+  const address = extractAddress(text, state.currentObjective);
+  if (address && !state.lead.address) {
+    state.lead.address = address;
+    state.establishedFacts = addFact(
+      state.establishedFacts,
+      `address=${address}`
+    );
+    state.refusedLeadFields = state.refusedLeadFields.filter(
+      (f) => f !== "address"
+    );
+  }
+
+  captureExplicitOwnerAnswers(state, text);
+
+  if (
+    state.leadCapturePaused &&
+    state.requiredLeadFields.every(
+      (field) => !!state.lead[field] || state.refusedLeadFields.includes(field)
+    ) === false &&
+    state.requiredLeadFields.some((field) => !!state.lead[field])
+  ) {
+    // Keep paused until customer resumes OR all required are filled.
+  }
+
+  if (
+    state.leadCapturePaused &&
+    state.requiredLeadFields.every((field) => !!state.lead[field])
+  ) {
+    state.leadCapturePaused = false;
+  }
+
+  if (detectSalesObjective(text) === "HANDLE_COMPETITOR_OBJECTION") {
+    state.objections = addObjection(state.objections, "Competitor price concern");
+  }
+  if (
+    detectSalesObjective(text) === "HANDLE_PRICE_OBJECTION" &&
+    /\b(too expensive|more than i expected|cost too much|pricey)\b/i.test(text)
+  ) {
+    state.objections = addObjection(state.objections, "Price concern");
+  }
+  if (detectSalesObjective(text) === "HANDLE_HESITATION") {
+    state.objections = addObjection(state.objections, "Hesitation / uncertainty");
+  }
+
+  if (state.intent === "HIGH" || state.intent === "READY_TO_ACT") {
+    const required = requiredFieldsForIntent(state.intent);
+    const merged = Array.from(
+      new Set([...state.requiredLeadFields, ...required])
+    ) as Array<keyof LeadFields>;
+    state.requiredLeadFields = merged;
+  }
+
+  if (state.intent === "HIGH" || state.intent === "READY_TO_ACT") {
+    if (isLeadSecured(state)) {
+      state.leadStatus = "SECURED";
+      state.salesStage = state.customerAgreed ? "CLOSING" : "SALES_MODE";
+      state.leadCapturePaused = false;
+    } else {
+      state.leadStatus = "SECURING";
+      state.salesStage = "SECURING_LEAD";
+    }
+  } else if (state.leadStatus !== "SECURED") {
+    state.leadStatus = "NOT_SECURED";
+    state.salesStage = "DISCOVERY";
+  }
+
+  const objective = selectObjective(state, text);
+  state.currentObjective = objective;
+
+  if (
+    objective === "HANDLE_PRICE_OBJECTION" ||
+    objective === "HANDLE_COMPETITOR_OBJECTION" ||
+    objective === "HANDLE_HESITATION"
+  ) {
+    state.salesStage =
+      state.leadStatus === "SECURED" || state.leadCapturePaused
+        ? "OBJECTION"
+        : state.salesStage;
+  }
+
+  if (objective === "CLOSE" || objective === "ADVANCE_TO_NEXT_STEP") {
+    state.salesStage = "CLOSING";
+  }
+
+  if (state.leadStatus === "SECURED" && state.salesStage === "SECURING_LEAD") {
+    state.salesStage = "SALES_MODE";
+  }
+
+  if (state.customerAgreed && isLeadSecured(state)) {
+    state.salesStage = "COMPLETED";
+  }
+
+  state.handoffReady = computeHandoffReady(state, text);
+
+  state.summary = buildSummary(state);
+  return state;
+}
+
+export function buildTurnControlBlock(
+  state: SalesState,
+  business?: BusinessProfile
+): string {
+  const leadLines = Object.entries(state.lead)
+    .map(([key, value]) => `- ${key}: ${value ?? "not collected"}`)
+    .join("\n");
+
+  const visibleFacts = state.establishedFacts.filter(
+    (f) => !f.startsWith("leadDelivery=")
+  );
+  const facts =
+    visibleFacts.length > 0
+      ? visibleFacts.map((f) => `- ${f}`).join("\n")
+      : "- none yet";
+
+  const refused =
+    state.refusedLeadFields.length > 0
+      ? state.refusedLeadFields.join(", ")
+      : "none";
+
+  const objectiveDirective = objectiveInstruction(state, business);
+  const failedFallback = business
+    ? buildFailedLeadHandoffCustomerMessage(business)
+    : "We're unable to send your request to the team at the moment. Please contact the business directly.";
+  const successClose = buildSuccessfulLeadHandoffCustomerMessage(
+    state.lead.name,
+    state.preferredTiming
+  );
+
+  return `
+==================================================
+SALES CONTROLLER — CURRENT TURN (AUTHORITATIVE FOR THIS RESPONSE)
+==================================================
+The Sales Controller decides WHAT to accomplish this turn.
+You decide HOW to say it naturally.
+Do not invent a different objective.
+Do not ask about already-established facts unless there is genuine ambiguity.
+${
+  isAuthoritativePersonName(state.lead.name)
+    ? `Captured customer name (${state.lead.name}) is authoritative. Do not ask the visitor to confirm it.`
+    : ""
+}
+
+Current state:
+- intent: ${state.intent}
+- salesStage: ${state.salesStage}
+- leadStatus: ${state.leadStatus}
+- currentObjective: ${state.currentObjective}
+- customerNeed: ${state.customerNeed || "not established"}
+- urgency: ${state.urgency}
+- preferredTiming: ${state.preferredTiming || "not established"}
+- customerAvailable: ${state.customerAvailable === null ? "unknown" : state.customerAvailable}
+- appointmentIntent: ${state.appointmentIntent === null ? "unknown" : state.appointmentIntent}
+- leadCapturePaused: ${state.leadCapturePaused}
+- customerAgreed: ${state.customerAgreed}
+- handoffReady: ${state.handoffReady}
+- siteVisitFeeMentioned: ${state.siteVisitFeeMentioned}
+- customerAskedAboutFee: ${state.customerAskedAboutFee}
+- siteVisitFeeLabel: ${state.siteVisitFeeLabel || "none"}
+- refusedLeadFields: ${refused}
+- requiredLeadFields: ${state.requiredLeadFields.join(", ")}
+
+Lead fields:
+${leadLines}
+
+Established facts (DO NOT ask again):
+${facts}
+
+Objections noted:
+${state.objections.length ? state.objections.map((o) => `- ${o}`).join("\n") : "- none"}
+
+Summary: ${state.summary}
+
+${
+  state.leadDeliveryStatus === "SENT" ||
+  state.leadDeliveryStatus === "QUEUED" ||
+  state.leadDeliveryStatus === "FAILED"
+    ? `Lead capture is complete. Do NOT re-ask for name, phone, address, or other already-captured lead fields. You may still answer new customer questions (including price) without repeating closing/handoff language.`
+    : ""
+}
+
+CUSTOMER-FACING REQUEST LANGUAGE:
+Never mention email, SMS, delivery status, "lead", "handoff", or internal systems.
+Never say "the lead hasn't been sent", "the office hasn't been reached", or "handoff failed".
+Never claim an appointment is booked.
+${
+  state.leadDeliveryStatus === "SENT"
+    ? `If this turn is a closing acknowledgement, use this meaning only: "${successClose}" If the customer asked a new question, answer that question and do not repeat the closing message.`
+    : state.leadDeliveryStatus === "QUEUED"
+      ? `Do NOT say you have shared the request with the team. If this turn is a closing acknowledgement, use this meaning only: "${buildQueuedLeadHandoffCustomerMessage(state.lead.name, state.preferredTiming)}" If the customer asked a new question, answer that question and do not repeat delivery language.`
     : state.leadDeliveryStatus === "FAILED"
       ? `Do NOT say the team was alerted or that the request was shared. If this turn is a closing acknowledgement, use this meaning only: "${failedFallback}" If the customer asked a new question, answer that question and do not mention request-delivery.`
       : `Do not claim the request was shared with the team. Continue capturing missing details one question at a time.`

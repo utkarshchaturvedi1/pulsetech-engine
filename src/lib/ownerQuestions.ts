@@ -437,7 +437,8 @@ export function synchronizeOwnerQuestions(state: SalesState, business: BusinessP
 }
 
 export function missingOwnerQuestions(state: SalesState): string[] {
-  return (state.requiredOwnerQuestions || []).filter((question) => !ownerQuestionSatisfied(state, question));
+  const unresolved = new Set(state.unresolvedOwnerQuestions || []);
+  return (state.requiredOwnerQuestions || []).filter((question) => !unresolved.has(question) && !ownerQuestionSatisfied(state, question));
 }
 
 /** Answered owner instructions, with each part of a compound instruction kept separately. */

@@ -571,7 +571,7 @@ export function replyHasUnsupportedServiceDetails(
   reply: string,
   business: BusinessProfile
 ): boolean {
-  const claimPattern = /\b(?:typically|usually|generally)\s+(?:(?:includes?|covers?|involves?|checks?|performs?|conducts?|inspects?|assesses?|cleans?|tests?|evaluates?)\b|(?:a|an|the)\s+(?:visual|detailed|routine|annual|complete|full|on-site|site-specific)\s+(?:inspection|check|assessment|cleaning|test)\b)|\b(?:a|an|the)\s+(?:visual|detailed|routine|annual|complete|full|on-site|site-specific)\s+(?:inspection|check|assessment|cleaning|test)\b|\b(?:maintenance|inspection|service)\b[^.!?]{0,120}\b(?:checks?|inspects?|cleans?|tests?|assesses?|evaluates?|identifies?|diagnoses?|restores?|repairs?|optimizes?|recommends?)\b/i;
+  const claimPattern = /\b(?:typically|usually|generally)\s+(?:(?:includes?|covers?|involves?|checks?|performs?|conducts?|inspects?|assesses?|cleans?|tests?|evaluates?)\b|(?:a|an|the)\s+(?:visual|detailed|routine|annual|complete|full|on-site|site-specific)\s+(?:inspection|check|assessment|cleaning|test)\b)|\b(?:a|an|the)\s+(?:visual|detailed|routine|annual|complete|full|on-site|site-specific)\s+(?:inspection|check|assessment|cleaning|test)\b|\b(?:maintenance|inspection|service)\b[^.!?]{0,120}\b(?:checks?|inspects?|cleans?|tests?|assesses?|evaluates?|identifies?|diagnoses?|restores?|repairs?|optimizes?|recommends?|helps?|can|may|will|reduces?|prevents?|improves?|preserves?|protects?|extends?)\b/i;
   const match = claimPattern.exec(reply);
   if (!match) return false;
 

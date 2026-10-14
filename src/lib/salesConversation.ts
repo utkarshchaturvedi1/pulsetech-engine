@@ -571,7 +571,7 @@ export function replyHasUnsupportedServiceDetails(
   reply: string,
   business: BusinessProfile
 ): boolean {
-  const claimPattern = /\b(?:typically|usually|generally)\s+(?:includes?|covers?|involves?)\b/i;
+  const claimPattern = /\b(?:typically|usually|generally)\s+(?:(?:includes?|covers?|involves?)\b|(?:a|an|the)\s+(?:visual|detailed|routine|annual|complete|full|on-site)\s+(?:inspection|check|assessment|cleaning|test)\b)/i;
   const match = claimPattern.exec(reply);
   if (!match) return false;
 

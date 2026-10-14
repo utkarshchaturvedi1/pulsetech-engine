@@ -73,6 +73,7 @@ import {
   isFieldServiceProfile,
   isSubstantiveSalesFollowUp,
   replyHasUnsupportedBusinessCapabilityClaim,
+  replyHasUnsupportedServiceDetails,
   replyIsGenericConsultationBoilerplate,
   replyUsesFieldServiceJargon,
 } from "../src/lib/salesConversation";
@@ -3763,8 +3764,48 @@ function testChatAvatarIdentityVisibility() {
   console.log("PASS — chat avatar identity visibility helpers");
 }
 
+function testNeedRestatementRemovesHelpPreface() {
+  const reply = buildEmpatheticNameAsk(
+    "I need help with my solar panels.",
+    texasSolarProfessionalTestProfile
+  );
+  assert(
+    !/dealing with i need help with/i.test(reply),
+    `name ask must not echo the customer's help preface: ${reply}`
+  );
+  assert(
+    /solar panels/i.test(reply),
+    `name ask should retain the actual need: ${reply}`
+  );
+  console.log("PASS — need restatement removes generic help preface");
+}
+
+function testUnverifiedServiceDetailsAreRejected() {
+  const unverified =
+    "Maintenance typically includes a visual check of panels and mounts, inverter/system performance checks, wiring and disconnect inspections, and cleaning recommendations to help maintain output and catch issues early.";
+  assert(
+    replyHasUnsupportedServiceDetails(
+      unverified,
+      texasSolarProfessionalTestProfile
+    ),
+    "service detail list absent from profile must be rejected"
+  );
+
+  const documentedProfile = {
+    ...texasSolarProfessionalTestProfile,
+    systemPrompt:
+      texasSolarProfessionalTestProfile.systemPrompt +
+      " Maintenance typically includes a visual check of panels and mounts, inverter system performance checks, wiring and disconnect inspections, and cleaning recommendations to maintain output and catch issues early.",
+  };
+  assert(
+    !replyHasUnsupportedServiceDetails(unverified, documentedProfile),
+    "service details documented in the business profile must remain allowed"
+  );
+  console.log("PASS — unsupported service-detail claims are blocked");
+}
+
 async function main() {
-  testLayoutConstraints();
+  testNeedRestatementRemovesHelpPreface();\n  testUnverifiedServiceDetailsAreRejected();\n  testLayoutConstraints();
   testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();
   testRajaNameCaptureAndPreferredTime();

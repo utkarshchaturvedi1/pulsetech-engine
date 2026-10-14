@@ -73,6 +73,6 @@ grant insert on public.handover_requests to authenticated;
 revoke all on public.customer_accounts, public.customer_memberships, public.handover_requests from anon;
 grant all on public.customer_accounts, public.customer_memberships, public.handover_requests to service_role;
 revoke select on public.customer_accounts from authenticated;
-grant select (id, customer_id, business_name, handover_status, created_at, updated_at)
+grant select (id, customer_id, business_name, demo_id, handover_status, created_at, updated_at)
   on public.customer_accounts to authenticated;
 grant usage, select on sequence public.customer_accounts_customer_number_seq to service_role;

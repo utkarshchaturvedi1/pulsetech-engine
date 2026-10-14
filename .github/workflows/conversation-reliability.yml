@@ -23,4 +23,9 @@ jobs:
       - run: npm run test:demo-chat
       - run: npm run test:handoff-timing
       - run: npm run test:inbound-voice
+      - run: npm run test:owner-profile-update
+      - run: npm run test:client-account-regression
+      - run: npm run test:profile-access
+      - run: npm run test:voice-demo
+      - run: npm run test:paddle-sandbox-webhook
       - run: npm run build

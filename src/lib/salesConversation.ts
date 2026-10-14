@@ -20,7 +20,7 @@ export type ConversationNeedTone =
 
 /** Broad intent cues only — no industry/example noun lists. */
 const PROBLEM_NEED_RE =
-  /\b(break(?:s|ing|down)?|broken|not working|isn'?t working|won'?t work|repair|fix|urgent|emergency|help needed|need help|leaking|leak|damaged|outage|flood(?:ing)?|clog(?:ged)?|block(?:age|ed)?|backup|backing up|overflow|faulty|failed|stopped|no (?:heat(?:ing)?|cooling|power|(?:hot )?water)|cracked|won'?t|infestation|pest|termite|rodent|nest|spread)\b/i;
+  /\b(break(?:s|ing|down)?|broken|not working|isn'?t working|won'?t work|repair|fix|urgent|emergency|leaking|leak|damaged|outage|flood(?:ing)?|clog(?:ged)?|block(?:age|ed)?|backup|backing up|overflow|faulty|failed|stopped|no (?:heat(?:ing)?|cooling|power|(?:hot )?water)|cracked|won'?t|infestation|pest|termite|rodent|nest|spread)\b/i;
 
 const CELEBRATION_NEED_RE =
   /\b(celebrat(?:e|ion|ing)?|event|party|ceremony|occasion|reception|venue)\b/i;

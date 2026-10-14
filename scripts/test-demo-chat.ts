@@ -3812,6 +3812,15 @@ function testUnverifiedServiceDetailsAreRejected() {
     ),
     "typically checks phrasing with unconfirmed inspection tasks must be rejected"
   );
+  const unverifiedMaintenanceTasks =
+    "Thanks, Alex — maintenance is the right choice; it helps identify performance drops, check panel condition, wiring, and inverter operation so your system runs reliably.";
+  assert(
+    replyHasUnsupportedServiceDetails(
+      unverifiedMaintenanceTasks,
+      texasSolarProfessionalTestProfile
+    ),
+    "maintenance task claims absent from the profile must be rejected"
+  );
 
   const documentedProfile = {
     ...texasSolarProfessionalTestProfile,

@@ -1,9 +1,14 @@
 -- PulseTech Paddle Billing Sandbox notifications only.
 -- Run in the existing Supabase SQL editor. This is not a new database.
--- Service role bypasses RLS. Do not add an anon policy.
+-- Stores verified notification records. It does not activate accounts or
+-- associate a payment with a business.
+-- Row level security is on and no anon or authenticated policy is added.
+-- Only the server-side service role, which bypasses RLS, can read or write.
 
 create table if not exists public.paddle_sandbox_notifications (
   event_id text primary key,
+  -- Platform deliveries store ntf_. Simulation deliveries omit notification_id,
+  -- so the handler stores the ntfsimevt_ event id here.
   notification_id text not null,
   event_type text not null
     check (event_type in (

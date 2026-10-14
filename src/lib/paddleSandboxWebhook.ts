@@ -81,10 +81,28 @@ export function paddleSandboxWebhookSecret(): string {
   return process.env.PADDLE_SANDBOX_WEBHOOK_SECRET?.trim() || "";
 }
 
-/** A live client token must never be used as this Sandbox destination secret. */
-export function isSandboxWebhookSecret(secret: string): boolean {
+/**
+ * This route is available only outside Vercel production.
+ * Sandbox is identified by using the Sandbox destination secret from local
+ * .env.local or Vercel Preview, not by a key prefix or event.environment.
+ */
+export function isPaddleSandboxWebhookRuntime(vercelEnv: string | undefined): boolean {
+  return vercelEnv !== "production";
+}
+
+/** A configured destination secret is required. A prefix does not prove the environment. */
+export function isConfiguredWebhookSecret(secret: string): boolean {
   return secret.length > 0 && !secret.startsWith("live_");
 }
+
+/**
+ * Platform notifications use `evt_` plus 26 characters and a separate `ntf_` id.
+ * The webhook simulator wraps the same event differently: `event_id` is
+ * `ntfsimevt_` plus 26 characters, and `notification_id` is omitted.
+ */
+const PADDLE_PLATFORM_EVENT_ID = /^evt_[a-z0-9]{26}$/;
+const PADDLE_SIMULATION_EVENT_ID = /^ntfsimevt_[a-z0-9]{26}$/;
+const PADDLE_NOTIFICATION_ID = /^ntf_[a-z0-9]{26}$/;
 
 /**
  * Verify a Paddle Billing `Paddle-Signature` header against the raw body.
@@ -96,7 +114,7 @@ export function verifyPaddleSandboxSignature(
   secret: string,
   nowMs: number = Date.now(),
 ): boolean {
-  if (!isSandboxWebhookSecret(secret) || !signatureHeader) return false;
+  if (!isConfiguredWebhookSecret(secret) || !signatureHeader) return false;
   let timestamp = "";
   const signatures: string[] = [];
   for (const part of signatureHeader.split(";")) {
@@ -137,14 +155,47 @@ function isSupportedEventType(value: string): value is PaddleSandboxEventType {
   return (PADDLE_SANDBOX_EVENT_TYPES as readonly string[]).includes(value);
 }
 
+/**
+ * Simulation requests have no `notification_id`. The `ntfsimevt_` value is the
+ * delivery id, so it is stored in that column. A present `notification_id`
+ * must still be a platform `ntf_` id.
+ */
+function readPaddleNotificationIdentity(event: Record<string, unknown>): {
+  eventId: string;
+  notificationId: string;
+} | null {
+  const eventId = typeof event.event_id === "string" ? event.event_id : "";
+  if (PADDLE_PLATFORM_EVENT_ID.test(eventId)) {
+    const notificationId = typeof event.notification_id === "string" ? event.notification_id : "";
+    if (!PADDLE_NOTIFICATION_ID.test(notificationId)) return null;
+    return { eventId, notificationId };
+  }
+  if (PADDLE_SIMULATION_EVENT_ID.test(eventId)) {
+    if (event.notification_id == null) {
+      return { eventId, notificationId: eventId };
+    }
+    const notificationId = typeof event.notification_id === "string" ? event.notification_id : "";
+    if (!PADDLE_NOTIFICATION_ID.test(notificationId)) return null;
+    return { eventId, notificationId };
+  }
+  return null;
+}
+
 export async function handlePaddleSandboxWebhook(input: {
   rawBody: string;
   signatureHeader: string | null;
   secret: string;
   store: PaddleNotificationStore;
   nowMs?: number;
+  /** Pass VERCEL_ENV from the route. "production" is always rejected. */
+  vercelEnv?: string;
 }): Promise<HandlerResult> {
-  if (!isSandboxWebhookSecret(input.secret)) {
+  // Verifies and stores a Sandbox notification. Does not activate an account
+  // or attach the payment to a business.
+  if (!isPaddleSandboxWebhookRuntime(input.vercelEnv)) {
+    return { status: 403, body: { error: "Sandbox webhook is not available in production." } };
+  }
+  if (!isConfiguredWebhookSecret(input.secret)) {
     return { status: 503, body: { error: "Sandbox webhook is not configured." } };
   }
   if (!verifyPaddleSandboxSignature(input.rawBody, input.signatureHeader, input.secret, input.nowMs)) {
@@ -161,26 +212,22 @@ export async function handlePaddleSandboxWebhook(input: {
     return { status: 400, body: { error: "Invalid event" } };
   }
   const event = parsed as Record<string, unknown>;
-  if (event.environment === "production" || event.environment === "live") {
-    return { status: 400, body: { error: "Live Paddle events are not accepted." } };
-  }
 
   const eventType = typeof event.event_type === "string" ? event.event_type : "";
   if (!isSupportedEventType(eventType)) {
     return { status: 200, body: { ok: true, ignored: true } };
   }
 
-  const eventId = typeof event.event_id === "string" ? event.event_id : "";
-  const notificationId = typeof event.notification_id === "string" ? event.notification_id : "";
   const occurredAt = typeof event.occurred_at === "string" ? event.occurred_at : "";
-  if (!/^evt_[A-Za-z0-9]+$/.test(eventId) || !/^ntf_[A-Za-z0-9]+$/.test(notificationId) || !occurredAt) {
+  const identity = occurredAt ? readPaddleNotificationIdentity(event) : null;
+  if (!identity) {
     return { status: 400, body: { error: "Invalid event" } };
   }
 
   try {
     const outcome = await input.store.saveIfNew({
-      eventId,
-      notificationId,
+      eventId: identity.eventId,
+      notificationId: identity.notificationId,
       eventType,
       occurredAt,
       payload: event.data ?? null,

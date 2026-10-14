@@ -5,6 +5,7 @@ import {
   paddleSandboxWebhookSecret,
   PaddleStoreUnavailable,
   signPaddleSandboxPayload,
+  supabasePaddleNotificationStore,
   verifyPaddleSandboxSignature,
 } from "../src/lib/paddleSandboxWebhook";
 
@@ -451,6 +452,118 @@ async function testDuplicateSimulationNotification() {
   console.log("PASS — duplicate simulation notifications");
 }
 
+async function testLiveSimulationNotificationIdStoresInSupabase() {
+  const nowMs = Date.parse("2026-10-14T07:25:57.000Z");
+  const eventId = "ntfsimevt_01m4wmvc5jypq32sk87byaz2e1";
+  const notificationId = "ntfsimntf_01m4wmvc7g4v988h1q12q29442";
+  const rawBody = JSON.stringify({
+    event_id: eventId,
+    notification_id: notificationId,
+    event_type: "transaction.completed",
+    occurred_at: "2026-10-14T07:25:55.250724Z",
+    data: { id: "txn_01m4wmvc5jypq32sk87byaz2e1", status: "completed" },
+  });
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const originalFetch = globalThis.fetch;
+  const posts: Array<{ url: string; body: Record<string, unknown> }> = [];
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co/";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    posts.push({ url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+    return new Response(null, { status: posts.length === 1 ? 201 : 409 });
+  }) as typeof fetch;
+  try {
+    const stored = await handlePaddleSandboxWebhook({
+      rawBody,
+      signatureHeader: signed(rawBody, nowMs),
+      secret: SECRET,
+      store: supabasePaddleNotificationStore,
+      nowMs,
+      vercelEnv: "preview",
+    });
+    assert(stored.status === 200 && stored.body.duplicate === false, "ntfsimntf_ simulation is stored");
+    assert(
+      posts[0]?.url === "https://example.supabase.co/rest/v1/paddle_sandbox_notifications",
+      "insert targets paddle_sandbox_notifications",
+    );
+    assert(posts[0]?.body.event_id === eventId, "stored event_id");
+    assert(posts[0]?.body.notification_id === notificationId, "stored ntfsimntf_ notification_id");
+    assert(posts[0]?.body.event_type === "transaction.completed", "stored event_type");
+    assert(posts[0]?.body.occurred_at === "2026-10-14T07:25:55.250724Z", "stored occurred_at");
+    assert(
+      (posts[0]?.body.payload as { status?: string } | null)?.status === "completed",
+      "stored transaction payload",
+    );
+
+    const duplicate = await handlePaddleSandboxWebhook({
+      rawBody,
+      signatureHeader: signed(rawBody, nowMs),
+      secret: SECRET,
+      store: supabasePaddleNotificationStore,
+      nowMs,
+      vercelEnv: "preview",
+    });
+    assert(duplicate.status === 200 && duplicate.body.duplicate === true, "repeat ntfsimntf_ delivery is a duplicate");
+    assert(posts.length === 2, "duplicate still attempts the primary-key insert");
+
+    const beforeInvalid = posts.length;
+    const invalidSignature = await handlePaddleSandboxWebhook({
+      rawBody,
+      signatureHeader: signed(rawBody, nowMs, "different-secret"),
+      secret: SECRET,
+      store: supabasePaddleNotificationStore,
+      nowMs,
+      vercelEnv: "preview",
+    });
+    assert(invalidSignature.status === 401, "invalid signature is rejected before storage");
+    assert(posts.length === beforeInvalid, "invalid signature does not write a row");
+
+    const malformedBody = JSON.stringify({
+      event_id: eventId,
+      notification_id: "ntfsimntf_short",
+      event_type: "transaction.completed",
+      occurred_at: "2026-10-14T07:25:55.250724Z",
+      data: { id: "txn_01m4wmvc5jypq32sk87byaz2e1", status: "completed" },
+    });
+    const malformed = await handlePaddleSandboxWebhook({
+      rawBody: malformedBody,
+      signatureHeader: signed(malformedBody, nowMs),
+      secret: SECRET,
+      store: supabasePaddleNotificationStore,
+      nowMs,
+      vercelEnv: "preview",
+    });
+    assert(malformed.status === 400 && malformed.body.error === "Invalid event", "short ntfsimntf_ id is rejected");
+    assert(posts.length === beforeInvalid, "malformed simulation does not write a row");
+
+    const platformBody = JSON.stringify({
+      event_id: "evt_01m4wmvc5jypq32sk87byaz2e1",
+      notification_id: notificationId,
+      event_type: "transaction.completed",
+      occurred_at: "2026-10-14T07:25:55.250724Z",
+      data: { id: "txn_01m4wmvc5jypq32sk87byaz2e1", status: "completed" },
+    });
+    const platform = await handlePaddleSandboxWebhook({
+      rawBody: platformBody,
+      signatureHeader: signed(platformBody, nowMs),
+      secret: SECRET,
+      store: supabasePaddleNotificationStore,
+      nowMs,
+      vercelEnv: "preview",
+    });
+    assert(platform.status === 400, "a platform event cannot use an ntfsimntf_ notification id");
+    assert(posts.length === beforeInvalid, "rejected platform event does not write a row");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previousKey;
+  }
+  console.log("PASS — ntfsimntf_ storage");
+}
+
 async function testWebhookSecretIsTrimmedBeforeVerification() {
   const previous = process.env.PADDLE_SANDBOX_WEBHOOK_SECRET;
   const nowMs = Date.parse("2024-09-18T16:32:32.000Z");
@@ -488,6 +601,7 @@ async function main() {
   await testDeliveredSimulationIncludesNotificationId();
   await testSimulationInvalidSignatureAndMalformedEvent();
   await testDuplicateSimulationNotification();
+  await testLiveSimulationNotificationIdStoresInSupabase();
   await testWebhookSecretIsTrimmedBeforeVerification();
   console.log("All Paddle Sandbox webhook tests passed.");
 }

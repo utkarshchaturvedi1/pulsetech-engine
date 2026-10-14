@@ -96,12 +96,15 @@ export function isConfiguredWebhookSecret(secret: string): boolean {
 }
 
 /**
- * Platform events use `evt_`. Simulator deliveries use `ntfsimevt_` and may
- * include a notification id such as `ntf_` or `ntfsim_`, or omit it.
- * Longer prefixes are listed first so `ntf_` does not swallow `ntfsim_`.
+ * Platform notifications are `evt_` plus a separate `ntf_` id.
+ * Sandbox simulations use `ntfsimevt_` and a `ntfsimntf_` notification id.
+ * Longer prefixes are listed first so a shorter prefix cannot match first.
  */
-const PADDLE_EVENT_ID = /^(?:ntfsimevt|evt)_[a-z0-9]{26}$/;
-const PADDLE_NOTIFICATION_ID = /^(?:ntfsimevt|ntfsimrun|ntflog|ntfset|ntfsim|ntf)_[a-z0-9]{26}$/;
+const PADDLE_PLATFORM_EVENT_ID = /^evt_[a-z0-9]{26}$/;
+const PADDLE_SIMULATION_EVENT_ID = /^ntfsimevt_[a-z0-9]{26}$/;
+const PADDLE_PLATFORM_NOTIFICATION_ID = /^ntf_[a-z0-9]{26}$/;
+const PADDLE_SIMULATION_NOTIFICATION_ID =
+  /^(?:ntfsimntf|ntfsimevt|ntfsimrun|ntflog|ntfset|ntfsim|ntf)_[a-z0-9]{26}$/;
 
 /**
  * Verify a Paddle Billing `Paddle-Signature` header against the raw body.
@@ -189,33 +192,43 @@ function occurredAtValue(event: Record<string, unknown>): string {
   return "";
 }
 
+function eventIdValue(event: Record<string, unknown>): string {
+  return typeof event.event_id === "string" ? event.event_id : typeof event.id === "string" ? event.id : "";
+}
+
+function notificationIdPattern(eventId: string): RegExp | null {
+  if (PADDLE_SIMULATION_EVENT_ID.test(eventId)) return PADDLE_SIMULATION_NOTIFICATION_ID;
+  if (PADDLE_PLATFORM_EVENT_ID.test(eventId)) return PADDLE_PLATFORM_NOTIFICATION_ID;
+  return null;
+}
+
 /**
- * `notification_id` is optional. When it is present it must be a Paddle id,
- * including simulation prefixes. The event id is stored if it is omitted.
+ * `notification_id` is optional. A simulation may send `ntfsimntf_`.
+ * A platform notification, when present, must be `ntf_` plus 26 characters.
+ * The event id is stored when notification_id is omitted.
  */
 function readPaddleNotificationIdentity(event: Record<string, unknown>): {
   eventId: string;
   notificationId: string;
   occurredAt: string;
 } | null {
-  const eventId =
-    typeof event.event_id === "string" ? event.event_id : typeof event.id === "string" ? event.id : "";
-  if (!PADDLE_EVENT_ID.test(eventId)) return null;
+  const eventId = eventIdValue(event);
+  const notificationPattern = notificationIdPattern(eventId);
+  if (!notificationPattern) return null;
   const occurredAt = occurredAtValue(event);
   if (!occurredAt) return null;
   if (event.notification_id == null || event.notification_id === "") {
     return { eventId, notificationId: eventId, occurredAt };
   }
-  if (typeof event.notification_id !== "string" || !PADDLE_NOTIFICATION_ID.test(event.notification_id)) {
+  if (typeof event.notification_id !== "string" || !notificationPattern.test(event.notification_id)) {
     return null;
   }
   return { eventId, notificationId: event.notification_id, occurredAt };
 }
 
 function invalidEventReason(event: Record<string, unknown>): string {
-  const eventId =
-    typeof event.event_id === "string" ? event.event_id : typeof event.id === "string" ? event.id : "";
-  if (!PADDLE_EVENT_ID.test(eventId)) return "event-id";
+  const eventId = eventIdValue(event);
+  if (!notificationIdPattern(eventId)) return "event-id";
   if (!occurredAtValue(event)) return "missing-occurred-at";
   if (event.notification_id != null && event.notification_id !== "") return "notification-id";
   return "event-id";

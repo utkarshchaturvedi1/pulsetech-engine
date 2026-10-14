@@ -3794,6 +3794,15 @@ function testUnverifiedServiceDetailsAreRejected() {
     ),
     "service detail list absent from profile must be rejected"
   );
+  const unverifiedVisualInspection =
+    "For maintenance, the business typically provides a visual inspection of panels and racking, checks of inverter performance and wiring, and identification of issues that can reduce production.";
+  assert(
+    replyHasUnsupportedServiceDetails(
+      unverifiedVisualInspection,
+      texasSolarProfessionalTestProfile
+    ),
+    "visual inspection and technical tasks absent from profile must be rejected"
+  );
 
   const documentedProfile = {
     ...texasSolarProfessionalTestProfile,

@@ -347,8 +347,7 @@ export function replyNeedsOwnerClarification(question: string, reply: string): b
   if (!text || isPhoneOnly(text) || isPriceOnlyMessage(text) || explicitOwnerAnswer(question, text)) return false;
   if (outOfRangeOrdinal(question, text) || isUncertainChoice(text)) return true;
   if (!eitherOrOptions(question) || recognizedEitherOrAnswer(question, text)) return false;
-  const ambiguousYesNo = decisiveClauses(text).filter((clause) => BARE_YES_NO.test(clause)).length === 1;
-  return /\?/.test(text) || ambiguousYesNo;
+  return true;
 }
 
 /** Narrow, explicit answers that do not require a remote classifier. */

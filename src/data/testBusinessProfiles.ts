@@ -46,7 +46,7 @@ export const texasSolarProfessionalTestProfile: BusinessProfile = {
     },
     {
       question: "Can you give an exact price on the phone?",
-      answer: "A site-specific consultation is needed for an accurate quote. Do not invent prices, incentives, or savings figures.",
+      answer: "A site-specific consultation is needed for an accurate quote.",
     },
   ],
   leadQuestions: [

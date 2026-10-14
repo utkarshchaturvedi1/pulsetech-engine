@@ -3774,6 +3774,10 @@ function testNeedRestatementRemovesHelpPreface() {
     `name ask must not echo the customer's help preface: ${reply}`
   );
   assert(
+    !/sorry you're dealing with/i.test(reply),
+    `generic help request must not be mislabeled as a confirmed problem: ${reply}`
+  );
+  assert(
     /solar panels/i.test(reply),
     `name ask should retain the actual need: ${reply}`
   );

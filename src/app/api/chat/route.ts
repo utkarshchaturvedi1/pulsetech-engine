@@ -56,13 +56,6 @@ function isChatMessages(value: unknown): value is SalesChatMessage[] {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: "Chat service is not configured." },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     let business = body.business;
     const messages = body.messages;

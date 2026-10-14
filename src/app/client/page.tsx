@@ -4,12 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { isPulseTechAdmin } from "@/lib/clientAccess";
 import ClientHandoverRequest from "./ClientHandoverRequest";
 import ClientInviteForm from "./ClientInviteForm";
+import ClientInstallation from "./ClientInstallation";
 import ClientSignOutButton from "./ClientSignOutButton";
 
 export const metadata = { title: "Client handover | PulseTech Labs" };
 export const dynamic = "force-dynamic";
 
-type Account = { id: string; customer_id: string; business_name: string; handover_status: string };
+type Account = { id: string; customer_id: string; business_name: string; demo_id: string; handover_status: string };
 type HandoverRequest = { id: string; subject: string; details: string; status: string; created_at: string };
 
 const statusLabels: Record<string, string> = {
@@ -26,7 +27,7 @@ export default async function ClientPortalPage() {
   const { data: membership, error: membershipError } = await supabase.from("customer_memberships")
     .select("customer_account_id").eq("user_id", user.id).maybeSingle();
   const { data: accountData, error: accountQueryError } = membership
-    ? await supabase.from("customer_accounts").select("id,customer_id,business_name,handover_status").eq("id", membership.customer_account_id).maybeSingle()
+    ? await supabase.from("customer_accounts").select("id,customer_id,business_name,demo_id,handover_status").eq("id", membership.customer_account_id).maybeSingle()
     : { data: null, error: null };
   const accountError = membershipError || accountQueryError;
   const account = accountData as Account | null;
@@ -53,6 +54,13 @@ export default async function ClientPortalPage() {
         </div>
         <p className="mt-5 text-sm text-slate-600">This account is linked to {user.email}. Your handover requests stay with this customer account.</p>
       </section>
+      <ClientInstallation
+        businessName={account.business_name}
+        demoId={account.demo_id}
+        baseUrl={process.env.VERCEL_ENV === "preview" && process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.PULSETECH_PUBLIC_BASE_URL?.replace(/\/$/, "") || ""}
+      />
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-slate-950">Request a handover update</h2><p className="mt-2 text-sm leading-6 text-slate-600">Send a setup change, question, or launch-readiness request to PulseTech.</p><ClientHandoverRequest /></section>
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-slate-950">Recent requests</h2>

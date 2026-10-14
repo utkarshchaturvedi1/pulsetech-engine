@@ -1,617 +1,175 @@
-import type { BusinessProfile } from "../types/business";
-import {
-  pricingRulesKnowledgeText,
-  verifiedPricingRulesText,
-} from "./businessProfile";
-import type { SalesState } from "./salesState";
-import { asksVisitPrice, scopedPricing, separateVisitFee } from "./pricingScope";
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíó}tN‹Z–‹­¦ëeŠw¬Õ¥µÁ½ÉÐÑåÁ”ì	ÕÍ¥¹•ÍÍAÉ½™¥±”ô™É½´€ˆ¸¸½ÑåÁ•Ì½‰ÕÍ¥¹•ÍÌˆì)¥µÁ½ÉÐì(€ÁÉ¥¥¹IÕ±•Í-¹½Ý±•‘•Q•áÐ°(€Ù•É¥™¥•‘AÉ¥¥¹IÕ±•ÍQ•áÐ°)ô™É½´€ˆ¸½‰ÕÍ¥¹•ÍÍAÉ½™¥±”ˆì)¥µÁ½ÉÐÑåÁ”ìM…±•ÍMÑ…Ñ”ô™É½´€ˆ¸½Í…±•ÍMÑ…Ñ”ˆì)¥µÁ½ÉÐì…Í­ÍY¥Í¥ÑAÉ¥”°Í½Á•‘AÉ¥¥¹œ°Í•Á…É…Ñ•Y¥Í¥Ñ•”ô™É½´€ˆ¸½ÁÉ¥¥¹M½Á”ˆì()•áÁ½ÉÐ½¹ÍÐAI}=9QQ}M-}%IMQ}95€ô€‰]¡…ÐÌå½ÕÈ™¥ÉÍÐ¹…µ”üˆì)•áÁ½ÉÐ½¹ÍÐAI}=9QQ}M-}A!=9€ô(€€‰]¡…ÐÌÑ¡”‰•ÍÐÁ¡½¹”¹Õµ‰•ÈÑ¼É•… å½Ôüˆì)•áÁ½ÉÐ½¹ÍÐAI}=9QQ}M-}IML€ô€‰]¡…ÐÌÑ¡”Í•ÉÙ¥”…‘‘É•ÍÌüˆì((¼¨¨Y¥Í¥Ñ½Èµ¹••Ñ½¹”™½È…­¹½Ý±•‘•µ•¹Ð…¹¹•áÐµÍÑ•ÀÝ½É‘¥¹œ¸€¨¼)•áÁ½ÉÐÑåÁ”½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”€ô(€ð€‰AI=	14ˆ(€ð€‰MA%IQ%=90ˆ(€ð€‰1	IQ%=8ˆ(€ð€‰=9MU1QQ%=8ˆì((¼¨¨	É½…¥¹Ñ•¹ÐÕ•Ì½¹±äƒŠP¹¼¥¹‘ÕÍÑÉä½•á…µÁ±”¹½Õ¸±¥ÍÑÌ¸€¨¼)½¹ÍÐAI=	15}9}I€ô(€€½qˆ¡‰É•…¬ üéÍñ¥¹ñ‘½Ý¸¤ýñ‰É½­•¹ñ¹½ÐÝ½É­¥¹ñ¥Í¸œýÐÝ½É­¥¹ñÝ½¸œýÐÝ½É­ñÉ•Á…¥Éñ™¥áñÕÉ•¹Ññ•µ•É•¹åñ±•…­¥¹ñ±•…­ñ‘…µ…•‘ñ½ÕÑ…•ñ™±½½ üé¥¹œ¤ýñ±½œ üé•¤ýñ‰±½¬ üé…•ñ•¤ýñ‰…­ÕÁñ‰…­¥¹œÕÁñ½Ù•É™±½Ýñ™…Õ±Ñåñ™…¥±•‘ñÍÑ½ÁÁ•‘ñ¹¼€ üé¡•…Ð üé¥¹œ¤ýñ½½±¥¹ñÁ½Ý•Éð üé¡½Ð€¤ýÝ…Ñ•È¥ñÉ…­•‘ñÝ½¸œýÑñ¥¹™•ÍÑ…Ñ¥½¹ñÁ•ÍÑñÑ•Éµ¥Ñ•ñÉ½‘•¹Ññ¹•ÍÑñÍÁÉ•…¥qˆ½¤ì()½¹ÍÐ1	IQ%=9}9}I€ô(€€½qˆ¡•±•‰É…Ð üé•ñ¥½¹ñ¥¹œ¤ýñ•Ù•¹ÑñÁ…ÉÑåñ•É•µ½¹åñ½…Í¥½¹ñÉ••ÁÑ¥½¹ñÙ•¹Õ”¥qˆ½¤ì()½¹ÍÐMA%IQ%=91}9}I€ô(€€½qˆ¡ÁÉ½©•Ññ¥µÁÉ½Ø üé•ñ•µ•¹Ð¥ñ¥¹ÍÑ…±±ñ‰Õ¥±‘ñ‘•Í¥¹ñÕÁÉ…‘•ñÉ•¹½Ù…Ð üé•ñ¥½¸¥ñÉ•µ½‘•±ñÉ•…Ñ•ñ…‘€ üé…ñ…¹ñÑ¡”¥ñ±½½­¥¹œÑ¼€ üé¥¹ÍÑ…±±ñ‰Õ¥±‘ñ…‘‘ñÕÁÉ…‘”¥ñÝ…¹ÐÑ¼€ üé¥¹ÍÑ…±±ñ‰Õ¥±‘ñ…‘‘ñÕÁÉ…‘”¤¥qˆ½¤ì()½¹ÍÐ=9MU1QQ%=9}9}I€ô(€€½qˆ¡½¹ÍÕ±Ð üé…Ñ¥½¹ñ¥¹œ¤ýñ…‘Ù¥•ñ…‘Ù¥Í½Éñ…‘Ù¥Í½ÉåñÍÑÉ…Ñ•åñÅÕ½Ñ•ñ¥¹™½Éµ…Ñ¥½¹ñÕ¥‘…¹•ñ½…¡¥¹ñÁ±…¹¹¥¹ñ¡½Ü€ üé‘½ñ…¸¤€ üéÝ•ñ¤¤¥µÁÉ½Ù”¥qˆ½¤ì()•áÁ½ÉÐ™Õ¹Ñ¥½¸…É••‘Q½ÉÉ…¹”¡ÍÑ…Ñ”èM…±•ÍMÑ…Ñ”¤è‰½½±•…¸ì(€É•ÑÕÉ¸ÍÑ…Ñ”¹ÕÍÑ½µ•ÉÉ••€ôôôÑÉÕ”ñðÍÑ…Ñ”¹…ÁÁ½¥¹Ñµ•¹Ñ%¹Ñ•¹Ð€ôôôÑÉÕ”ì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸ÁÉ½™¥±•-¹½Ý±•‘•	±½ˆ¡‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”¤èÍÑÉ¥¹œì(€É•ÑÕÉ¸l(€€€‰ÕÍ¥¹•ÍÌ¹‰ÕÍ¥¹•ÍÍ9…µ”°(€€€‰ÕÍ¥¹•ÍÌ¹Ñ…±¥¹”°(€€€‰ÕÍ¥¹•ÍÌ¹ÍåÍÑ•µAÉ½µÁÐ°(€€€ÁÉ¥¥¹IÕ±•Í-¹½Ý±•‘•Q•áÐ¡‰ÕÍ¥¹•ÍÌ¹ÁÉ¥¥¹IÕ±•Ì¤°(€€€€¸¸¹‰ÕÍ¥¹•ÍÌ¹Í•ÉÙ¥•Ì°(€€€€¸¸¹‰ÕÍ¥¹•ÍÌ¹™…ÅÌ¹µ…À ¡˜¤€ôø€‘í˜¹ÅÕ•ÍÑ¥½¹ô€‘í˜¹…¹ÍÝ•Éõ€¤°(€t(€€€€¹©½¥¸ ‰q¸ˆ¤(€€€€¹Ñ½1½Ý•É…Í” ¤ì)ô((¼¨¨(€¨AÉ½™¥±”µ…Ý…É”™¥•±µÍ•ÉÙ¥”‘•Ñ•Ñ¥½¸™É½´…Á…‰¥±¥Ñä±…¹Õ…”¥¸Ñ¡”(€¨	ÕÍ¥¹•ÍÍAÉ½™¥±”ƒŠP¹½Ð™É½´„¡…É‘½‘•Ù•ÉÑ¥…°±¥ÍÐ¸(€¨¼)•áÁ½ÉÐ™Õ¹Ñ¥½¸¥Í¥•±‘M•ÉÙ¥•AÉ½™¥±”¡‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”¤è‰½½±•…¸ì(€½¹ÍÐ‰±½ˆ€ôÁÉ½™¥±•-¹½Ý±•‘•	±½ˆ¡‰ÕÍ¥¹•ÍÌ¤ì(€€¼¼%¹½É”¹•…Ñ•…Á…‰¥±¥ÑäÁ¡É…Í•ÌÍ¼€‰¹½ÐÑ•¡¹¥¥…¹Ìˆ‘½•Ì¹½Ð™±¥À™¥•±µÍ•ÉÙ¥”½¸¸(€½¹ÍÐ…Á…‰¥±¥Ñå	±½ˆ€ô‰±½ˆ(€€€€¹É•Á±…” ½qˆ üé‘¼€¤ý¹½ÑqÌ­Í•¹‘qÌ­Ñ•¡¹¥¥…¹ÌýqÌ­½¹qÌ­Í¥Ñ•qˆ½¤°€ˆ€ˆ¤(€€€€¹É•Á±…” ½qˆ üé‘¼€¤ý¹½ÑqÌ¬ üéÍ•¹‘qÌ¬¤ýÑ•¡¹¥¥…¹Ìýqˆ½¤°€ˆ€ˆ¤(€€€€¹É•Á±…” ½q‰¹½ÑqÌ­Ñ•¡¹¥¥…¸ üéqÌ­Í•ÉÙ¥”¤ýqÌ­Ù¥Í¥ÑÌýqˆ½¤°€ˆ€ˆ¤(€€€€¹É•Á±…” ½q‰¹½qÌ­Ñ•¡¹¥¥…¹Ìýqˆ½¤°€ˆ€ˆ¤(€€€€¹É•Á±…” ½q‰‘¼¹½ÑqÌ¬ üéÁ•É™½ÉµqÌ¬¤ý½¹l´uÍ¥Ñ•qˆ½¤°€ˆ€ˆ¤ì(€½¹ÍÐ½¹ÍÕ±Ñ=¹±ä€ô(€€€€½qˆ¡½¹ÍÕ±Ð üé¥¹ñ…Ñ¥½¸¥ñ…‘Ù¥Í½Éñ…‘Ù¥Í½Éåñ½…¡¥¹ñÍÑÉ…Ñ•äÍ•ÍÍ¥½¹ñÙ•¹Õ•ñ•Ù•¹ÐÁ±…¹¹¥¹œ¥qˆ¼¹Ñ•ÍÐ (€€€€€‰±½ˆ(€€€€¤€˜˜(€€€€„½qˆ¡Ñ•¡¹¥¥…¹ñ½¹l´uÍ¥Ñ•ñÍ•ÉÙ¥”Ù¥Í¥Ññ¡½ÕÍ”…±±ñÍ•ÉÙ¥”…±±ñ™¥•±Í•ÉÙ¥•ñ½µ”½ÕÑñ‘¥ÍÁ…Ñ¡ñÉ•Á…¥Éñ™¥áñ¥¹ÍÑ…±±ñÉ•Á±…•µ•¹Ð¥qˆ¼¹Ñ•ÍÐ (€€€€€…Á…‰¥±¥Ñå	±½ˆ(€€€€¤ì(€¥˜€¡½¹ÍÕ±Ñ=¹±ä¤É•ÑÕÉ¸™…±Í”ì(€É•ÑÕÉ¸€½qˆ¡Ñ•¡¹¥¥…¹ñ½¹l´uÍ¥Ñ•ñÍ•ÉÙ¥”Ù¥Í¥Ññ¡½ÕÍ”…±±ñÍ•ÉÙ¥”…±±ñ™¥•±Í•ÉÙ¥•ñ½µ”½ÕÑñ‘¥ÍÁ…Ñ¡ñÉ•Á…¥Éñ™¥áñ¥¹ÍÑ…±±ñÉ•Á±…•µ•¹Ññ¥¹ÍÁ•Ð üé¥½¸¤ýñ±•…É¥¹œ¥qˆ¼¹Ñ•ÍÐ (€€€…Á…‰¥±¥Ñå	±½ˆ(€€¤ì)ô((¼¨¨(€¨±…ÍÍ¥™äÑ¡”Ù¥Í¥Ñ½ÈÌÍÑ…Ñ•¹••™½È•µ½Ñ¥½¹…±±ä…ÁÁÉ½ÁÉ¥…Ñ”…­¹½Ý±•‘•µ•¹Ð¸(€¨UÍ•Ì‰É½…¥¹Ñ•¹ÐÕ•Ì½¹±äìÍ…™”™…±±‰…¬¥Ì½¹™¥‘•¹Ð¹•ÕÑÉ…°¡•±À¸(€¨¼)•áÁ½ÉÐ™Õ¹Ñ¥½¸±…ÍÍ¥™å½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹” (€¹••èÍÑÉ¥¹œð¹Õ±°ðÕ¹‘•™¥¹•°(€}‰ÕÍ¥¹•ÍÌüè	ÕÍ¥¹•ÍÍAÉ½™¥±”(¤è½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”ì(€½¹ÍÐÐ€ô€¡¹••ñð€ˆˆ¤¹ÑÉ¥´ ¤ì(€¥˜€ …Ð¤É•ÑÕÉ¸€‰=9MU1QQ%=8ˆì((€¥˜€¡1	IQ%=9}9}I¹Ñ•ÍÐ¡Ð¤¤É•ÑÕÉ¸€‰1	IQ%=8ˆì(€¥˜€¡AI=	15}9}I¹Ñ•ÍÐ¡Ð¤¤É•ÑÕÉ¸€‰AI=	14ˆì(€¥˜€¡=9MU1QQ%=9}9}I¹Ñ•ÍÐ¡Ð¤¤É•ÑÕÉ¸€‰=9MU1QQ%=8ˆì(€¥˜€¡MA%IQ%=91}9}I¹Ñ•ÍÐ¡Ð¤¤É•ÑÕÉ¸€‰MA%IQ%=90ˆì(€É•ÑÕÉ¸€‰=9MU1QQ%=8ˆì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸¹•áÑMÑ•Á9½Õ¸ (€‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”°(€Ñ½¹”üè½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”(¤èÍÑÉ¥¹œì(€½¹ÍÐÉ•Í½±Ù•€ôÑ½¹”ñð±…ÍÍ¥™å½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”¡¹Õ±°°‰ÕÍ¥¹•ÍÌ¤ì(€¥˜€¡É•Í½±Ù•€ôôô€‰AI=	14ˆ€˜˜¥Í¥•±‘M•ÉÙ¥•AÉ½™¥±”¡‰ÕÍ¥¹•ÍÌ¤¤ì(€€€½¹ÍÐ‰±½ˆ€ôÁÉ½™¥±•-¹½Ý±•‘•	±½ˆ¡‰ÕÍ¥¹•ÍÌ¤ì(€€€¥˜€ ½q‰•ÍÑ¥µ…Ð¼¹Ñ•ÍÐ¡‰±½ˆ¤¤É•ÑÕÉ¸€‰•ÍÑ¥µ…Ñ”ˆì(€€€É•ÑÕÉ¸€‰Ù¥Í¥Ðˆì(€ô(€É•ÑÕÉ¸€‰½¹ÍÕ±Ñ…Ñ¥½¸ˆì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸¹•áÑMÑ•ÁÉÑ¥±•9½Õ¸ (€‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”°(€Ñ½¹”üè½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”(¤èÍÑÉ¥¹œì(€½¹ÍÐ¹½Õ¸€ô¹•áÑMÑ•Á9½Õ¸¡‰ÕÍ¥¹•ÍÌ°Ñ½¹”¤ì(€É•ÑÕÉ¸€½ym…•¥½Õt½¤¹Ñ•ÍÐ¡¹½Õ¸¤€ü…¸€‘í¹½Õ¹õ€€è„€‘í¹½Õ¹õ€ì)ô()™Õ¹Ñ¥½¸ÍÑÉ¥Á!•±ÁI•ÅÕ•ÍÐ¡Ñ•áÐèÍÑÉ¥¹œ¤èÍÑÉ¥¹œì(€É•ÑÕÉ¸Ñ•áÐ(€€€€¹É•Á±…” ½lü¸…t¬½œ°€ˆ€ˆ¤(€€€€¹É•Á±…” (€€€€€€½qˆ¡…¸å½Ô¡•±À üèµ”¤ýñÁ±•…Í”¡•±Áñ¤¹••¡•±À üèÝ¥Ñ ¤ýñ¤¹••€¡¥ÑñÑ¡¥Ì¤™¥á•‘ñ…¸å½Ô€¡™¥áñ‘½ñ¡•±ÀÝ¥Ñ ¤€¡¥ÑñÑ¡¥Ì¥ñ…¹¤¹••¥Ð™¥á•¥qˆ½¤°(€€€€€€ˆ€ˆ(€€€€¤(€€€€¹É•Á±…” ½qÌ¬½œ°€ˆ€ˆ¤(€€€€¹ÑÉ¥´ ¤ì)ô((¼¨¨M¡½ÉÐ¹…ÑÕÉ…°É•ÍÑ…Ñ•µ•¹Ð½˜Ñ¡”ÍÑ…Ñ•¹••ƒŠP¹¼¥¹‘ÕÍÑÉä¹½Õ¸¡…É‘½‘¥¹œ¸€¨¼)•áÁ½ÉÐ™Õ¹Ñ¥½¸‰É¥•™9••‘A¡É…Í”¡¹••èÍÑÉ¥¹œð¹Õ±°ðÕ¹‘•™¥¹•¤èÍÑÉ¥¹œð¹Õ±°ì(€¥˜€ …¹••¤É•ÑÕÉ¸¹Õ±°ì(€½¹ÍÐ±•…¹•€ôÍÑÉ¥Á!•±ÁI•ÅÕ•ÍÐ¡¹••¤ì(€¥˜€ …±•…¹•¤É•ÑÕÉ¸¹Õ±°ì((€½¹ÍÐÝ½É‘Ì€ô±•…¹•¹ÍÁ±¥Ð ½qÌ¬¼¤¹™¥±Ñ•È¡	½½±•…¸¤ì(€¥˜€¡Ý½É‘Ì¹±•¹Ñ €ð€È¤É•ÑÕÉ¸¹Õ±°ì(€¥˜€¡Ý½É‘Ì¹±•¹Ñ €ø€ÄÐ¤ì(€€€É•ÑÕÉ¸±•…¹•(€€€€€€¹ÍÁ±¥Ð ½qÌ¬¼¤(€€€€€€¹Í±¥” À°€ÄÀ¤(€€€€€€¹©½¥¸ ˆ€ˆ¤(€€€€€€¹É•Á±…” ½x¡Ñ¡”ñµäñ½ÕÈñ„ñ…¸€¤½¤°€ˆˆ¤(€€€€€€¹Ñ½1½Ý•É…Í” ¤ì(€ô(€É•ÑÕÉ¸±•…¹•¹É•Á±…” ½x¡Ñ¡”ñµäñ½ÕÈñ„ñ…¸€¤½¤°€ˆˆ¤¹Ñ½1½Ý•É…Í” ¤ì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸‰Õ¥±‘µÁ…Ñ¡•Ñ¥9…µ•Í¬ (€¹••èÍÑÉ¥¹œð¹Õ±°ðÕ¹‘•™¥¹•°(€‰ÕÍ¥¹•ÍÌüè	ÕÍ¥¹•ÍÍAÉ½™¥±”(¤èÍÑÉ¥¹œì(€½¹ÍÐÑ½¹”€ô±…ÍÍ¥™å½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”¡¹••°‰ÕÍ¥¹•ÍÌ¤ì(€½¹ÍÐ‰É¥•˜€ô‰É¥•™9••‘A¡É…Í”¡¹••¤ì(€±•Ð…¬èÍÑÉ¥¹œì((€ÍÝ¥Ñ €¡Ñ½¹”¤ì(€€€…Í”€‰AI=	14ˆèì(€€€€€€¼¼-••ÀÑ¡”¹…µ”…Í¬Ñ¼½¹”ÅÕ•ÍÑ¥½¸ì…Ù½¥€‰…¹€¸¸¸€üˆ½µÁ½Õ¹Á…ÑÑ•É¹Ì¸(€€€€€½¹ÍÐÍ…™•	É¥•˜€ô(€€€€€€€‰É¥•˜€˜˜€„½q‰…¹‘qˆ½¤¹Ñ•ÍÐ¡‰É¥•˜¤€˜˜‰É¥•˜¹ÍÁ±¥Ð ½qÌ¬¼¤¹±•¹Ñ €ðô€à(€€€€€€€€€€ü‰É¥•˜(€€€€€€€€€€è¹Õ±°ì(€€€€€…¬€ôÍ…™•	É¥•˜(€€€€€€€€ü$´Í½ÉÉäå½ÔÉ”‘•…±¥¹œÝ¥Ñ €‘íÍ…™•	É¥•™ô¸]”…¸¡•±À¹€(€€€€€€€€è€‰$´Í½ÉÉäå½ÔÉ”‘•…±¥¹œÝ¥Ñ Ñ¡…Ð¸]”…¸¡•±À¸ˆì(€€€€€‰É•…¬ì(€€€ô(€€€…Í”€‰MA%IQ%=90ˆè(€€€€€…¬€ô€‰Q¡…ÐÍ½Õ¹‘Ì±¥­”„É•…ÐÁÉ½©•Ð¸]”‰”¡…ÁÁäÑ¼¡•±À¸ˆì(€€€€€‰É•…¬ì(€€€…Í”€‰1	IQ%=8ˆè(€€€€€…¬€ô(€€€€€€€€‰!½Ü•á¥Ñ¥¹ŸŠQ½¹É…ÑÕ±…Ñ¥½¹Ì„]”‰”±…Ñ¼¡•±Àµ…­”¥ÐÍÁ•¥…°¸ˆì(€€€€€‰É•…¬ì(€€€…Í”€‰=9MU1QQ%=8ˆè(€€€‘•™…Õ±Ðè(€€€€€ì(€€€€€€€½¹ÍÐÍ•ÉÙ¥•Q•áÐ€ôl(€€€€€€€€€€¸¸¸¡‰ÕÍ¥¹•ÍÌü¹Í•ÉÙ¥•Ìñðmt¤°(€€€€€€€€€€¸¸¸¡‰ÕÍ¥¹•ÍÌü¹™…ÅÌñðmt¤¹™±…Ñ5…À ¡™…Ä¤€ôøm™…Ä¹ÅÕ•ÍÑ¥½¸°™…Ä¹…¹ÍÝ•Ét¤°(€€€€€€€t(€€€€€€€€€€¹©½¥¸ ˆ€ˆ¤(€€€€€€€€€€¹Ñ½1½Ý•É…Í” ¤ì(€€€€€€€½¹ÍÐ¹••‘Q•ÉµÌ€ô€¡‰É¥•˜ñð€ˆˆ¤(€€€€€€€€€€¹Ñ½1½Ý•É…Í” ¤(€€€€€€€€€€¹ÍÁ±¥Ð ½my„µèÀ´åt¬¼¤(€€€€€€€€€€¹™¥±Ñ•È ¡Ý½É¤€ôøÝ½É¹±•¹Ñ €øô€Ð¤ì(€€€€€€€½¹ÍÐ¥ÍMÁ•¥™¥!•±ÁI•ÅÕ•ÍÐ€ô(€€€€€€€€€€½qˆ üé¤¹••¡•±ÀÝ¥Ñ¡ñ…¸å½Ô¡•±À üèµ”¤üÝ¥Ñ¡ñÁ±•…Í”¡•±ÀÝ¥Ñ ¥qˆ½¤¹Ñ•ÍÐ (€€€€€€€€€€€¹••ñð€ˆˆ(€€€€€€€€€€¤ì(€€€€€€€½¹ÍÐµ…Ñ¡•Í	ÕÍ¥¹•ÍÍ-¹½Ý±•‘”€ô¹••‘Q•ÉµÌ¹Í½µ” ¡Ý½É¤€ôø(€€€€€€€€€Í•ÉÙ¥•Q•áÐ¹¥¹±Õ‘•Ì¡Ý½É¤(€€€€€€€€¤ì(€€€€€€€…¬€ô¥ÍMÁ•¥™¥!•±ÁI•ÅÕ•ÍÐ€˜˜‰É¥•˜€˜˜µ…Ñ¡•Í	ÕÍ¥¹•ÍÍ-¹½Ý±•‘”(€€€€€€€€€€ü$Õ¹‘•ÉÍÑ…¹å½ÔÉ”±½½­¥¹œ™½È¡•±ÀÝ¥Ñ €‘í‰É¥•™ô¹€(€€€€€€€€€€è€‰‰Í½±ÕÑ•±ä°$‰”±…Ñ¼¡•±ÀÝ¥Ñ Ñ¡…Ð¸ˆì(€€€€€ô(€€€€€‰É•…¬ì(€ô((€É•ÑÕÉ¸€‘í…­ô€‘íAI}=9QQ}M-}%IMQ}95õ€ì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸ÍÑ…ÉÑÍ]¥Ñ¡5•¡…¹¥…±9…µ•Q¡…¹­Ì¡É•Á±äèÍÑÉ¥¹œ¤è‰½½±•…¸ì(€É•ÑÕÉ¸€½yqÌ©Ñ¡…¹­Ì±qÌ­mµi„µéumµi„µè¸œµuìÀ°ÐÁõqˆ½¤¹Ñ•ÍÐ¡É•Á±ä¹ÑÉ¥´ ¤¤ì)ô()™Õ¹Ñ¥½¸¹••‘Q½¹•É½µMÑ…Ñ” (€ÍÑ…Ñ”èM…±•ÍMÑ…Ñ”°(€‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”(¤è½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”ì(€É•ÑÕÉ¸±…ÍÍ¥™å½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹” (€€€ÍÑ…Ñ”¹ÕÍÑ½µ•É9••ñðÍÑ…Ñ”¹ÁÉ¥µ…Éå9••°(€€€‰ÕÍ¥¹•ÍÌ(€€¤ì)ô((¼¨¨(€¨A•ÉÍÕ…Í¥Ù”Á½ÍÐµ½¹Ñ…Ð¥¹Ù¥Ñ…Ñ¥½¸èÑ…¹¥‰±”‰•¹•™¥Ð€¬½¹™¥‘•¹Ð…ÉÉ…¹”…Í¬¸(€¨9¼™É•”½‰½½­¥¹œ½…Ù…¥±…‰¥±¥ÑäÁÉ½µ¥Í•ÌÕ¹±•ÍÌÙ•É¥™¥••±Í•Ý¡•É”¥¸ÁÉ½™¥±”™…ÑÌ¸(€¨¼)•áÁ½ÉÐ™Õ¹Ñ¥½¸‰Õ¥±‘A•ÉÍÕ…Í¥Ù•ÉÉ…¹•%¹Ù¥Ñ…Ñ¥½¸ (€‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”°(€Ñ½¹”üè½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”°(€¹••üèÍÑÉ¥¹œð¹Õ±°(¤èÍÑÉ¥¹œì(€½¹ÍÐÉ•Í½±Ù•€ôÑ½¹”ñð€‰=9MU1QQ%=8ˆì(€½¹ÍÐÍÑ•À€ô¹•áÑMÑ•ÁÉÑ¥±•9½Õ¸¡‰ÕÍ¥¹•ÍÌ°É•Í½±Ù•¤ì(€½¹ÍÐ™¥•±‘AÉ½‰±•´€ô(€€€É•Í½±Ù•€ôôô€‰AI=	14ˆ€˜˜¥Í¥•±‘M•ÉÙ¥•AÉ½™¥±”¡‰ÕÍ¥¹•ÍÌ¤ì(€½¹ÍÐ‰É¥•˜€ô‰É¥•™9••‘A¡É…Í”¡¹••¤ì((€ÍÝ¥Ñ €¡É•Í½±Ù•¤ì(€€€…Í”€‰AI=	14ˆè(€€€€€¥˜€¡™¥•±‘AÉ½‰±•´¤ì(€€€€€€€½¹ÍÐÍ¡½ÉÑ	É¥•˜€ô(€€€€€€€€€‰É¥•˜€˜˜(€€€€€€€€€‰É¥•˜¹ÍÁ±¥Ð ½qÌ¬¼¤¹±•¹Ñ €ðô€Ø€˜˜(€€€€€€€€€€„½x¡¤ñÝ”ñµäñ½ÕÈ€¤½¤¹Ñ•ÍÐ¡‰É¥•˜¤(€€€€€€€€€€€€ü‰É¥•˜(€€€€€€€€€€€€è¹Õ±°ì(€€€€€€€½¹ÍÐ½¹•É¸€ôÍ¡½ÉÑ	É¥•˜(€€€€€€€€€€ü$Õ¹‘•ÉÍÑ…¹å½ÔÉ”‘•…±¥¹œÝ¥Ñ €‘íÍ¡½ÉÑ	É¥•™ô¸€(€€€€€€€€€€è€‰$Õ¹‘•ÉÍÑ…¹Ñ¡¥Ì¥Ì½¹•É¹¥¹œ¸€ˆì(€€€€€€€É•ÑÕÉ¸€‘í½¹•É¹õÙ¥Í¥Ð±•ÑÌÑ¡”ÁÉ½™•ÍÍ¥½¹…°…ÍÍ•ÍÌÑ¡”Í¥ÑÕ…Ñ¥½¸½¸Í¥Ñ”°•áÁ±…¥¸Ñ¡”½ÁÑ¥½¹Ì°…¹¥Ù”å½Ô„±•…ÈÅÕ½Ñ”‰•™½É”…¹äÝ½É¬‰•¥¹Ì¸]½Õ±å½Ô±¥­”Ñ¼…ÉÉ…¹”€‘íÍÑ•Áôý€ì(€€€€€ô(€€€€€É•ÑÕÉ¸Í¡½ÉÐ½¹Ù•ÉÍ…Ñ¥½¸±•ÑÌÑ¡”Ñ•…´Õ¹‘•ÉÍÑ…¹å½ÕÈ½…±Ì…¹É•½µµ•¹Ñ¡”É¥¡Ð¹•áÐÍÑ•À¸]½Õ±å½Ô±¥­”Ñ¼…ÉÉ…¹”€‘íÍÑ•Áôý€ì(€€€…Í”€‰MA%IQ%=90ˆè(€€€€€É•ÑÕÉ¸½¹ÍÕ±Ñ…Ñ¥½¸±•ÑÌÑ¡”Ñ•…´Õ¹‘•ÉÍÑ…¹Ñ¡”ÍÁ…”°‘¥ÍÕÍÌÑ¡”½ÁÑ¥½¹Ì°…¹¥Ù”å½Ô„±•…ÈÅÕ½Ñ”‰•™½É”å½Ô½µµ¥ÐÑ¼…¹åÑ¡¥¹œ¸]½Õ±å½Ô±¥­”Ñ¼…ÉÉ…¹”€‘íÍÑ•Áôý€ì(€€€…Í”€‰1	IQ%=8ˆè(€€€€€É•ÑÕÉ¸Í¡½ÉÐ½¹ÍÕ±Ñ…Ñ¥½¸±•ÑÌÑ¡”Ñ•…´Õ¹‘•ÉÍÑ…¹Ñ¡”½…Í¥½¸…¹å½ÕÈÁ±…¹Ì°Ñ¡•¸ÁÉ•Á…É”½ÁÑ¥½¹ÌÑ¡…Ð™¥Ð¸]½Õ±å½Ô±¥­”Ñ¼…ÉÉ…¹”€‘íÍÑ•Áôý€ì(€€€…Í”€‰=9MU1QQ%=8ˆè(€€€‘•™…Õ±Ðè(€€€€€É•ÑÕÉ¸Í¡½ÉÐ½¹Ù•ÉÍ…Ñ¥½¸±•ÑÌÑ¡”Ñ•…´Õ¹‘•ÉÍÑ…¹å½ÕÈ½…±Ì…¹É•½µµ•¹Ñ¡”É¥¡Ð¹•áÐÍÑ•À¸]½Õ±å½Ô±¥­”Ñ¼…ÉÉ…¹”€‘íÍÑ•Áôý€ì(€ô)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸‰Õ¥±‘A½ÍÑ½¹Ñ…Ñ9•áÑMÑ•ÁI•Á±ä (€ÍÑ…Ñ”èM…±•ÍMÑ…Ñ”°(€‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”(¤èÍÑÉ¥¹œì(€É•ÑÕÉ¸‰Õ¥±‘A•ÉÍÕ…Í¥Ù•ÉÉ…¹•%¹Ù¥Ñ…Ñ¥½¸ (€€€‰ÕÍ¥¹•ÍÌ°(€€€¹••‘Q½¹•É½µMÑ…Ñ”¡ÍÑ…Ñ”°‰ÕÍ¥¹•ÍÌ¤°(€€€ÍÑ…Ñ”¹ÕÍÑ½µ•É9••ñðÍÑ…Ñ”¹ÁÉ¥µ…Éå9••(€€¤ì)ô()•áÁ½ÉÐ™Õ¹Ñ¥½¸‰Õ¥±‘É••‘AÉ•™•ÉÉ•‘Q¥µ•Í¬ (€‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”°(€Ñ½¹”üè½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”(¤èÍÑÉ¥¹œì(€É•ÑÕÉ¸]¡…Ð‘…ä½ÈÑ¥µ”Ý½Õ±å½ÔÁÉ•™•È™½ÈÑ¡”€‘í¹•áÑMÑ•Á9½Õ¸¡‰ÕÍ¥¹•ÍÌ°Ñ½¹”¥ôý€ì)ô((¼¨¨M¡½ÉÐ…ÉÉ…¹”…Í¬™½È…ÁÁ•¹‘¥¹œ…™Ñ•È„ÁÉ¥”½Í½Á”…¹ÍÝ•ÈÑ¡…Ð…±É•…‘ä•áÁ±…¥¹•‰•¹•™¥Ð¸€¨¼)•áÁ½ÉÐ™Õ¹Ñ¥½¸‰Õ¥±‘ÉÉ…¹••¥Í¥½¹Í¬ (€‰ÕÍ¥¹•ÍÌè	ÕÍ¥¹•ÍÍAÉ½™¥±”°(€Ñ½¹”üè½¹Ù•ÉÍ…Ñ¥½¹9••‘Q½¹”(¤èÍÑÉ¥¹œì(€½¹ÍÐÉ•Í½±Ù•€ôÑ½¹”ñð€‰=9MU1QQ%=8ˆì(€É•ÑÕÉ¸]½Õ±å½Ô±¥­”Ñ¼…ÉÉ…¹”€‘í¹•áÑMÑ•ÁÉÑ¥±•9½Õ¸¡‰ÕÍ¥¹•ÍÌ°É•Í½±Ù•¥ôý€ì)ô((¼¨¨½ÍÐ½½ÁÑ¥½¹Ì¡•Í¥Ñ…Ñ¥½¸…™Ñ•ÈÁÉ½‘ÕÐ‘•Ñ…¥°ƒŠP…­¹½Ý±•‘”°‘¼¹½ÐÉ•Á±…äÑ¡”™¥ÉÍÐ¥¹Ù¥Ñ”¸€¨¼)•áÁ½ÉÐ™Õ¹Ñ¥½¸¥Í½ÍÑ=Ã]õÒÚ$z{-®éÜj×ˆHÚÜÛÛ™\œØ][Ûˆ]ÈHX[H[™\œÝ[™ÜÙH˜\šXX›\È[™™XÛÛ[Y[™HšYÚ™^Ý\ˆŽÂˆBŸB‚‹ÊŠ‚ˆ
+ˆ›Ùš[KH[™Û™KX]Ø\™HšXÙH[œÝÙ\‹‚ˆ
+ˆ™]™\ˆ›Ý]\ÈTÔTUSÓSÈÑSP”USÓˆÈÓÓ”ÕSUSÓˆ›ÝYÚXYÛ›ÜÚ\Ëˆ
+ˆXÚšXÚX[‹Ú]K]š\Ú]ÜˆÚ]HÛÜšÈ[˜ÛY\Èˆ˜[˜XÚÜË‚ˆ
+‹Â™^Ü[˜Ý[ÛˆZ[[[]Ø\™TšXÙP[œÝÙ\ŠˆÝ]NˆØ[\ÔÝ]Kˆ\Ú[™\ÜÎˆ\Ú[™\ÜÔ›Ùš[Kˆ]\Ý\Ù\“Y\ÜØYÙOÎˆÝš[™ÂŠNˆÝš[™ÈÂˆÛÛœÝÛ™HH™YYÛ™Qœ›ÛTÝ]JÝ]K\Ú[™\ÜÊNÂˆËÈÛ›H›Û‹Y[\HÝš[™ÈšXÚ[™Ô[\È\™HÝ\ÝÛY\‹Y˜XÚ[™È™\šYšYY^‚ˆËÈÝXÝ\™YÛ›Û‹\Ýš[™ÈÚ\\È˜[›ÝYÚÈ][›ËZ[™[Y\šXÙK‚ˆÛÛœÝÈš\Ú]Ù\šXÙHHHØÛÜYšXÚ[™Ê\Ú[™\ÜÊNÂˆYˆ
+\ÚÜÕš\Ú]šXÙJ]\Ý\Ù\“Y\ÜØYÙJH	‰ˆš\Ú]
+H™]\›ˆš\Ú]ÂˆYˆ
+Ù\šXÙJH™]\›ˆÜÙ\šXÙKÙ\\˜]Uš\Ú]™YJ\Ú[™\ÜÊWK™š[\Š›ÛÛX[ŠKš›Ú[ŠˆŠNÂ‚ˆÛÛœÝ\›ØXÚH\ØÜšX™U™\šYšYY\›ØXÚ
+\Ú[™\ÜÊNÂˆÛÛœÝØÛÜHHÝ]KœšXÙT]Y\Ý[ÛÛÝ[ˆBˆÈ›ÜˆHÝ™\˜[Ù\šXÙHÜˆ›Ú™XÝ\™H\Û‰Ý[ˆ^XÝÝ[\ÝX›\ÚYY]ˆ	ÝÛ™P]Ø\™U[™\šYšYYØÛÜJÛ™K\Ú[™\ÜÊ_XˆˆÛ™P]Ø\™U[™\šYšYYØÛÜJÛ™K\Ú[™\ÜÊNÂˆÛÛœÝ™YHHÝ]KœšXÙT]Y\Ý[ÛÛÝ[ˆH	‰ˆš\Ú]ˆÈ•Hš\Ú]™YH\ØÝ\ÜÙYÙ\\˜][H\ÈÛ›H›ÜˆHš\Ú]›ÝHÝ™\˜[›Ú™XÝšXÙKˆ‚ˆˆÙ\\˜]Uš\Ú]™YJ\Ú[™\ÜÊNÂˆYˆ
+\›ØXÚ
+HÂˆ™]\›ˆ	Ø\›ØXÚH	ÜØÛÜ_H	Ù™Y_Xš[J
+NÂˆBˆ™]\›ˆ	ÜØÛÜ_H	Ù™Y_Xš[J
+NÂŸB‚™^Ü[˜Ý[ÛˆZ[ÜÝÛÛXÝšXÙT™\JˆÝ]NˆØ[\ÔÝ]Kˆ\Ú[™\ÜÎˆ\Ú[™\ÜÔ›Ùš[Kˆ]\Ý\Ù\“Y\ÜØYÙOÎˆÝš[™ÂŠNˆÝš[™ÈÂˆÛÛœÝÛ™HH™YYÛ™Qœ›ÛTÝ]JÝ]K\Ú[™\ÜÊNÂˆÛÛœÝšXÙHHZ[[[]Ø\™TšXÙP[œÝÙ\ŠÝ]K\Ú[™\ÜË]\Ý\Ù\“Y\ÜØYÙJNÂˆYˆ
+Ý]Kœ™Y™\œ™Y[Z[™È	‰ˆYÜ™YYÐ\œ˜[™ÙJÝ]JJHÂˆ™]\›ˆšXÙNÂˆBˆYˆ
+YÜ™YYÐ\œ˜[™ÙJÝ]JH	‰ˆ\Ý]Kœ™Y™\œ™Y[Z[™ÊHÂˆ™]\›ˆ	ÜšXÙ_H	ØZ[YÜ™YY™Y™\œ™Y[YP\ÚÊ\Ú[™\ÜËÛ™J_Xš[J
+NÂˆBˆYˆ
+ÝÛÝ[[ÝHZÙHÈ\œ˜[™ÙKÚK\Ý
+šXÙJJHÂˆ™]\›ˆšXÙNÂˆBˆ™]\›ˆ	ÜšXÙ_H	ØZ[\œ˜[™ÙQXÚ\Ú[Û\ÚÊ\Ú[™\ÜËÛ™J_Xš[J
+NÂŸB‚™^Ü[˜Ý[ÛˆZ[[YUÚ]Ý]YÜ™Y[Y[™\JˆÝ]NˆØ[\ÔÝ]Kˆ\Ú[™\ÜÎˆ\Ú[™\ÜÔ›Ùš[BŠNˆÝš[™ÈÂˆÛÛœÝÛ™HH™YYÛ™Qœ›ÛTÝ]JÝ]K\Ú[™\ÜÊNÂˆÛÛœÝÝ\H™^Ý\\XÛS›Ý[Š\Ú[™\ÜËÛ™JNÂˆÛÛœÝ[Z[™ÈHÝ]Kœ™Y™\œ™Y[Z[™ÏËš[J
+NÂˆYˆ
+[Z[™ÊHÂˆ™]\›ˆHØ[ˆ›ÝH	Ý[Z[™ßH\ÈH™Y™\œ™Y[YKˆÛÝ[[ÝHZÙHÈ\œ˜[™ÙH	ÜÝ\OØÂˆBˆ™]\›ˆZ[ÜÝÛÛXÝ™^Ý\™\JÝ]K\Ú[™\ÜÊNÂŸB‚™^Ü[˜Ý[Ûˆ™\ÛÛ™UØ\›T™PÛÛXÝ™\JˆÝ]NˆØ[\ÔÝ]KˆZ\ÜÚ[™ÑšY[ˆ›˜[YHˆœÛ™Hˆ˜Y™\ÜÈ‹ˆ]\Ý\Ù\“Y\ÜØYÙOÎˆÝš[™Ëˆ\Ú[™\ÜÏÎˆ\Ú[™\ÜÔ›Ùš[BŠNˆÝš[™ÈÂˆYˆ
+Z\ÜÚ[™ÑšY[OOH›˜[YHŠHÂˆ™]\›ˆZ[[\]]XÓ˜[YP\ÚÊˆÝ]K˜Ý\ÝÛY\“™YYÝ]Kœš[X\žS™YY]\Ý\Ù\“Y\ÜØYÙKˆ\Ú[™\ÜÂˆ
+NÂˆBˆYˆ
+Z\ÜÚ[™ÑšY[OOHœÛ™HŠH™]\›ˆ‘WÐÓÓ•PÕÐTÒ×ÔÓ‘NÂˆ™]\›ˆ‘WÐÓÓ•PÕÐTÒ×ÐQ‘TÔÎÂŸB‚™^Ü[˜Ý[Ûˆ™\P\ÚÜÕÐ\œ˜[™ÙS™^Ý\
+™\NˆÝš[™ÊNˆ›ÛÛX[ˆÂˆ™]\›ˆ×ŠÛÝ[[ÝHZÙHÈ
+\œ˜[™Ù_›ÛÚßØÚY[_Ù]\
+_Ú[H\œ˜[™Ù_Ø[
+YH
+OÝÈ\œ˜[™Ù_ÛÝ[[ÝHZÙH
+H[ˆ
+OÊš\Ú]ÛÛœÝ[][ÛŸ\ÜÙ\ÜÛY[\Ú[Y[\Ý[X]_›ÛÝË]\
+JW‹ÚK\Ý
+ˆ™\Bˆ
+NÂŸB‚‹ÊŠˆšY[\Ù\šXÙK[Û›H˜\™ÛÛˆ˜[›™Y›Üˆ›Ú™XÝÈ]™[ÈÛÛœÝ[][ÛˆÛÜKˆ
+‹Â™^Ü[˜Ý[Ûˆ™\U\Ù\ÑšY[Ù\šXÙR˜\™ÛÛŠ™\NˆÝš[™ÊNˆ›ÛÛX[ˆÂˆ™]\›ˆ×ŠXÚšXÚX[ŸÙ\šXÙHš\Ú]Ú]Hš\Ú]Û–ËH\Ú]H\ÜÙ\ÜÛY[XYÛ›ÜÚ\ßHÛÜšÈ™\]Z\™YÚ]HÛÜšÈ[˜ÛY\ÊW‹ÚK\Ý
+ˆ™\Bˆ
+NÂŸB‚‹ÊŠ‚ˆ
+ˆYHÚ[ˆHÝ\ÝÛY\ˆ\È\ÚÚ[™È›ÜˆØ[\ÈÛÛ™\œØ][Ûˆ˜[YH8 %›ÝY\™[Bˆ
+ˆÝX›Z][™ÈHXYšY[Üˆ˜\™HYÜ™Y[Y[ˆ\ÙYÈ]›ÚY™\XÚ[™ÈHRBˆ
+ˆÚ]Ù[™\šXÈÛÛœÝ[][Ûˆ[\]\ÈY\ˆÛÛXÝÈ\™HÙXÝ\™Y‚ˆ
+‹Â™^Ü[˜Ý[Ûˆ\ÔÝXœÝ[]™TØ[\Ñ›ÛÝÕ\
+ˆY\ÜØYÙNˆÝš[™È[[™Yš[™YŠNˆ›ÛÛX[ˆÂˆÛÛœÝH
+Y\ÜØYÙHˆŠKš[J
+NÂˆYˆ
+]
+H™]\›ˆ˜[ÙNÂ‚ˆYˆ
+×ËË\Ý
+
+JH™]\›ˆYNÂ‚ˆÛÛœÝÝÙ\ˆHÓÝÙ\Ø\ÙJ
+NÂ‚ˆYˆ
+ˆ×ŠY\ßYXZY\]\Ý\™_ÚßÚØ^_ÛÝ[™ÈÛÛÙ]ÛÜšÜßY\ÈX\Ù_›ß›Ü_›È[šÜÊVËˆWOÉÚK\Ý
+ˆˆ
+Bˆ
+HÂˆ™]\›ˆ˜[ÙNÂˆB‚ˆYˆ
+ˆ×ŠÛÜœšYYÛÛ˜Ù\›™Y™\›Ý\ßYœ˜ZYØØ\™Y[ž[Ý\ßÝÈ˜\ŸÜ™XYÙ][™ÈÛÜœÙ_™Y›Ü™H]
+Ù]ß™XÛÛY\ÊHÛÜœÙJW‹ÚK\Ý
+ˆÝÙ\‚ˆ
+Bˆ
+HÂˆ™]\›ˆYNÂˆB‚ˆYˆ
+ˆ×ŠY™šXÚY[Y™šXÚY[˜Þ_[™\™Þ_[XÝšXÚ]_ÝÙ\ˆ
+š[\ØYÙ_ÛÛœÝ[\[ÛŠ_ÛÛœÝ[\[ÛŸÜ[ÛœÏßÛÛ\\™_ÛÛ\\š\ÛÛŸY™™\™[˜Ù_™XÛÛ[Y[™Ú]
+Þ\Ý[_[š][Ù[\J_ÚXÚ
+Þ\Ý[_[š][Ù[\J_ÝÈ
+Ù\ßßÛÝ[Ú[
+_ÚH
+ßÙ\ßÛÝ[ÚÝ[
+_È[ÝH
+Û›ÝßÙ™™\Ÿ[™_›ÝšY_[œÝ[
+_Ø[ˆ[ÝH
+^Z[Ÿ[[Yš\ÙJ_[YH
+X›Ý][Ü™J_Ú]X›Ý]
+W‹ÚK\Ý
+ˆÝÙ\‚ˆ
+Bˆ
+HÂˆ™]\›ˆYNÂˆB‚ˆYˆ
+ˆ×ŠÛÈ^[œÚ]™_ÛÜÝÛÈ]XÚšXÙ^_›ÝÝ\™_™YYÈ[šß\Ú]]ÚH
+ÚÝ[ÛÝ[
+H_ÛÜ]š[˜[˜ÚX[
+W‹ÚK\Ý
+ˆÝÙ\‚ˆ
+Bˆ
+HÂˆ™]\›ˆYNÂˆB‚ˆYˆ
+\ÐÛÜÝÜ[ÛœÒ\Ú]][ÛŠ
+JH™]\›ˆYNÂ‚ˆËÈ][K\Ù[[˜ÙHÛÛ˜Ù\›ˆÈ^[˜][ÛˆY\ˆÛÛXÝÈ8 %™X]\ÈÛÛ™\œØ][Û‹‚ˆYˆ
+œÜ]
+×ÊËÊK™š[\Š›ÛÛX[ŠK›[™ÝHL
+H™]\›ˆYNÂ‚ˆ™]\›ˆ˜[ÙNÂŸB‚‹ÊŠ‚ˆ
+ˆ]XÝÈš\œÝ\\œÛÛˆ\Ú[™\ÜÈØ\Xš[]HÛZ[\È
+ÙH[™KÜ›ÝšYKË‹‹ˆŠK‚ˆ
+ˆ\ÙYÈ™Z™XÝÛÛ™\[™ÈÙ[™\˜[[™\ÝžHÛ›ÝÛYÙH[È[œÝ\ÜYˆ
+ˆÛZ[\ÈX›Ý]HÜXÚYšXÈ\Ú[™\ÜÈÚ[ˆH›Ùš[HÙ\È›ÝÝ\Ü[K‚ˆ
+‹Â™^Ü[˜Ý[Ûˆ™\SXZÙ\Ñš\œÝ\œÛÛØ\Xš[]PÛZ[J™\NˆÝš[™ÊNˆ›ÛÛX[ˆÂˆ™]\›ˆ×ŠÙ_Ý\ˆ
+X[_XÚšXÚX[œÏßÜ™]ßÛÛ\[ž_ÝY™ŠJWÊÊÎ˜Ø[ˆÚ[ÛÝ[[ÛÈ
+OÊ[™_[™\ß›ÝšY_›ÝšY\ßÙ™™\ŸÙ™™\œßßÙ\ß\™›Ü›_\™›Ü›\ßÛÛÜ™[˜]_ÛÛÜ™[˜]\ßZÙHØ\™HÙŸÛÝ™\ŸÛÝ™\œÊW‹ÚK\Ý
+ˆ™\Bˆ
+NÂŸB‚‹ÊŠ‚ˆ
+ˆ^˜XÝÈ›ÝYÚØ\Xš[]H˜\Ù\ÈY\ˆš\œÝ\\œÛÛˆÛZ[H™\˜œÈ›Ü‚ˆ
+ˆ›Ùš[HÝ\ÜÚXÚÜËˆ[™\ÝžKXYÛ›ÜÝXÎÈ›ÝH™\XØ[[ÝÛ\Ý‚ˆ
+‹Â™^Ü[˜Ý[Ûˆ^˜XÝÛZ[YYØ\Xš[]Y\Ê™\NˆÝš[™ÊNˆÝš[™Ö×HÂˆÛÛœÝÛZ[\ÎˆÝš[™Ö×HH×NÂˆÛÛœÝ™HBˆ×ŠÎÙ_Ý\ˆ
+ÎX[_XÚšXÚX[œÏßÜ™]ßÛÛ\[ž_ÝY™ŠJWÊÊÎ˜Ø[ˆÚ[ÛÝ[[ÛÈ
+OÊÎš[™_[™\ß›ÝšY_›ÝšY\ßÙ™™\ŸÙ™™\œßßÙ\ß\™›Ü›_\™›Ü›\ßÛÛÜ™[˜]_ÛÛÜ™[˜]\ßZÙHØ\™HÙŸÛÝ™\ŸÛÝ™\œÊWÊÊ×‹ŽÈO×JÊKÙÚNÂˆ]X]Úˆ™YÑ^^XÐ\œ˜^H[ÂˆÚ[H
 
-export const PRE_CONTACT_ASK_FIRST_NAME = "What's your first name?";
-export const PRE_CONTACT_ASK_PHONE =
-  "What's the best phone number to reach you?";
-export const PRE_CONTACT_ASK_ADDRESS = "What's the service address?";
-
-/** Visitor-need tone for acknowledgement and next-step wording. */
-export type ConversationNeedTone =
-  | "PROBLEM"
-  | "ASPIRATIONAL"
-  | "CELEBRATION"
-  | "CONSULTATION";
-
-/** Broad intent cues only â€” no industry/example noun lists. */
-const PROBLEM_NEED_RE =
-  /\b(break(?:s|ing|down)?|broken|not working|isn'?t working|won'?t work|repair|fix|urgent|emergency|leaking|leak|damaged|outage|flood(?:ing)?|clog(?:ged)?|block(?:age|ed)?|backup|backing up|overflow|faulty|failed|stopped|no (?:heat(?:ing)?|cooling|power|(?:hot )?water)|cracked|won'?t|infestation|pest|termite|rodent|nest|spread)\b/i;
-
-const CELEBRATION_NEED_RE =
-  /\b(celebrat(?:e|ion|ing)?|event|party|ceremony|occasion|reception|venue)\b/i;
-
-const ASPIRATIONAL_NEED_RE =
-  /\b(project|improv(?:e|ement)|install|build|design|upgrade|renovat(?:e|ion)|remodel|create|add (?:a|an|the)|looking to (?:install|build|add|upgrade)|want to (?:install|build|add|upgrade))\b/i;
-
-const CONSULTATION_NEED_RE =
-  /\b(consult(?:ation|ing)?|advice|advisor|advisory|strategy|quote|information|guidance|coaching|planning|how (?:do|can) (?:we|i) improve)\b/i;
-
-export function agreedToArrange(state: SalesState): boolean {
-  return state.customerAgreed === true || state.appointmentIntent === true;
-}
-
-export function profileKnowledgeBlob(business: BusinessProfile): string {
-  return [
-    business.businessName,
-    business.tagline,
-    business.systemPrompt,
-    pricingRulesKnowledgeText(business.pricingRules),
-    ...business.services,
-    ...business.faqs.map((f) => `${f.question} ${f.answer}`),
-  ]
-    .join("\n")
-    .toLowerCase();
-}
-
-/**
- * Profile-aware field-service detection from capability language in the
- * BusinessProfile â€” not from a hardcoded vertical list.
- */
-export function isFieldServiceProfile(business: BusinessProfile): boolean {
-  const blob = profileKnowledgeBlob(business);
-  // Ignore negated capability phrases so "not technicians" does not flip field-service on.
-  const capabilityBlob = blob
-    .replace(/\b(?:do )?not\s+send\s+technicians?\s+on\s+site\b/gi, " ")
-    .replace(/\b(?:do )?not\s+(?:send\s+)?technicians?\b/gi, " ")
-    .replace(/\bnot\s+technician(?:\s+service)?\s+visits?\b/gi, " ")
-    .replace(/\bno\s+technicians?\b/gi, " ")
-    .replace(/\bdo not\s+(?:perform\s+)?on[- ]site\b/gi, " ");
-  const consultOnly =
-    /\b(consult(?:ing|ation)|advisor|advisory|coaching|strategy session|venue|event planning)\b/.test(
-      blob
-    ) &&
-    !/\b(technician|on[- ]site|service visit|house call|service call|field service|come out|dispatch|repair|fix|install|replacement)\b/.test(
-      capabilityBlob
-    );
-  if (consultOnly) return false;
-  return /\b(technician|on[- ]site|service visit|house call|service call|field service|come out|dispatch|repair|fix|install|replacement|inspect(?:ion)?|clearing)\b/.test(
-    capabilityBlob
-  );
-}
-
-/**
- * Classify the visitor's stated need for emotionally appropriate acknowledgement.
- * Uses broad intent cues only; safe fallback is confident neutral help.
- */
-export function classifyConversationNeedTone(
-  need: string | null | undefined,
-  _business?: BusinessProfile
-): ConversationNeedTone {
-  const t = (need || "").trim();
-  if (!t) return "CONSULTATION";
-
-  if (CELEBRATION_NEED_RE.test(t)) return "CELEBRATION";
-  if (PROBLEM_NEED_RE.test(t)) return "PROBLEM";
-  if (CONSULTATION_NEED_RE.test(t)) return "CONSULTATION";
-  if (ASPIRATIONAL_NEED_RE.test(t)) return "ASPIRATIONAL";
-  return "CONSULTATION";
-}
-
-export function nextStepNoun(
-  business: BusinessProfile,
-  tone?: ConversationNeedTone
-): string {
-  const resolved = tone || classifyConversationNeedTone(null, business);
-  if (resolved === "PROBLEM" && isFieldServiceProfile(business)) {
-    const blob = profileKnowledgeBlob(business);
-    if (/\bestimat/.test(blob)) return "estimate";
-    return "visit";
-  }
-  return "consultation";
-}
-
-export function nextStepArticleNoun(
-  business: BusinessProfile,
-  tone?: ConversationNeedTone
-): string {
-  const noun = nextStepNoun(business, tone);
-  return /^[aeiou]/i.test(noun) ? `an ${noun}` : `a ${noun}`;
-}
-
-function stripHelpRequest(text: string): string {
-  return text
-    .replace(/[?.!]+/g, " ")
-    .replace(
-      /\b(can you help(?: me)?|please help|i need help(?: with)?|i need (it|this) fixed|can you (fix|do|help with) (it|this)|and i need it fixed)\b/gi,
-      " "
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Short natural restatement of the stated need â€” no industry noun hardcoding. */
-export function briefNeedPhrase(need: string | null | undefined): string | null {
-  if (!need) return null;
-  const cleaned = stripHelpRequest(need);
-  if (!cleaned) return null;
-
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  if (words.length < 2) return null;
-  if (words.length > 14) {
-    return cleaned
-      .split(/\s+/)
-      .slice(0, 10)
-      .join(" ")
-      .replace(/^(the |my |our |a |an )/i, "")
-      .toLowerCase();
-  }
-  return cleaned.replace(/^(the |my |our |a |an )/i, "").toLowerCase();
-}
-
-export function buildEmpatheticNameAsk(
-  need: string | null | undefined,
-  business?: BusinessProfile
-): string {
-  const tone = classifyConversationNeedTone(need, business);
-  const brief = briefNeedPhrase(need);
-  let ack: string;
-
-  switch (tone) {
-    case "PROBLEM": {
-      // Keep the name ask to one question; avoid "and ... ?" compound patterns.
-      const safeBrief =
-        brief && !/\band\b/i.test(brief) && brief.split(/\s+/).length <= 8
-          ? brief
-          : null;
-      ack = safeBrief
-        ? `I'm sorry you're dealing with ${safeBrief}. We can help.`
-        : "I'm sorry you're dealing with that. We can help.";
-      break;
-    }
-    case "ASPIRATIONAL":
-      ack = "That sounds like a great project. We'd be happy to help.";
-      break;
-    case "CELEBRATION":
-      ack =
-        "How excitingâ€”congratulations! We'd be glad to help make it special.";
-      break;
-    case "CONSULTATION":
-    default:
-      ack = "Absolutely, I'd be glad to help with that.";
-      break;
-  }
-
-  return `${ack} ${PRE_CONTACT_ASK_FIRST_NAME}`;
-}
-
-export function startsWithMechanicalNameThanks(reply: string): boolean {
-  return /^\s*thanks,\s+[A-Za-z][A-Za-z.'-]{0,40}\b/i.test(reply.trim());
-}
-
-function needToneFromState(
-  state: SalesState,
-  business: BusinessProfile
-): ConversationNeedTone {
-  return classifyConversationNeedTone(
-    state.customerNeed || state.primaryNeed,
-    business
-  );
-}
-
-/**
- * Persuasive post-contact invitation: tangible benefit + confident arrange ask.
- * No free/booking/availability promises unless verified elsewhere in profile facts.
- */
-export function buildPersuasiveArrangeInvitation(
-  business: BusinessProfile,
-  tone?: ConversationNeedTone,
-  need?: string | null
-): string {
-  const resolved = tone || "CONSULTATION";
-  const step = nextStepArticleNoun(business, resolved);
-  const fieldProblem =
-    resolved === "PROBLEM" && isFieldServiceProfile(business);
-  const brief = briefNeedPhrase(need);
-
-  switch (resolved) {
-    case "PROBLEM":
-      if (fieldProblem) {
-        const shortBrief =
-          brief &&
-          brief.split(/\s+/).length <= 6 &&
-          !/^(i |we |my |our )/i.test(brief)
-            ? brief
-            : null;
-        const concern = shortBrief
-          ? `I understand you're dealing with ${shortBrief}. `
-          : "I understand this is concerning. ";
-        return `${concern}A visit lets the professional assess the situation on site, explain the options, and give you a clear quote before any work begins. Would you like to arrange ${step}?`;
-      }
-      return `A short conversation lets the team understand your goals and recommend the right next step. Would you like to arrange ${step}?`;
-    case "ASPIRATIONAL":
-      return `A consultation lets the team understand the space, discuss the options, and give you a clear quote before you commit to anything. Would you like to arrange ${step}?`;
-    case "CELEBRATION":
-      return `A short consultation lets the team understand the occasion and your plans, then prepare options that fit. Would you like to arrange ${step}?`;
-    case "CONSULTATION":
-    default:
-      return `A short conversation lets the team understand your goals and recommend the right next step. Would you like to arrange ${step}?`;
-  }
-}
-
-export function buildPostContactNextStepReply(
-  state: SalesState,
-  business: BusinessProfile
-): string {
-  return buildPersuasiveArrangeInvitation(
-    business,
-    needToneFromState(state, business),
-    state.customerNeed || state.primaryNeed
-  );
-}
-
-export function buildAgreedPreferredTimeAsk(
-  business: BusinessProfile,
-  tone?: ConversationNeedTone
-): string {
-  return `What day or time would you prefer for the ${nextStepNoun(business, tone)}?`;
-}
-
-/** Short arrange ask for appending after a price/scope answer that already explained benefit. */
-export function buildArrangeDecisionAsk(
-  business: BusinessProfile,
-  tone?: ConversationNeedTone
-): string {
-  const resolved = tone || "CONSULTATION";
-  return `Would you like to arrange ${nextStepArticleNoun(business, resolved)}?`;
-}
-
-/** Cost/options hesitation after product detail â€” acknowledge, do not replay the first invite. */
-export function isCostOptionsHesitation(
-  message: string | null | undefined
-): boolean {
-  const t = (message || "").toLowerCase();
-  if (!t.trim()) return false;
-  if (/\bfinancial implication/.test(t)) return true;
-  if (
-    /\b(decid(?:e|ing)|see(?:ing)?|review(?:ing)?|look(?:ing)? at)\b/.test(t) &&
-    /\b(cost|price|pricing|financial|options?|implication|quote)\b/.test(t)
-  ) {
-    return true;
-  }
-  return /\bafter seeing\b/.test(t) && /\b(options?|cost|price|financial)\b/.test(t);
-}
-
-function extractDecisionTopic(
-  ...texts: Array<string | null | undefined>
-): string | null {
-  const blob = texts.filter(Boolean).join(" ");
-  if (!blob) return null;
-  const match = blob.match(
-    /\b(fixtures?|materials?|finishes?|packages?|models?|designs?|layouts?)\b/i
-  );
-  if (!match) return null;
-  const raw = match[1].toLowerCase();
-  // Prefer natural plural customer-facing phrasing when detected.
-  if (raw === "fixture") return "fixtures";
-  return raw;
-}
-
-export function buildCostOptionsHesitationReply(
-  state: SalesState,
-  business: BusinessProfile,
-  recentContext?: string | null
-): string {
-  const tone = needToneFromState(state, business);
-  const topic = extractDecisionTopic(
-    recentContext,
-    state.customerNeed,
-    state.primaryNeed
-  );
-  const beforeDeciding = topic
-    ? ` before deciding on ${topic}`
-    : " before deciding";
-  const fieldProblem = tone === "PROBLEM" && isFieldServiceProfile(business);
-
-  if (fieldProblem) {
-    return `That makes sense. A visit lets you review the options and likely cost${beforeDeciding}. Would you like to arrange one?`;
-  }
-  if (tone === "CELEBRATION") {
-    return `That makes sense. A short consultation lets you review the options and likely cost${beforeDeciding}. Would you like to arrange one?`;
-  }
-  return `That makes sense. A consultation lets you review the options and likely cost${beforeDeciding}. Would you like to arrange one?`;
-}
-
-/** Verified hourly/fixed approach line without diagnosis or work jargon. */
-function describeVerifiedApproach(business: BusinessProfile): string | null {
-  const blob = profileKnowledgeBlob(business);
-  const hasHourly =
-    /\bhourly\b/.test(blob) ||
-    /\bper hour\b/.test(blob) ||
-    /\bby the hour\b/.test(blob);
-  const hasFixed =
-    /\b(fixed|flat)\s+(price|rate|fee)\b/.test(blob) ||
-    /\b(project|job)\s+(price|rate|pricing|fee)\b/.test(blob) ||
-    /\blump sum\b/.test(blob);
-
-  if (hasHourly && !hasFixed) {
-    return "This business typically charges hourly.";
-  }
-  if (hasFixed && !hasHourly) {
-    return "This business typically prices the full job rather than by the hour.";
-  }
-  if (hasHourly && hasFixed) {
-    return "Depending on the scope, pricing may be hourly or for the full project.";
-  }
-  return null;
-}
-
-function toneAwareUnverifiedScope(
-  tone: ConversationNeedTone,
-  business: BusinessProfile
-): string {
-  switch (tone) {
-    case "PROBLEM":
-      return isFieldServiceProfile(business)
-        ? "Exact pricing depends on what is found on site â€” for example the extent of the issue, access, and the repair or treatment path. A visit lets the professional assess that and give you a clear quote before work begins."
-        : "Exact pricing depends on your requirements and the consultation scope. A short conversation lets the team understand your needs and recommend the right next step.";
-    case "ASPIRATIONAL":
-      return "Exact pricing depends on design choices, materials, site conditions, and project scope. A short consultation lets the team review those variables with you and provide a clear quote.";
-    case "CELEBRATION":
-      return "Exact pricing depends on the date, guest count, venue requirements, and the options you choose. A short consultation lets the team map those variables to suitable options.";
-    case "CONSULTATION":
-    default:
-      return "Exact pricing depends on your goals, the depth of advice needed, and the scope of work that follows. A short conversation lets the team understand those variables and recommend the right next step.";
-  }
-}
-
-/**
- * Profile- and tone-aware price answer.
- * Never routes ASPIRATIONAL / CELEBRATION / CONSULTATION through diagnosis,
- * technician, site-visit, or "what the work includes" fallbacks.
- */
-export function buildIntentAwarePriceAnswer(
-  state: SalesState,
-  business: BusinessProfile,
-  latestUserMessage?: string
-): string {
-  const tone = needToneFromState(state, business);
-  // Only non-empty string pricingRules are customer-facing verified text.
-  // Structured/non-string shapes fall through to truthful no-invented-price.
-  const { visit, service } = scopedPricing(business);
-  if (asksVisitPrice(latestUserMessage) && visit) return visit;
-  if (service) return [service, separateVisitFee(business)].filter(Boolean).join(" ");
-
-  const approach = describeVerifiedApproach(business);
-  const scope = state.priceQuestionCount > 1
-    ? `For the overall service or project, there isn't an exact total established yet. ${toneAwareUnverifiedScope(tone, business)}`
-    : toneAwareUnverifiedScope(tone, business);
-  const fee = state.priceQuestionCount > 1 && visit
-    ? "The visit fee discussed separately is only for the visit, not the overall project price."
-    : separateVisitFee(business);
-  if (approach) {
-    return `${approach} ${scope} ${fee}`.trim();
-  }
-  return `${scope} ${fee}`.trim();
-}
-
-export function buildPostContactPriceReply(
-  state: SalesState,
-  business: BusinessProfile,
-  latestUserMessage?: string
-): string {
-  const tone = needToneFromState(state, business);
-  const price = buildIntentAwarePriceAnswer(state, business, latestUserMessage);
-  if (state.preferredTiming && agreedToArrange(state)) {
-    return price;
-  }
-  if (agreedToArrange(state) && !state.preferredTiming) {
-    return `${price} ${buildAgreedPreferredTimeAsk(business, tone)}`.trim();
-  }
-  if (/would you like to arrange/i.test(price)) {
-    return price;
-  }
-  return `${price} ${buildArrangeDecisionAsk(business, tone)}`.trim();
-}
-
-export function buildTimeWithoutAgreementReply(
-  state: SalesState,
-  business: BusinessProfile
-): string {
-  const tone = needToneFromState(state, business);
-  const step = nextStepArticleNoun(business, tone);
-  const timing = state.preferredTiming?.trim();
-  if (timing) {
-    return `I can note ${timing} as a preferred time. Would you like to arrange ${step}?`;
-  }
-  return buildPostContactNextStepReply(state, business);
-}
-
-export function resolveWarmPreContactReply(
-  state: SalesState,
-  missingField: "name" | "phone" | "address",
-  latestUserMessage?: string,
-  business?: BusinessProfile
-): string {
-  if (missingField === "name") {
-    return buildEmpatheticNameAsk(
-      state.customerNeed || state.primaryNeed || latestUserMessage,
-      business
-    );
-  }
-  if (missingField === "phone") return PRE_CONTACT_ASK_PHONE;
-  return PRE_CONTACT_ASK_ADDRESS;
-}
-
-export function replyAsksToArrangeNextStep(reply: string): boolean {
-  return /\b(would you like to (arrange|book|schedule|set up)|shall i arrange|want (me )?to arrange|would you like (a |an )?(visit|consultation|assessment|appointment|estimate|follow-up))\b/i.test(
-    reply
-  );
-}
-
-/** Field-service-only jargon banned for project / event / consultation copy. */
-export function replyUsesFieldServiceJargon(reply: string): boolean {
-  return /\b(technician|service visit|site visit|on[- ]site assessment|diagnosis|the work required|what the work includes)\b/i.test(
-    reply
-  );
-}
-
-/**
- * True when the customer is asking for sales conversation value â€” not merely
- * submitting a lead field or bare agreement. Used to avoid replacing the AI
- * with generic consultation templates after contacts are secured.
- */
-export function isSubstantiveSalesFollowUp(
-  message: string | null | undefined
-): boolean {
-  const t = (message || "").trim();
-  if (!t) return false;
-
-  if (/\?/.test(t)) return true;
-
-  const lower = t.toLowerCase();
-
-  if (
-    /^(yes|yeah|yep|yup|sure|ok|okay|sounds good|that works|yes please|no|nope|no thanks)[.!]?$/i.test(
-      t
-    )
-  ) {
-    return false;
-  }
-
-  if (
-    /\b(worried|concerned|nervous|afraid|scared|anxious|how far|spread|getting worse|before it (gets|becomes) worse)\b/i.test(
-      lower
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    /\b(efficient|efficiency|energy|electricity|power (bill|usage|consumption)|consumption|options?|compare|comparison|difference|recommend|what (system|unit|model|type)|which (system|unit|model|type)|how (does|do|would|will)|why (do|does|would|should)|do you (know|offer|handle|provide|install)|can you (explain|tell|help|advise)|tell me (about|more)|what about)\b/i.test(
-      lower
-    )
-  ) {
-    return true;
-  }
-
-  if (
-    /\b(too expensive|cost too much|pricey|not sure|need to think|hesitat|why (should|would) i|worth it|financial)\b/i.test(
-      lower
-    )
-  ) {
-    return true;
-  }
-
-  if (isCostOptionsHesitation(t)) return true;
-
-  // Multi-sentence concern / explanation after contacts â€” treat as conversation.
-  if (t.split(/\s+/).filter(Boolean).length >= 10) return true;
-
-  return false;
-}
-
-/**
- * Detects first-person business capability claims ("we handle/provide/...").
- * Used to reject converting general industry knowledge into unsupported
- * claims about the specific business when the profile does not support them.
- */
-export function replyMakesFirstPersonCapabilityClaim(reply: string): boolean {
-  return /\b(we|our (team|technicians?|crew|company|staff))\s+(?:can |will |could |also )?(handle|handles|provide|provides|offer|offers|do|does|perform|performs|coordinate|coordinates|take care of|cover|covers)\b/i.test(
-    reply
-  );
-}
-
-/**
- * Extracts rough capability phrases after first-person claim verbs for
- * profile support checks. Industry-agnostic; not a vertical allowlist.
- */
-export function extractClaimedCapabilities(reply: string): string[] {
-  const claims: string[] = [];
-  const re =
-    /\b(?:we|our (?:team|technicians?|crew|company|staff))\s+(?:can |will |could |also )?(?:handle|handles|provide|provides|offer|offers|do|does|perform|performs|coordinate|coordinates|take care of|cover|covers)\s+([^.;!?]+)/gi;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(reply))) {
-    const phrase = (match[1] || "").trim().toLowerCase();
-    if (phrase.length >= 4) claims.push(phrase.slice(0, 80));
-  }
-  return claims;
-}
-
-/**
- * True when a first-person capability claim is not supported by the loaded
- * BusinessProfile. General industry wording ("installations commonly require")
- * is not flagged.
- */
-export function replyHasUnsupportedBusinessCapabilityClaim(
-  reply: string,
-  business: BusinessProfile
-): boolean {
-  if (!replyMakesFirstPersonCapabilityClaim(reply)) return false;
-
-  const knowledge = profileKnowledgeBlob(business);
-  const claims = extractClaimedCapabilities(reply);
-  if (claims.length === 0) {
-    return /\b(we|our (team|technicians?|crew))\s+(?:can |will |could |also )?(handle|provide|coordinate|offer)\b/i.test(
-      reply
-    );
-  }
-
-  return claims.some((claim) => {
-    const tokens = claim
-      .replace(/[^a-z0-9\s-]/g, " ")
-      .split(/\s+/)
-      .filter((token) => token.length >= 4);
-    if (tokens.length === 0) return false;
-    const supported = tokens.some((token) => knowledge.includes(token));
-    return !supported;
-  });
-}
-
-/**
- * Reject unsupported service-detail lists such as "maintenance typically includes..."
- * unless the profile contains the details. Broad industry knowledge must not be
- * presented as a confirmed description of this specific business's work.
- */
-export function replyHasUnsupportedServiceDetails(
-  reply: string,
-  business: BusinessProfile
-): boolean {
-  const claimPattern = /\b(?:typically|usually|generally)\s+(?:(?:includes?|covers?|involves?|checks?|performs?|conducts?|inspects?|assesses?|cleans?|tests?|evaluates?)\b|(?:a|an|the)\s+(?:visual|detailed|routine|annual|complete|full|on-site|site-specific)\s+(?:inspection|check|assessment|cleaning|test)\b)|\b(?:a|an|the)\s+(?:visual|detailed|routine|annual|complete|full|on-site|site-specific)\s+(?:inspection|check|assessment|cleaning|test)\b|\b(?:maintenance|inspection|service)\b[^.!?]{0,120}\b(?:checks?|inspects?|cleans?|tests?|assesses?|evaluates?|identifies?|diagnoses?|restores?|repairs?|optimizes?|recommends?|helps?|can|may|will|reduces?|prevents?|improves?|preserves?|protects?|extends?)\b/i;
-  const match = claimPattern.exec(reply);
-  if (!match) return false;
-
-  const endCandidates = [
-    reply.indexOf(".", match.index + match[0].length),
-    reply.indexOf("!", match.index + match[0].length),
-    reply.indexOf("?", match.index + match[0].length),
-  ].filter((index) => index >= 0);
-  const end = endCandidates.length ? Math.min(...endCandidates) : reply.length;
-  const details = reply.slice(match.index + match[0].length, end);
-  const stopWords = new Set([
-    "about", "after", "also", "before", "could", "from", "help", "into",
-    "more", "most", "only", "that", "their", "them", "then", "there",
-    "these", "they", "this", "those", "through", "with", "would", "your",
-  ]);
-  const terms = (details.toLowerCase().match(/[a-z]{4,}/g) || []).filter(
-    (term) => !stopWords.has(term)
-  );
-  if (terms.length < 4) return false;
-
-  const knowledge = profileKnowledgeBlob(business);
-  const supportedCount = terms.filter((term) => knowledge.includes(term)).length;
-  return supportedCount / terms.length < 0.7;
-}
-
-/** Generic consultation-boilerplate only â€” no substantive answer content. */
-export function replyIsGenericConsultationBoilerplate(reply: string): boolean {
-  const t = reply.trim();
-  if (!t) return false;
-  const arrangeOnly =
-    /\bwould you like to arrange\b/i.test(t) &&
-    /\b(visit|consultation|assessment|appointment|estimate)\b/i.test(t);
-  if (!arrangeOnly) return false;
-  const hasBoilerplateBenefit =
-    /\b(lets the (professional|team)|short (conversation|consultation) lets|understand (the space|your goals|the occasion|your plans|your needs)|identify the cause|clear quote before)\b/i.test(
-      t
-    );
-  const hasSubstantiveAnswer =
-    /\b(efficiency|electric|energy|consumption|cost (is|depends|varies)|pricing depends|exact pricing|typically|commonly|usually|in general|options include|newer systems|high[- ]efficiency|can extend|helps determine|activity can|for example|variables|extent of the issue|design choices|guest count|depth of advice)\b/i.test(
-      t
-    );
-  return hasBoilerplateBenefit && !hasSubstantiveAnswer;
-}
+X]ÚH™K™^XÊ™\JJJHÂˆÛÛœÝ˜\ÙHH
+X]ÚÌWHˆŠKš[J
+KÓÝÙ\Ø\ÙJ
+NÂˆYˆ
+˜\ÙK›[™ÝH
+HÛZ[\Ëœ\Ú
+˜\ÙKœÛXÙJ
+JNÂˆBˆ™]\›ˆÛZ[\ÎÂŸB‚‹ÊŠ‚ˆ
+ˆYHÚ[ˆHš\œÝ\\œÛÛˆØ\Xš[]HÛZ[H\È›ÝÝ\ÜYžHHØYYˆ
+ˆ\Ú[™\ÜÔ›Ùš[KˆÙ[™\˜[[™\ÝžHÛÜ™[™È
+š[œÝ[][ÛœÈÛÛ[[Û›H™\]Z\™HŠBˆ
+ˆ\È›Ý›YÙÙY‚ˆ
+‹Â™^Ü[˜Ý[Ûˆ™\R\Õ[œÝ\ÜY\Ú[™\ÜÐØ\Xš[]PÛZ[Jˆ™\NˆÝš[™Ëˆ\Ú[™\ÜÎˆ\Ú[™\ÜÔ›Ùš[BŠNˆ›ÛÛX[ˆÂˆYˆ
+\™\SXZÙ\Ñš\œÝ\œÛÛØ\Xš[]PÛZ[J™\JJH™]\›ˆ˜[ÙNÂ‚ˆÛÛœÝÛ›ÝÛYÙHH›Ùš[RÛ›ÝÛYÙP›ØŠ\Ú[™\ÜÊNÂˆÛÛœÝÛZ[\ÈH^˜XÝÛZ[YYØ\Xš[]Y\Ê™\JNÂˆYˆ
+ÛZ[\Ë›[™ÝOOH
+HÂˆ™]\›ˆ×ŠÙ_Ý\ˆ
+X[_XÚšXÚX[œÏßÜ™]ÊJWÊÊÎ˜Ø[ˆÚ[ÛÝ[[ÛÈ
+OÊ[™_›ÝšY_ÛÛÜ™[˜]_Ù™™\ŠW‹ÚK\Ý
+ˆ™\Bˆ
+NÂˆB‚ˆ™]\›ˆÛZ[\ËœÛÛYJ
+ÛZ[JHOˆÂˆÛÛœÝÚÙ[œÈHÛZ[Bˆœ™\XÙJÖ×˜K^ŒNWËWKÙËˆŠBˆœÜ]
+×ÊËÊBˆ™š[\Š
+ÚÙ[ŠHOˆÚÙ[‹›[™ÝH
+NÂˆYˆ
+ÚÙ[œË›[™ÝOOH
+H™]\›ˆ˜[ÙNÂˆÛÛœÝÝ\ÜYHÚÙ[œËœÛÛYJ
+ÚÙ[ŠHOˆÛ›ÝÛYÙKš[˜ÛY\ÊÚÙ[ŠJNÂˆ™]\›ˆ\Ý\ÜYÂˆJNÂŸB‚‹ÊŠ‚ˆ
+ˆ™Z™XÝ[œÝ\ÜYÙ\šXÙKY]Z[\ÝÈÝXÚ\È›XZ[[˜[˜ÙH\XØ[H[˜ÛY\Ë‹‹ˆ‚ˆ
+ˆ[›\ÜÈH›Ùš[HÛÛZ[œÈH]Z[Ëˆœ›ØY[™\ÝžHÛ›ÝÛYÙH]\Ý›Ý™Bˆ
+ˆ™\Ù[Y\ÈHÛÛ™š\›YY\ØÜš\[ÛˆÙˆ\ÈÜXÚYšXÈ\Ú[™\ÜÉÜÈÛÜšË‚ˆ
+‹Â™^Ü[˜Ý[Ûˆ™\R\Õ[œÝ\ÜYÙ\šXÙQ]Z[Êˆ™\NˆÝš[™Ëˆ\Ú[™\ÜÎˆ\Ú[™\ÜÔ›Ùš[BŠNˆ›ÛÛX[ˆÂˆÛÛœÝÛZ[T]\›ˆH×ŠÎ\XØ[_\ÝX[_Ù[™\˜[JWÊÊÎŠÎš[˜ÛY\ÏßÛÝ™\œÏß[›Û™\ÏßÚXÚÜÏß\™›Ü›\ÏßÛÛ™XÝÏß[œÜXÝÏß\ÜÙ\ÜÙ\ÏßÛX[œÏß\ÝÏß]˜[X]\ÏÊWŸ
+Î˜_[ŸJWÊÊÎš\ÝX[]Z[Y›Ý][™_[›X[ÛÛ\]_[Û‹\Ú]_Ú]K\ÜXÚYšXÊWÊÊÎš[œÜXÝ[ÛŸÚXÚß\ÜÙ\ÜÛY[ÛX[š[™ß\Ý
+WŠ_ŠÎ˜_[ŸJWÊÊÎš\ÝX[]Z[Y›Ý][™_[›X[ÛÛ\]_[Û‹\Ú]_Ú]K\ÜXÚYšXÊWÊÊÎš[œÜXÝ[ÛŸÚXÚß\ÜÙ\ÜÛY[ÛX[š[™ß\Ý
+WŸŠÎ›XZ[[˜[˜Ù_[œÜXÝ[ÛŸÙ\šXÙJW–×‹ˆO×^ÌLŒWŠÎ˜ÚXÚÜÏß[œÜXÝÏßÛX[œÏß\ÝÏß\ÜÙ\ÜÙ\Ïß]˜[X]\ÏßY[YšY\ÏßXYÛ›ÜÙ\Ïß™\ÝÜ™\Ïß™\Z\œÏßÜ[Z^™\Ïß™XÛÛ[Y[™Ïß[ÏßØ[ŸX^_Ú[™YXÙ\Ïß™]™[Ïß[\›Ý™\Ïß™\Ù\™\Ïß›ÝXÝÏß^[™ÏÊW‹ÚNÂˆÛÛœÝX]ÚHÛZ[T]\›‹™^XÊ™\JNÂˆYˆ
+[X]Ú
+H™]\›ˆ˜[ÙNÂ‚ˆÛÛœÝ[™Ø[™Y]\ÈHÂˆ™\Kš[™^ÙŠ‹ˆ‹X]Úš[™^
+ÈX]ÚÌK›[™Ý
+Kˆ™\Kš[™^ÙŠˆH‹X]Úš[™^
+ÈX]ÚÌK›[™Ý
+Kˆ™\Kš[™^ÙŠÈ‹X]Úš[™^
+ÈX]ÚÌK›[™Ý
+KˆK™š[\Š
+[™^
+HOˆ[™^H
+NÂˆÛÛœÝ[™H[™Ø[™Y]\Ë›[™ÝÈX]›Z[Š‹‹™[™Ø[™Y]\ÊHˆ™\K›[™ÝÂˆÛÛœÝ]Z[ÈH™\KœÛXÙJX]Úš[™^
+ÈX]ÚÌK›[™Ý[™
+NÂˆÛÛœÝÝÜÛÜ™ÈH™]ÈÙ]
+Âˆ˜X›Ý]‹˜Y\ˆ‹˜[ÛÈ‹˜™Y›Ü™H‹˜ÛÝ[‹™œ›ÛH‹š[‹š[È‹ˆ›[Ü™H‹›[ÜÝ‹›Û›H‹]‹Z\ˆ‹[H‹[ˆ‹\™H‹ˆ\ÙH‹^H‹\È‹ÜÙH‹›ÝYÚ‹Ú]‹ÛÝ[‹ž[Ý\ˆ‹ˆJNÂˆÛÛœÝ\›\ÈH
+]Z[ËÓÝÙ\Ø\ÙJ
+K›X]Ú
+ÖØK^—^ÍKÙÊH×JK™š[\Šˆ
+\›JHOˆ\ÝÜÛÜ™Ëš\Ê\›JBˆ
+NÂˆYˆ
+\›\Ë›[™Ý
+H™]\›ˆ˜[ÙNÂ‚ˆÛÛœÝÛ›ÝÛYÙHH›Ùš[RÛ›ÝÛYÙP›ØŠ\Ú[™\ÜÊNÂˆÛÛœÝÝ\ÜYÛÝ[H\›\Ë™š[\Š
+\›JHOˆÛ›ÝÛYÙKš[˜ÛY\Ê\›JJK›[™ÝÂˆ™]\›ˆÝ\ÜYÛÝ[È\›\Ë›[™ÝÎÂŸB‚‹ÊŠˆÙ[™\šXÈÛÛœÝ[][Û‹X›Ú[\œ]HÛ›H8 %›ÈÝXœÝ[]™H[œÝÙ\ˆÛÛ[ˆ
+‹Â™^Ü[˜Ý[Ûˆ™\R\ÑÙ[™\šXÐÛÛœÝ[][Û›Ú[\œ]J™\NˆÝš[™ÊNˆ›ÛÛX[ˆÂˆÛÛœÝH™\Kš[J
+NÂˆYˆ
+]
+H™]\›ˆ˜[ÙNÂˆÛÛœÝ\œ˜[™ÙSÛ›HBˆ×ÛÝ[[ÝHZÙHÈ\œ˜[™ÙW‹ÚK\Ý
+
+H	‰‚ˆ×Šš\Ú]ÛÛœÝ[][ÛŸ\ÜÙ\ÜÛY[\Ú[Y[\Ý[X]JW‹ÚK\Ý
+
+NÂˆYˆ
+X\œ˜[™ÙSÛ›JH™]\›ˆ˜[ÙNÂˆÛÛœÝ\Ð›Ú[\œ]P™[™Yš]Bˆ×Š]ÈH
+›Ù™\ÜÚ[Û˜[X[J_ÚÜ
+ÛÛ™\œØ][ÛŸÛÛœÝ[][ÛŠH]ß[™\œÝ[™
+HÜXÙ_[Ý\ˆÛØ[ßHØØØ\Ú[ÛŸ[Ý\ˆ[œß[Ý\ˆ™YYÊ_Y[YžHHØ]\Ù_ÛX\ˆ][ÝH™Y›Ü™JW‹ÚK\Ý
+ˆˆ
+NÂˆÛÛœÝ\ÔÝXœÝ[]™P[œÝÙ\ˆBˆ×ŠY™šXÚY[˜Þ_[XÝšXß[™\™Þ_ÛÛœÝ[\[ÛŸÛÜÝ
+\ß\[™ß˜\šY\Ê_šXÚ[™È\[™ß^XÝšXÚ[™ß\XØ[_ÛÛ[[Û›_\ÝX[_[ˆÙ[™\˜[Ü[ÛœÈ[˜ÛY_™]Ù\ˆÞ\Ý[\ßYÚËHYY™šXÚY[˜Þ_Ø[ˆ^[™[È]\›Z[™_XÝ]š]HØ[Ÿ›Üˆ^[\_˜\šXX›\ß^[ÙˆH\ÜÝY_\ÚYÛˆÚÚXÙ\ßÝY\ÝÛÝ[\ÙˆYšXÙJW‹ÚK\Ý
+ˆˆ
+NÂˆ™]\›ˆ\Ð›Ú[\œ]P™[™Yš]	‰ˆZ\ÔÝXœÝ[]™P[œÝÙ\ŽÂŸB

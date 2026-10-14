@@ -23,12 +23,14 @@ This feature is additive. Existing public chat, voice, demo and lead-alert route
 
 Sign in at `/login` using an administrator email. Open `/client`, enter the client's work email and the ID of an already saved business profile, then create the account. The client receives an email invite. The account and membership are linked before the portal displays the customer ID.
 
-The invited business profile must already exist in the current shared profile store. This flow does not crawl a website, create a profile, provision a phone number, publish an embed widget, or alter chat/voice behavior.
+The invited business profile must already exist in the shared profile store. The authenticated client portal now provides a client-specific iframe embed URL and copyable WordPress/Wix/Squarespace instructions. The public widget renders only branding in the browser; chat replies and lead routing reload the authoritative saved profile on the server.
 
 ## Current limits
 
-- This is a login and handover foundation, not a full dashboard or a launch approval.
+- This is a first-client handover portal, not the full lead-history or business-settings dashboard.
 - Handover requests are saved to Supabase and visible to that client. There is not yet an internal request queue, alert, status-update screen, or automatic reply.
 - Customer ID assignment is database-generated; do not create or edit customer IDs by hand.
 - Each account currently supports one sign-in user and one saved business profile.
+- Phone service is manually configured for the initial clients. Map each dedicated E.164 Twilio number to the client's saved profile in `INBOUND_VOICE_NUMBER_MAP`, point its inbound Voice webhook at `/api/twilio/voice-demo`, and run an inbound call/alert test. Shared public demo numbers remain protected by the six-digit code flow.
+- Do not call the account live until the migration, Supabase Auth, website placement, real inbound call, and actual lead-alert delivery have been verified in Preview.
 - The migration is a new file only. It must not be applied to a database without explicit review/approval.

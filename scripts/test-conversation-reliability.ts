@@ -278,6 +278,79 @@ async function testFailureAndRoute() {
   }));
   assert.equal(mismatch.status, 400);
 
+  // Missing OpenAI configuration must use the deterministic capture flow,
+  // rather than failing before the visitor can provide contact details.
+  delete process.env.OPENAI_API_KEY;
+  const noKeyBusiness = profile("https://no-key.test", []);
+  let noKeyState = createInitialSalesState({
+    conversationId: "conv_no_openai_key",
+    businessKey: noKeyBusiness.website,
+  });
+  const noKeyMessages: SalesChatMessage[] = [];
+  const noKeyTurns = [
+    OPENING,
+    "Morgan",
+    "2145550199",
+    "1500 Marilla St, Dallas TX 75201",
+  ];
+  const expectedPrompts = [/first name/i, /phone number/i, /service address/i];
+  let noKeyReply = "";
+  for (let index = 0; index < noKeyTurns.length; index += 1) {
+    noKeyMessages.push({ role: "user", content: noKeyTurns[index] });
+    const noKeyResponse = await POST(new NextRequest("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversationId: noKeyState.conversationId,
+        business: noKeyBusiness,
+        messages: noKeyMessages,
+        salesState: noKeyState,
+      }),
+    }));
+    const noKeyRaw = await noKeyResponse.text();
+    assert.equal(noKeyResponse.status, 200, noKeyRaw);
+    const noKeyBody = JSON.parse(noKeyRaw) as { reply: string; salesState: SalesState };
+    noKeyReply = noKeyBody.reply;
+    noKeyState = noKeyBody.salesState;
+    noKeyMessages.push({ role: "assistant", content: noKeyReply });
+    if (expectedPrompts[index]) assert.match(noKeyReply, expectedPrompts[index]);
+  }
+  assert.equal(noKeyState.lead.name, "Morgan");
+  assert.equal(noKeyState.lead.phone, "2145550199");
+  assert.equal(noKeyState.lead.address, "1500 Marilla St, Dallas TX 75201");
+  assert.match(noKeyReply, /when|time|visit|help/i);
+  console.log("PASS — without OpenAI, route preserves name → phone → address capture and deterministic follow-up");
+
+  const concurrent = await Promise.all(
+    Array.from({ length: 100 }, (_, index) => {
+      const concurrentBusiness = profile(`https://parallel-${index}.test`, [], {
+        businessName: `Parallel Business ${index}`,
+      });
+      const conversationId = `conv_parallel_${index}`;
+      return POST(new NextRequest("http://localhost/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId,
+          business: concurrentBusiness,
+          messages: [{ role: "user", content: OPENING }],
+        }),
+      })).then(async (response) => ({
+        index,
+        status: response.status,
+        body: await response.json() as { reply: string; salesState: SalesState },
+      }));
+    })
+  );
+  assert.equal(concurrent.length, 100);
+  for (const result of concurrent) {
+    assert.equal(result.status, 200, `parallel request ${result.index} should succeed`);
+    assert.match(result.body.reply, /first name/i, `parallel request ${result.index} should ask for name`);
+    assert.equal(result.body.salesState.conversationId, `conv_parallel_${result.index}`);
+    assert.equal(result.body.salesState.businessKey, `https://parallel-${result.index}.test`);
+  }
+  console.log("PASS — 100 concurrent synthetic chat requests remain isolated without OpenAI");
+
   let state = createInitialSalesState({ conversationId: "conv_route_ok", businessKey: business.website });
   const messages: SalesChatMessage[] = [];
   let reply = "";

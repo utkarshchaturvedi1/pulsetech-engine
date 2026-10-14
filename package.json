@@ -14,9 +14,13 @@
     "test:handoff-timing": "npx --yes tsx scripts/test-handoff-timing.ts",
     "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts",
     "test:client-account-regression": "npx --yes tsx scripts/test-client-account-regression.ts",
+    "test:client-handover": "npx --yes tsx scripts/test-client-handover.ts",
     "test:profile-access": "npx --yes tsx scripts/test-profile-access.ts",
     "test:conversation-reliability": "npx --yes tsx scripts/test-conversation-reliability.ts",
-    "test:paddle-sandbox-webhook": "npx --yes tsx scripts/test-paddle-sandbox-webhook.ts"
+    "test:paddle-sandbox-webhook": "npx --yes tsx scripts/test-paddle-sandbox-webhook.ts",
+    "test:v1-stabilization": "npx --yes tsx scripts/test-v1-stabilization.ts",
+    "test:raja-closure": "npx --yes tsx scripts/test-raja-closure.ts",
+    "test:raja-handoff-data": "npx --yes tsx scripts/test-raja-handoff-data.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

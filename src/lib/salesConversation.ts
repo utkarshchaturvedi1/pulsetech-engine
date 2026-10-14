@@ -172,7 +172,28 @@ export function buildEmpatheticNameAsk(
       break;
     case "CONSULTATION":
     default:
-      ack = "Absolutely, I'd be glad to help with that.";
+      {
+        const serviceText = [
+          ...(business?.services || []),
+          ...(business?.faqs || []).flatMap((faq) => [faq.question, faq.answer]),
+        ]
+          .join(" ")
+          .toLowerCase();
+        const needTerms = (brief || "")
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter((word) => word.length >= 4);
+        const isSpecificHelpRequest =
+          /\b(?:i need help with|can you help(?: me)? with|please help with)\b/i.test(
+            need || ""
+          );
+        const matchesBusinessKnowledge = needTerms.some((word) =>
+          serviceText.includes(word)
+        );
+        ack = isSpecificHelpRequest && brief && matchesBusinessKnowledge
+          ? `I understand you're looking for help with ${brief}.`
+          : "Absolutely, I'd be glad to help with that.";
+      }
       break;
   }
 

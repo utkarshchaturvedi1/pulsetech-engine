@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { registerElevenLabsTwilioCall } from "../../../../lib/elevenLabsTwilio";
 import {
   buildConversationInitiationResponse,
+  resolveInboundVoice,
 } from "../../../../lib/inboundVoice";
 import { loadSharedProfile } from "../../../../lib/sharedProfileStore";
 import { isVoiceDemoPublicNumber } from "../../../../lib/voiceDemoNumbers";
@@ -76,8 +77,23 @@ export async function POST(request: NextRequest) {
   const digits = (form.Digits || "").replace(/\D/g, "");
 
   if (!isVoiceDemoPublicNumber(toNumber)) {
-    // Never handle private/client numbers here — preserve Texas Solar direct routing.
-    return xml(buildVoiceDemoUnavailableTwiml());
+    // A dedicated client number is explicitly mapped to one saved profile.
+    // Unmapped numbers still fail closed; public demo numbers keep their code gate.
+    const resolution = await resolveInboundVoice(toNumber);
+    if (!resolution.ok) return xml(buildVoiceDemoUnavailableTwiml());
+
+    const registered = await registerElevenLabsTwilioCall({
+      agentId: process.env.ELEVENLABS_AGENT_ID?.trim() || "",
+      apiKey: process.env.ELEVENLABS_API_KEY?.trim() || "",
+      fromNumber,
+      toNumber,
+      conversationInitiationClientData: buildConversationInitiationResponse(resolution),
+    });
+    if (!registered.ok) {
+      console.error("[voice-inbound] ElevenLabs handoff unavailable");
+      return xml(buildVoiceDemoUnavailableTwiml());
+    }
+    return xml(registered.twiml);
   }
 
   // First leg: collect the access code with a neutral greeting.

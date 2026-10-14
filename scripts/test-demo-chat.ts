@@ -3155,7 +3155,7 @@ function testSalesConversationIntelligenceRegression() {
     pestBoilerplateValidation.reasons.join("; ")
   );
   const pestUseful = validateSalesReply(
-    "That is a valid concern — termite activity can extend beyond the first signs, so an on-site inspection helps determine the extent and the right treatment path before recommending work. Would you like to arrange a visit?",
+    "That sounds concerning. This business lists termite inspection and pest treatment. Would you like someone from the team to follow up about your concern?",
     { ...pestState, currentObjective: "ANSWER" },
     pestBusiness,
     pestConcern

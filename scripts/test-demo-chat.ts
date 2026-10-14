@@ -3805,7 +3805,9 @@ function testUnverifiedServiceDetailsAreRejected() {
 }
 
 async function main() {
-  testNeedRestatementRemovesHelpPreface();\n  testUnverifiedServiceDetailsAreRejected();\n  testLayoutConstraints();
+  testNeedRestatementRemovesHelpPreface();
+  testUnverifiedServiceDetailsAreRejected();
+  testLayoutConstraints();
   testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();
   testRajaNameCaptureAndPreferredTime();

@@ -45,7 +45,6 @@ function replyWithoutRepeatedOwnerQuestion(
 ): string {
   const repeated = replyRepeatsAnsweredOwnerQuestion(reply, state);
   if (!repeated) return reply;
-  state.responseChecks = [...(state.responseChecks || []), `repeated_owner_question:${repeated}`];
   const next = ownerQuestionReply(state);
   if (next && !replyRepeatsAnsweredOwnerQuestion(next, state)) return next;
   return buildPostContactNextStepReply(state, business);

@@ -96,13 +96,12 @@ export function isConfiguredWebhookSecret(secret: string): boolean {
 }
 
 /**
- * Platform notifications use `evt_` plus 26 characters and a separate `ntf_` id.
- * The webhook simulator wraps the same event differently: `event_id` is
- * `ntfsimevt_` plus 26 characters, and `notification_id` is omitted.
+ * Platform events use `evt_`. Simulator deliveries use `ntfsimevt_` and may
+ * include a notification id such as `ntf_` or `ntfsim_`, or omit it.
+ * Longer prefixes are listed first so `ntf_` does not swallow `ntfsim_`.
  */
-const PADDLE_PLATFORM_EVENT_ID = /^evt_[a-z0-9]{26}$/;
-const PADDLE_SIMULATION_EVENT_ID = /^ntfsimevt_[a-z0-9]{26}$/;
-const PADDLE_NOTIFICATION_ID = /^ntf_[a-z0-9]{26}$/;
+const PADDLE_EVENT_ID = /^(?:ntfsimevt|evt)_[a-z0-9]{26}$/;
+const PADDLE_NOTIFICATION_ID = /^(?:ntfsimevt|ntfsimrun|ntflog|ntfset|ntfsim|ntf)_[a-z0-9]{26}$/;
 
 /**
  * Verify a Paddle Billing `Paddle-Signature` header against the raw body.
@@ -155,30 +154,71 @@ function isSupportedEventType(value: string): value is PaddleSandboxEventType {
   return (PADDLE_SANDBOX_EVENT_TYPES as readonly string[]).includes(value);
 }
 
+function paddleIdPrefix(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const separator = value.indexOf("_");
+  if (separator <= 0) return "";
+  const prefix = value.slice(0, separator);
+  return /^[a-z]{1,16}$/i.test(prefix) ? prefix.toLowerCase() : "";
+}
+
+/** Temporary Preview diagnostic. Names, prefixes, and types only. */
+function logRejectedPaddleEvent(reason: string, value: unknown) {
+  const event =
+    value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  const eventId =
+    event && typeof event.event_id === "string" ? event.event_id : event && typeof event.id === "string" ? event.id : "";
+  const eventType = event && typeof event.event_type === "string" ? event.event_type : "";
+  console.info(
+    JSON.stringify({
+      source: "paddle-sandbox-webhook",
+      reason,
+      shape: event ? "object" : Array.isArray(value) ? "array" : value === null ? "null" : typeof value,
+      keys: event ? Object.keys(event).filter((key) => /^[a-z0-9_]{1,40}$/i.test(key)).sort() : [],
+      eventIdPrefix: paddleIdPrefix(eventId),
+      eventType: /^[a-z0-9_.]{1,80}$/.test(eventType) ? eventType : "",
+      hasNotificationId: Boolean(event && event.notification_id != null && event.notification_id !== ""),
+      notificationIdPrefix: paddleIdPrefix(event?.notification_id),
+    }),
+  );
+}
+
+function occurredAtValue(event: Record<string, unknown>): string {
+  if (typeof event.occurred_at === "string" && event.occurred_at) return event.occurred_at;
+  if (typeof event.created_at === "string" && event.created_at) return event.created_at;
+  return "";
+}
+
 /**
- * Simulation requests have no `notification_id`. The `ntfsimevt_` value is the
- * delivery id, so it is stored in that column. A present `notification_id`
- * must still be a platform `ntf_` id.
+ * `notification_id` is optional. When it is present it must be a Paddle id,
+ * including simulation prefixes. The event id is stored if it is omitted.
  */
 function readPaddleNotificationIdentity(event: Record<string, unknown>): {
   eventId: string;
   notificationId: string;
+  occurredAt: string;
 } | null {
-  const eventId = typeof event.event_id === "string" ? event.event_id : "";
-  if (PADDLE_PLATFORM_EVENT_ID.test(eventId)) {
-    const notificationId = typeof event.notification_id === "string" ? event.notification_id : "";
-    if (!PADDLE_NOTIFICATION_ID.test(notificationId)) return null;
-    return { eventId, notificationId };
+  const eventId =
+    typeof event.event_id === "string" ? event.event_id : typeof event.id === "string" ? event.id : "";
+  if (!PADDLE_EVENT_ID.test(eventId)) return null;
+  const occurredAt = occurredAtValue(event);
+  if (!occurredAt) return null;
+  if (event.notification_id == null || event.notification_id === "") {
+    return { eventId, notificationId: eventId, occurredAt };
   }
-  if (PADDLE_SIMULATION_EVENT_ID.test(eventId)) {
-    if (event.notification_id == null) {
-      return { eventId, notificationId: eventId };
-    }
-    const notificationId = typeof event.notification_id === "string" ? event.notification_id : "";
-    if (!PADDLE_NOTIFICATION_ID.test(notificationId)) return null;
-    return { eventId, notificationId };
+  if (typeof event.notification_id !== "string" || !PADDLE_NOTIFICATION_ID.test(event.notification_id)) {
+    return null;
   }
-  return null;
+  return { eventId, notificationId: event.notification_id, occurredAt };
+}
+
+function invalidEventReason(event: Record<string, unknown>): string {
+  const eventId =
+    typeof event.event_id === "string" ? event.event_id : typeof event.id === "string" ? event.id : "";
+  if (!PADDLE_EVENT_ID.test(eventId)) return "event-id";
+  if (!occurredAtValue(event)) return "missing-occurred-at";
+  if (event.notification_id != null && event.notification_id !== "") return "notification-id";
+  return "event-id";
 }
 
 export async function handlePaddleSandboxWebhook(input: {
@@ -209,6 +249,7 @@ export async function handlePaddleSandboxWebhook(input: {
     return { status: 400, body: { error: "Invalid JSON" } };
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    logRejectedPaddleEvent("not-object", parsed);
     return { status: 400, body: { error: "Invalid event" } };
   }
   const event = parsed as Record<string, unknown>;
@@ -218,9 +259,9 @@ export async function handlePaddleSandboxWebhook(input: {
     return { status: 200, body: { ok: true, ignored: true } };
   }
 
-  const occurredAt = typeof event.occurred_at === "string" ? event.occurred_at : "";
-  const identity = occurredAt ? readPaddleNotificationIdentity(event) : null;
+  const identity = readPaddleNotificationIdentity(event);
   if (!identity) {
+    logRejectedPaddleEvent(invalidEventReason(event), event);
     return { status: 400, body: { error: "Invalid event" } };
   }
 
@@ -229,8 +270,8 @@ export async function handlePaddleSandboxWebhook(input: {
       eventId: identity.eventId,
       notificationId: identity.notificationId,
       eventType,
-      occurredAt,
-      payload: event.data ?? null,
+      occurredAt: identity.occurredAt,
+      payload: "data" in event ? (event.data ?? null) : "payload" in event ? (event.payload ?? null) : null,
     });
     return {
       status: 200,

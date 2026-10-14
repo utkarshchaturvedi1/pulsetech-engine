@@ -322,10 +322,13 @@ async function testSimulationInvalidSignatureAndMalformedEvent() {
       label: "simulation without occurred_at",
     },
     {
-      body: simulationBody({ event_id: "evt_01j82zmtqgpfpphj5236f884tx" }),
+      body: simulationBody({
+        event_id: "evt_01j82zmtqgpfpphj5236f884tx",
+        notification_id: "ntf_short",
+      }),
       status: 400,
       error: "Invalid event",
-      label: "platform event id without notification_id",
+      label: "short platform notification id",
     },
     {
       body: simulationBody({ event_id: "ntfsimevt_short" }),
@@ -334,10 +337,10 @@ async function testSimulationInvalidSignatureAndMalformedEvent() {
       label: "short simulation event id",
     },
     {
-      body: simulationBody({ notification_id: "ntfsim_01j82zmtqgpfpphj5236f884tx" }),
+      body: simulationBody({ notification_id: "notification-id" }),
       status: 400,
       error: "Invalid event",
-      label: "simulation notification id that is not ntf_",
+      label: "notification id without a paddle prefix",
     },
     {
       body: JSON.stringify([
@@ -365,6 +368,50 @@ async function testSimulationInvalidSignatureAndMalformedEvent() {
   }
   assert(store.records.size === 0, "rejected simulation deliveries store nothing");
   console.log("PASS — simulation signatures and malformed events");
+}
+
+const SIMULATION_NOTIFICATION_ID = "ntfsim_01j82d983j814ypzx7m1fw2jpz";
+
+async function testDeliveredSimulationIncludesNotificationId() {
+  const nowMs = Date.parse("2024-09-18T16:32:32.000Z");
+  const rawBody = simulationBody({ notification_id: SIMULATION_NOTIFICATION_ID });
+  const store = createMemoryPaddleNotificationStore();
+  const result = await handlePaddleSandboxWebhook({
+    rawBody,
+    signatureHeader: signed(rawBody, nowMs),
+    secret: SECRET,
+    store,
+    nowMs,
+    vercelEnv: "preview",
+  });
+  assert(result.status === 200, "simulation notification id ntfsim_ is accepted");
+  assert(result.body.duplicate === false, "first ntfsim_ delivery is stored");
+  const saved = store.records.get(SIMULATION_EVENT_ID);
+  assert(saved?.notificationId === SIMULATION_NOTIFICATION_ID, "ntfsim_ notification id is stored");
+
+  const entityBody = JSON.stringify({
+    id: "ntfsimevt_01j82hf8jrwjsf9337a35tqghp",
+    status: "pending",
+    event_type: "transaction.completed",
+    payload: { id: "txn_01hv8wptq8987qeep44cyrewp9", status: "completed" },
+    created_at: "2024-09-18T12:24:47.960617Z",
+  });
+  const entity = await handlePaddleSandboxWebhook({
+    rawBody: entityBody,
+    signatureHeader: signed(entityBody, nowMs),
+    secret: SECRET,
+    store,
+    nowMs,
+    vercelEnv: "preview",
+  });
+  assert(entity.status === 200, "simulation event entity without event_id or occurred_at is accepted");
+  const entitySaved = store.records.get("ntfsimevt_01j82hf8jrwjsf9337a35tqghp");
+  assert(entitySaved?.occurredAt === "2024-09-18T12:24:47.960617Z", "created_at is used when occurred_at is absent");
+  assert(
+    (entitySaved?.payload as { id?: string } | null)?.id === "txn_01hv8wptq8987qeep44cyrewp9",
+    "payload is stored when data is absent",
+  );
+  console.log("PASS — delivered simulation shapes");
 }
 
 async function testDuplicateSimulationNotification() {
@@ -438,6 +485,7 @@ async function main() {
   await testSupportedEventsAndIgnoredType();
   await testUnconfiguredSecretAndStorageFailure();
   await testSimulationEnvelopeStoresEvent();
+  await testDeliveredSimulationIncludesNotificationId();
   await testSimulationInvalidSignatureAndMalformedEvent();
   await testDuplicateSimulationNotification();
   await testWebhookSecretIsTrimmedBeforeVerification();

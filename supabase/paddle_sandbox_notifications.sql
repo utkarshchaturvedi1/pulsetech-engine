@@ -7,8 +7,8 @@
 
 create table if not exists public.paddle_sandbox_notifications (
   event_id text primary key,
-  -- Platform deliveries store ntf_. Simulation deliveries omit notification_id,
-  -- so the handler stores the ntfsimevt_ event id here.
+  -- Platform deliveries store ntf_. Simulation deliveries may store ntfsim_
+  -- or the ntfsimevt_ event id when notification_id is omitted.
   notification_id text not null,
   event_type text not null
     check (event_type in (

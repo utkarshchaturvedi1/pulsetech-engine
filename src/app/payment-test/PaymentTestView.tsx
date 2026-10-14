@@ -294,8 +294,8 @@ function PricingPage({
             <CheckoutButton ready={readyToLoad} loading={!scriptReady} onClick={onCheckout} />
           </div>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[#5c6b80]">
-            Checkout opens with both the $2,000 one-time setup price and the $500/month price. A
-            buyer can still change a quantity or remove a line before paying.
+            Checkout opens with one $2,000 one-time setup item and one $500/month service item.
+            The Sandbox price settings fix each quantity at one. No real payment is processed.
           </p>
           {scriptError ? (
             <p className="mt-4 text-sm text-red-700" role="alert">
@@ -311,9 +311,8 @@ function PricingPage({
 
         <p className="mx-auto mt-10 max-w-2xl text-center text-sm leading-6 text-[#5c6b80]">
           Uses the Sandbox client-side token only. No secret API key is read or sent from this
-          page. Before opening checkout, set the Sandbox default payment link to{" "}
-          <code className="font-mono">http://localhost:3000</code> if you are testing on this
-          machine.
+          page. The Sandbox checkout domain is available on this Preview deployment. Do not use
+          real payment details.
         </p>
       </main>
     </div>

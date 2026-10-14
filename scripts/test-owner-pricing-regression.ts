@@ -31,6 +31,16 @@ import { evaluateHandoffReadiness, shouldAttemptLeadHandoff, buildLeadNotificati
 import { buildPricingApproachAnswer } from '../src/lib/schedulingPolicy';
 import { validateSalesReply, updateSalesStateFromTurn } from '../src/lib/salesController';
 import { synchronizeOwnerQuestions, ownerQuestionReply, ownerQuestionClarification, ownerRequiredQuestions, ownerQuestionParts, recognizedEitherOrAnswer } from '../src/lib/ownerQuestions';
+const multiChoice = 'Are you looking for a new solar system, batteries, or maintenance?';
+assert.equal(recognizedEitherOrAnswer(multiChoice, 'A new solar system. What is the exact price?'), 'new solar system');
+assert.equal(recognizedEitherOrAnswer(multiChoice, 'batteries'), 'batteries');
+assert.equal(recognizedEitherOrAnswer(multiChoice, 'third'), 'maintenance');
+assert.equal(recognizedEitherOrAnswer(multiChoice, 'fourth'), null);
+assert.equal(recognizedEitherOrAnswer(multiChoice, 'not batteries'), null);
+assert.equal(recognizedEitherOrAnswer(multiChoice, 'Maybe a new solar system'), null);
+assert.equal(recognizedEitherOrAnswer('Do you prefer cleaning, repair or replacement?', 'first'), 'cleaning');
+assert.equal(ownerQuestionClarification(multiChoice), 'Which one applies, new solar system, batteries or maintenance?');
+console.log('PASS — three-option customer selection plus price question preserves the chosen option');
 import { commitSharedProfile, loadSharedProfile, resolveCurrentChatProfile, ProfileUpdateConflict } from '../src/lib/sharedProfileStore';
 import { applyReviewedOwnerConfiguration, reviewedOwnerConfiguration } from './migrations/dallasplumbing-26c9ac5c-owner-questions';
 import { promises as fs } from 'node:fs';

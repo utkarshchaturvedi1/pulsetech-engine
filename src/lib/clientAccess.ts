@@ -1,5 +1,12 @@
 export function safeClientRedirect(value: string | null | undefined): string {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/client";
+  // URL parsing treats backslashes and embedded control characters as slashes.
+  if (!value?.startsWith("/") || value.startsWith("//") || /[\\\u0000-\u0020\u007f]/.test(value)) return "/client";
+  const base = "https://client-redirect.invalid";
+  try {
+    return new URL(value, base).origin === base ? value : "/client";
+  } catch {
+    return "/client";
+  }
 }
 
 export function isPulseTechAdmin(email: string | null | undefined, configured: string | undefined): boolean {

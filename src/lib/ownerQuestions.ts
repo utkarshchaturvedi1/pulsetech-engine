@@ -64,12 +64,21 @@ export function ownerQuestionParts(question: string): string[] {
   return parts.length > 1 ? parts : [text];
 }
 
-function eitherOrOptions(question: string): [string, string] | null {
+function eitherOrOptions(question: string): string[] | null {
   if (!/\b(?:is|are|do|does|did|was|were)\b/i.test(question)) return null;
   const cleaned = question.replace(/[?]+$/g, "").trim();
   const orAt = cleaned.toLowerCase().lastIndexOf(" or ");
   if (orAt < 0) return null;
   let right = cleanOptionSide(cleaned.slice(orAt + 4));
+  // A comma-separated choice has more than two options. Preserve every option
+  // instead of reducing the first side to its final word.
+  const enumerated = cleaned.slice(0, orAt).split(",").map((part) => part.trim()).filter(Boolean);
+  if (enumerated.length > 1) {
+    const first = cleanOptionSide(enumerated[0]).replace(/^(?:looking|asking|searching)\s+for\s+(?:(?:a|an|the)\s+)?/i, "");
+    const options = [first, ...enumerated.slice(1).map(cleanOptionSide), right];
+    if (options.every((option) => /^[a-z][a-z\s-]*$/i.test(option)) && new Set(options).size === options.length) return options;
+    return null;
+  }
   let left = cleanOptionSide(cleaned.slice(0, orAt));
   if (!left || !right) return null;
   if (/^(?:have|has|do|does|did)\b/.test(left)) return null;
@@ -179,7 +188,7 @@ function termPolarity(text: string, term: string): "positive" | "negated" | null
 }
 
 /** Select the option named by a term that appears on only one side, including a negated term. */
-function choiceByDistinctiveTerms(reply: string, options: [string, string]): string | null {
+function choiceByDistinctiveTerms(reply: string, options: string[]): string | null {
   if (isUncertainChoice(reply) || /[?]/.test(reply)) return null;
   const owner = new Map<string, string>();
   const counts = new Map<string, number>();
@@ -201,7 +210,7 @@ function choiceByDistinctiveTerms(reply: string, options: [string, string]): str
   }
   for (const option of positive) negated.delete(option);
   if (positive.size === 1) return [...positive][0];
-  if (positive.size === 0 && negated.size === 1) return options.find((option) => !negated.has(option)) || null;
+  if (options.length === 2 && positive.size === 0 && negated.size === 1) return options.find((option) => !negated.has(option)) || null;
   return null;
 }
 
@@ -289,7 +298,7 @@ export function deterministicOwnerRejection(question: string, reply: string): bo
 
 export function ownerQuestionClarification(question: string): string {
   const options = eitherOrOptions(question);
-  if (options) return `Which one applies, ${options[0]} or ${options[1]}?`;
+  if (options) return `Which one applies, ${options.slice(0, -1).join(", ")} or ${options[options.length - 1]}?`;
   if (YES_NO_QUESTION.test(question.trim())) return "Should I take that as yes or no?";
   return "Could you tell me which part applies?";
 }

@@ -5,6 +5,10 @@ assert.equal(safeClientRedirect("/client?tab=requests"), "/client?tab=requests")
 assert.equal(safeClientRedirect("//attacker.example"), "/client");
 assert.equal(safeClientRedirect("https://attacker.example"), "/client");
 assert.equal(safeClientRedirect(undefined), "/client");
+for (const unsafe of ["/\\attacker.example", "/\t/attacker.example", "/\n/attacker.example", "/\r/attacker.example", "///attacker.example"]) {
+  assert.equal(safeClientRedirect(unsafe), "/client");
+  assert.equal(new URL(safeClientRedirect(unsafe), "https://preview.example").origin, "https://preview.example");
+}
 
 assert.equal(isPulseTechAdmin(" Owner@PulseTechLabs.com ", "owner@pulsetechlabs.com, admin@pulsetechlabs.com"), true);
 assert.equal(isPulseTechAdmin("owner@pulsetechlabs.com.attacker.example", "owner@pulsetechlabs.com"), false);

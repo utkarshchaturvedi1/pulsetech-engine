@@ -117,7 +117,7 @@ function stripHelpRequest(text: string): string {
   return text
     .replace(/[?.!]+/g, " ")
     .replace(
-      /\b(can you help(?: me)?|please help|i need (it|this) fixed|can you (fix|do|help with) (it|this)|and i need it fixed)\b/gi,
+      /\b(can you help(?: me)?|please help|i need help(?: with)?|i need (it|this) fixed|can you (fix|do|help with) (it|this)|and i need it fixed)\b/gi,
       " "
     )
     .replace(/\s+/g, " ")
@@ -560,6 +560,41 @@ export function replyHasUnsupportedBusinessCapabilityClaim(
     const supported = tokens.some((token) => knowledge.includes(token));
     return !supported;
   });
+}
+
+/**
+ * Reject unsupported service-detail lists such as "maintenance typically includes..."
+ * unless the profile contains the details. Broad industry knowledge must not be
+ * presented as a confirmed description of this specific business's work.
+ */
+export function replyHasUnsupportedServiceDetails(
+  reply: string,
+  business: BusinessProfile
+): boolean {
+  const claimPattern = /\\b(?:typically|usually|generally)\\s+(?:includes?|covers?|involves?)\\b/i;
+  const match = claimPattern.exec(reply);
+  if (!match) return false;
+
+  const endCandidates = [
+    reply.indexOf(".", match.index + match[0].length),
+    reply.indexOf("!", match.index + match[0].length),
+    reply.indexOf("?", match.index + match[0].length),
+  ].filter((index) => index >= 0);
+  const end = endCandidates.length ? Math.min(...endCandidates) : reply.length;
+  const details = reply.slice(match.index + match[0].length, end);
+  const stopWords = new Set([
+    "about", "after", "also", "before", "could", "from", "help", "into",
+    "more", "most", "only", "that", "their", "them", "then", "there",
+    "these", "they", "this", "those", "through", "with", "would", "your",
+  ]);
+  const terms = (details.toLowerCase().match(/[a-z]{4,}/g) || []).filter(
+    (term) => !stopWords.has(term)
+  );
+  if (terms.length < 4) return false;
+
+  const knowledge = profileKnowledgeBlob(business);
+  const supportedCount = terms.filter((term) => knowledge.includes(term)).length;
+  return supportedCount / terms.length < 0.7;
 }
 
 /** Generic consultation-boilerplate only — no substantive answer content. */

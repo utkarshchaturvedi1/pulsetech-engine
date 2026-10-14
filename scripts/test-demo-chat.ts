@@ -3821,6 +3821,15 @@ function testUnverifiedServiceDetailsAreRejected() {
     ),
     "maintenance task claims absent from the profile must be rejected"
   );
+  const unverifiedPricingScope =
+    "Typical cost drivers are whether it is a routine check/cleaning versus repairs or part replacements (inverter, panels, wiring), system size, and roof access.";
+  assert(
+    replyHasUnsupportedServiceDetails(
+      unverifiedPricingScope,
+      texasSolarProfessionalTestProfile
+    ),
+    "unconfirmed maintenance examples in pricing answers must be rejected"
+  );
 
   const documentedProfile = {
     ...texasSolarProfessionalTestProfile,

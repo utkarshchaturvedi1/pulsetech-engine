@@ -3803,6 +3803,15 @@ function testUnverifiedServiceDetailsAreRejected() {
     ),
     "visual inspection and technical tasks absent from profile must be rejected"
   );
+  const unverifiedTypicalChecks =
+    "Maintenance is the right step — a professional inspection typically checks panel condition, mounting, inverter/wiring, and overall performance to identify issues and restore reliable output.";
+  assert(
+    replyHasUnsupportedServiceDetails(
+      unverifiedTypicalChecks,
+      texasSolarProfessionalTestProfile
+    ),
+    "typically checks phrasing with unconfirmed inspection tasks must be rejected"
+  );
 
   const documentedProfile = {
     ...texasSolarProfessionalTestProfile,

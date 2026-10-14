@@ -14,6 +14,7 @@ import {
   isSubstantiveSalesFollowUp,
   nextStepArticleNoun,
   replyHasUnsupportedBusinessCapabilityClaim,
+  replyHasUnsupportedServiceDetails,
   replyIsGenericConsultationBoilerplate,
   resolveWarmPreContactReply,
   startsWithMechanicalNameThanks,
@@ -2209,6 +2210,12 @@ export function validateSalesReply(
     );
   }
 
+  if (business && replyHasUnsupportedServiceDetails(reply, business)) {
+    reasons.push(
+      "Described specific service tasks not confirmed in BusinessProfile; say the business can confirm the details."
+    );
+  }
+
   if (
     contactComplete &&
     !!latestUserMessage?.trim() &&
@@ -2369,7 +2376,7 @@ Pursue ONLY currentObjective=${state.currentObjective}.
 Ask at most ONE question.
 Do not ask for already-collected or refused lead fields.
 Do not re-ask an owner-required question the customer already answered.
-Do not invent prices, availability, booking, or dispatch.
+Do not invent prices, availability, booking, or dispatch.\nDo not describe typical service inclusions or technical tasks unless BusinessProfile confirms them. If those details are missing, say the team can confirm and ask one useful question.
 Never arrange payment, say pay now, or collect a fee.
 Mention an owner-set site-visit fee at most once unless the customer asks about it again.
 If the customer just asked about visit timing, do not mention the fee.

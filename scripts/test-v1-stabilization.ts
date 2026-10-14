@@ -163,6 +163,9 @@ async function main() {
   );
   assert(state.appointmentIntent === true, "B: next-step agreement recorded");
 
+  state = apply(state, "Tomorrow morning works.", "What time would work for a visit?", biz);
+  assert(Boolean(state.preferredTiming), "B: preferred timing captured before handoff");
+
   state = apply(state, "How much will it cost?", "Great — I'll note that.", biz);
   assert(
     state.currentObjective === "HANDLE_PRICE_OBJECTION" ||
@@ -191,7 +194,9 @@ async function main() {
   });
 
   // -------- Test C — natural closure --------
-  state = apply(qualified(biz), "nothing more", "Anything else to pass along?", biz);
+  state = qualified(biz);
+  state.preferredTiming = "Tomorrow morning";
+  state = apply(state, "nothing more", "Anything else to pass along?", biz);
   assert(state.currentObjective === "CLOSE", "C: CLOSE");
   assert(state.handoffReady === true, "C: handoffReady");
   assert(shouldAttemptLeadHandoff(state, "closure", "nothing more"), "C: handoff");

@@ -214,6 +214,17 @@ function choiceByDistinctiveTerms(reply: string, options: string[]): string | nu
   return null;
 }
 
+const OPTION_FUNCTION = new Set([
+  "a", "an", "the", "this", "that", "these", "those", "for", "about", "regarding", "of", "to",
+  "your", "our", "my", "any", "some", "is", "are", "do", "does", "did", "was", "were",
+  "can", "could", "will", "would", "should", "have", "has", "you", "we", "they", "i",
+  "it", "there", "please", "just", "also", "with", "from", "into", "onto", "and",
+]);
+
+function questionContentWords(value: string): string[] {
+  return [...new Set(value.toLowerCase().replace(/[?.!,;:'"]+/g, " ").split(/\s+/).filter((word) => word.length > 4 && !OPTION_FUNCTION.has(word)))];
+}
+
 const YES_NO_STOP = /^(?:this|that|your|with|have|does|what|there|from|about|they|them|their|would|will|were|been|into|onto|just|only|also|please|property|customer|someone|something)$/i;
 
 function yesNoTopicWords(question: string): string[] {
@@ -307,7 +318,27 @@ export function assistantPromptedOwnerQuestion(previous: string | undefined, que
   if (!previous || !question) return false;
   if (previous.includes(question) || previous.trim() === ownerQuestionClarification(question)) return true;
   const parts = ownerQuestionParts(question);
-  return parts.length > 1 && parts.some((part) => part !== question && previous.includes(part));
+  if (parts.length > 1 && parts.some((part) => part !== question && previous.includes(part))) return true;
+  const expected = questionContentWords(question);
+  if (!expected.length) return false;
+  const said = new Set(questionContentWords(previous));
+  const overlap = expected.filter((word) => said.has(word));
+  return overlap.length >= Math.min(2, expected.length);
+}
+
+/** Detect a generated reply that repeats an owner question already answered. */
+export function replyRepeatsAnsweredOwnerQuestion(reply: string, state: SalesState): string | null {
+  const text = reply.trim();
+  if (!text) return null;
+  for (const [question, answer] of Object.entries(state.ownerQuestionAnswers || {})) {
+    if (!answer) continue;
+    if (text.includes(question)) return question;
+    const options = eitherOrOptions(question);
+    if (!options || !text.includes("?")) continue;
+    const mentions = options.filter((option) => new RegExp(`\\b${escapeRegExp(option)}\\b`, "i").test(text));
+    if (mentions.length === options.length) return question;
+  }
+  return null;
 }
 
 /** An attempted answer whose meaning is still not a choice. Price and phone interruptions stay on their own path. */

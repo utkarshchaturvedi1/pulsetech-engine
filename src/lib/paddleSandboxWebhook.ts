@@ -51,28 +51,62 @@ function supabaseConfig() {
   return { url, key };
 }
 
+/** Status and PostgREST code only. No URL, key, or response body. */
+function logStorageFailure(
+  category: "missing-config" | "insert-rejected" | "request-failed",
+  detail?: { status?: number; code?: string },
+) {
+  const code = detail?.code && /^[A-Za-z0-9_]{1,32}$/.test(detail.code) ? detail.code : "";
+  console.info(
+    JSON.stringify({
+      source: "paddle-sandbox-webhook",
+      reason: "storage",
+      category,
+      status: detail?.status ?? null,
+      code,
+    }),
+  );
+}
+
 export const supabasePaddleNotificationStore: PaddleNotificationStore = {
   async saveIfNew(record) {
     const config = supabaseConfig();
-    if (!config) throw new PaddleStoreUnavailable("Supabase is not configured.");
-    const response = await fetch(config.url + "/rest/v1/paddle_sandbox_notifications", {
-      method: "POST",
-      headers: {
-        apikey: config.key,
-        Authorization: "Bearer " + config.key,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        event_id: record.eventId,
-        notification_id: record.notificationId,
-        event_type: record.eventType,
-        occurred_at: record.occurredAt,
-        payload: record.payload,
-      }),
-    });
+    if (!config) {
+      logStorageFailure("missing-config");
+      throw new PaddleStoreUnavailable("Supabase is not configured.");
+    }
+    let response: Response;
+    try {
+      response = await fetch(config.url + "/rest/v1/paddle_sandbox_notifications", {
+        method: "POST",
+        headers: {
+          apikey: config.key,
+          Authorization: "Bearer " + config.key,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify({
+          event_id: record.eventId,
+          notification_id: record.notificationId,
+          event_type: record.eventType,
+          occurred_at: record.occurredAt,
+          payload: record.payload,
+        }),
+      });
+    } catch {
+      logStorageFailure("request-failed");
+      throw new PaddleStoreUnavailable("Could not store the Paddle notification.");
+    }
     if (response.status === 409) return "duplicate";
     if (response.ok) return "stored";
+    let code = "";
+    try {
+      const parsed = (await response.json()) as { code?: unknown };
+      if (typeof parsed.code === "string") code = parsed.code;
+    } catch {
+      code = "";
+    }
+    logStorageFailure("insert-rejected", { status: response.status, code });
     throw new PaddleStoreUnavailable("Could not store the Paddle notification.");
   },
 };

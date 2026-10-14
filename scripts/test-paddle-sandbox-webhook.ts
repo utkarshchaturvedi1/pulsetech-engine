@@ -591,6 +591,68 @@ async function testWebhookSecretIsTrimmedBeforeVerification() {
   console.log("PASS — webhook secret");
 }
 
+async function testStorageFailureCategories() {
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const originalInfo = console.info;
+  const originalFetch = globalThis.fetch;
+  const logs: string[] = [];
+  console.info = (message?: unknown) => {
+    logs.push(String(message));
+  };
+  const record = {
+    eventId: "ntfsimevt_01m4wmvc5jypq32sk87byaz2e1",
+    notificationId: "ntfsimntf_01m4wmvc7g4v988h1q12q29442",
+    eventType: "transaction.completed" as const,
+    occurredAt: "2026-10-14T07:25:55.250724Z",
+    payload: { status: "completed" },
+  };
+  try {
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    let missing = false;
+    try {
+      await supabasePaddleNotificationStore.saveIfNew(record);
+    } catch (error) {
+      missing = error instanceof PaddleStoreUnavailable;
+    }
+    assert(missing, "missing supabase config is storage unavailable");
+    assert(logs.some((line) => line.includes('"category":"missing-config"')), "logs missing-config");
+
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ code: "PGRST205", message: "do not log this body" }), {
+        status: 404,
+      })) as typeof fetch;
+    let rejected = false;
+    try {
+      await supabasePaddleNotificationStore.saveIfNew(record);
+    } catch (error) {
+      rejected = error instanceof PaddleStoreUnavailable;
+    }
+    assert(rejected, "a rejected insert is storage unavailable");
+    assert(
+      logs.some(
+        (line) =>
+          line.includes('"category":"insert-rejected"') &&
+          line.includes('"status":404') &&
+          line.includes('"code":"PGRST205"') &&
+          !line.includes("do not log this body"),
+      ),
+      "logs status and postgrest code only",
+    );
+  } finally {
+    console.info = originalInfo;
+    globalThis.fetch = originalFetch;
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previousKey;
+  }
+  console.log("PASS — storage failure categories");
+}
+
 async function main() {
   await testValidSignatureStoresEvent();
   await testInvalidSignatureDoesNotStore();
@@ -602,6 +664,7 @@ async function main() {
   await testSimulationInvalidSignatureAndMalformedEvent();
   await testDuplicateSimulationNotification();
   await testLiveSimulationNotificationIdStoresInSupabase();
+  await testStorageFailureCategories();
   await testWebhookSecretIsTrimmedBeforeVerification();
   console.log("All Paddle Sandbox webhook tests passed.");
 }

@@ -4,6 +4,7 @@ import path from "node:path";
 
 const source = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8");
 const widget = source("src/app/widget/[id]/page.tsx");
+const widgetTestPage = source("src/app/widget-test/page.tsx");
 const install = source("src/app/client/ClientInstallation.tsx");
 const portal = source("src/app/client/page.tsx");
 const voiceRoute = source("src/app/api/twilio/voice-demo/route.ts");
@@ -15,6 +16,8 @@ for (const privateField of ["leadNotificationEmail", "leadNotificationPhone", "s
   assert.ok(!widget.includes(`saved.profile.${privateField}`), `widget must not serialize ${privateField} to the browser`);
 }
 assert.match(widget, /robots: \{ index: false, follow: false \}/, "client widget is not indexed");
+assert.match(widgetTestPage, /process\.env\.VERCEL_ENV === "production"\) notFound\(\)/, "installation visual test is unavailable in Production");
+assert.match(widgetTestPage, /<iframe/, "PulseTech Preview contains its own iframe placement test");
 
 assert.match(install, /<iframe/, "client receives a standard iframe embed");
 assert.match(install, /Custom HTML/, "WordPress instructions are present");

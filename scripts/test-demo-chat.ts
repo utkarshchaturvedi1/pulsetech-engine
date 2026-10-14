@@ -3830,6 +3830,15 @@ function testUnverifiedServiceDetailsAreRejected() {
     ),
     "unconfirmed maintenance examples in pricing answers must be rejected"
   );
+  const unverifiedMaintenanceBenefit =
+    "Texas Solar Professional offers residential solar system maintenance; regular maintenance helps preserve energy production, catch issues like soiling, inverter or wiring faults, and prolong system life.";
+  assert(
+    replyHasUnsupportedServiceDetails(
+      unverifiedMaintenanceBenefit,
+      texasSolarProfessionalTestProfile
+    ),
+    "unconfirmed maintenance benefit claims must be rejected"
+  );
 
   const documentedProfile = {
     ...texasSolarProfessionalTestProfile,

@@ -10,10 +10,12 @@ export default function ClientInstallation({
   businessName,
   demoId,
   baseUrl,
+  primaryColor = "#2563eb",
 }: {
   businessName: string;
   demoId: string;
   baseUrl: string;
+  primaryColor?: string;
 }) {
   const [copied, setCopied] = useState(false);
   if (!baseUrl) {
@@ -24,8 +26,17 @@ export default function ClientInstallation({
       </section>
     );
   }
-  const widgetUrl = `${baseUrl}/widget/${encodeURIComponent(demoId)}`;
-  const snippet = `<iframe\n  src="${widgetUrl}"\n  title="${escapeHtmlAttribute(businessName)} AI Sales Employee"\n  width="100%"\n  height="640"\n  style="max-width: 420px; border: 0; border-radius: 20px;"\n  loading="lazy"\n  referrerpolicy="strict-origin-when-cross-origin"\n></iframe>`;
+
+  const safeColor = /^#[\\da-f]{3,8}$/i.test(primaryColor) ? primaryColor : "#2563eb";
+  const scriptUrl = `${baseUrl}/pulsetech-widget.js`;
+  const previewUrl = `${baseUrl}/widget-test?demoId=${encodeURIComponent(demoId)}`;
+  const snippet = `<script
+  src="${escapeHtmlAttribute(scriptUrl)}"
+  data-demo-id="${escapeHtmlAttribute(demoId)}"
+  data-title="Chat with ${escapeHtmlAttribute(businessName)}"
+  data-accent="${safeColor}"
+  async
+></script>`;
 
   async function copySnippet() {
     try {
@@ -42,26 +53,26 @@ export default function ClientInstallation({
       <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Website chat installation</p>
       <h2 className="mt-2 text-xl font-bold text-slate-950">Add the chat to your website</h2>
       <p className="mt-2 text-sm leading-6 text-slate-600">
-        Copy this block and place it where you want the chat panel to appear. It resizes to the available width and keeps the conversation isolated from the rest of your site.
+        This installs a floating chat button in the lower-right corner. Visitors can tap it to open a compact, branded chat window, then close it when they are done.
       </p>
       <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="pt-chat-install-code">Installation code</label>
-      <textarea id="pt-chat-install-code" readOnly value={snippet} rows={8} className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-800" />
+      <textarea id="pt-chat-install-code" readOnly value={snippet} rows={7} className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-800" />
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="button" onClick={copySnippet} className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">{copied ? "Copied" : "Copy code"}</button>
-        <a href={widgetUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-700 hover:underline">Open chat preview</a>
+        <a href={previewUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-700 hover:underline">Preview floating chat</a>
       </div>
       <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
         <div>
           <h3 className="font-semibold text-slate-900">WordPress</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Edit the page, add a <strong>Custom HTML</strong> block where the chat should appear, paste the code, then publish.</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Add the code through a Custom HTML block or your site’s footer code area. If WordPress removes script tags, use your site administrator’s approved code-insertion method.</p>
         </div>
         <div>
           <h3 className="font-semibold text-slate-900">Wix or Squarespace</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Add an <strong>Embed HTML</strong> or <strong>Code</strong> block, paste the code, and set its width to fill the section.</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Add an Embed HTML or custom-code block, paste the snippet, and publish. Check the chat button on desktop and mobile.</p>
         </div>
       </div>
       <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-        Before launch, check the installed chat on desktop and mobile and complete a test enquiry. For the first clients, PulseTech will review the placement with you.
+        For the first clients, PulseTech will review the placement with you. Test the installed chat before launch.
       </p>
       <div className="mt-5 border-t border-slate-100 pt-5">
         <h3 className="font-semibold text-slate-900">Inbound phone setup</h3>

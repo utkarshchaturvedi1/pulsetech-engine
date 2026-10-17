@@ -4,10 +4,11 @@ import { isPulseTechAdmin, normalizeClientEmail, safeClientRedirect } from "../s
 import path from "node:path";
 
 assert.equal(safeClientRedirect("/client?tab=requests"), "/client?tab=requests");
+assert.equal(safeClientRedirect("/demo/pulsetechlabs-47bad0f6"), "/demo/pulsetechlabs-47bad0f6");
 assert.equal(safeClientRedirect("//attacker.example"), "/client");
 assert.equal(safeClientRedirect("https://attacker.example"), "/client");
 assert.equal(safeClientRedirect(undefined), "/client");
-for (const unsafe of ["/\\attacker.example", "/\t/attacker.example", "/\n/attacker.example", "/\r/attacker.example", "///attacker.example"]) {
+for (const unsafe of ["/\\\\attacker.example", "/\\t/attacker.example", "/\\n/attacker.example", "/\\r/attacker.example", "///attacker.example"]) {
   assert.equal(safeClientRedirect(unsafe), "/client");
   assert.equal(new URL(safeClientRedirect(unsafe), "https://preview.example").origin, "https://preview.example");
 }
@@ -18,10 +19,16 @@ assert.equal(isPulseTechAdmin("owner@pulsetechlabs.com", undefined), false);
 
 assert.equal(normalizeClientEmail("  Client@Example.com "), "client@example.com");
 assert.equal(normalizeClientEmail("not-an-email"), null);
-assert.equal(normalizeClientEmail("name@example.com\nBcc:other@example.com"), null);
+assert.equal(normalizeClientEmail("name@example.com\\nBcc:other@example.com"), null);
 assert.equal(normalizeClientEmail("x".repeat(250) + "@x.com"), null);
 
 const migration = readFileSync(path.join(process.cwd(), "supabase/client_accounts.sql"), "utf8");
-assert.match(migration, /grant select \(id, customer_id, business_name, demo_id, handover_status, created_at, updated_at\)/, "client can read only its own embed identity through the account RLS policy");
+assert.match(migration, /grant select \\(id, customer_id, business_name, demo_id, handover_status, created_at, updated_at\\)/, "client can read only its own embed identity through the account RLS policy");
+
+const loginPage = readFileSync(path.join(process.cwd(), "src/app/login/page.tsx"), "utf8");
+const loginForm = readFileSync(path.join(process.cwd(), "src/app/login/ClientLoginForm.tsx"), "utf8");
+assert.match(loginPage, /safeClientRedirect\\(next\\)/, "login page sanitizes the return path");
+assert.match(loginPage, /<ClientLoginForm nextPath=\\{nextPath\\} \\/>/, "login page passes requested destination to the OTP form");
+assert.match(loginForm, /encodeURIComponent\\(nextPath\\)/, "OTP callback preserves the sanitized destination");
 
 console.log("PASS client account regression: safe auth redirects, exact admin allowlist, normalized and bounded client email");

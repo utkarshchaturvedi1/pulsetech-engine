@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-export default function ClientLoginForm() {
+export default function ClientLoginForm({ nextPath = "/client" }: { nextPath?: string }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -18,7 +18,7 @@ export default function ClientLoginForm() {
         email: email.trim().toLowerCase(),
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=%2Fclient`,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
         },
       });
       setMessage(error ? "We couldn’t send a sign-in link. Check the email address or contact PulseTech." : "Check your email for a secure sign-in link. It expires according to the account email settings.");

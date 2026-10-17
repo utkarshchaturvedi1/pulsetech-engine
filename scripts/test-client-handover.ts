@@ -19,7 +19,7 @@ assert.match(widget, /robots: \{ index: false, follow: false \}/, "client widget
 assert.match(widgetTestPage, /process\.env\.VERCEL_ENV === "production"\) notFound\(\)/, "installation visual test is unavailable in Production");
 assert.match(widgetTestPage, /<WidgetLauncherPreview/, "Preview uses the production floating-widget loader");
 
-assert.match(install, /pulsetech-widget\\.js/, "client receives the hosted floating-widget script");
+assert.ok(install.includes("/pulsetech-widget.js"), "client receives the hosted floating-widget script");
 assert.match(install, /data-demo-id/, "widget install code is scoped to the saved client profile");
 assert.match(install, /Custom HTML/, "WordPress instructions are present");
 assert.match(install, /Embed HTML/, "Wix and Squarespace instructions are present");

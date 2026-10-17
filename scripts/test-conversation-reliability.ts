@@ -395,7 +395,7 @@ async function testCapturedLeadPersistsDuringAIOutage() {
   state.customerNeed = state.primaryNeed;
   state.intent = "HIGH";
 
-  let savedLead: Record<string, unknown> | null = null;
+  const savedLeads: Array<Record<string, unknown>> = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.includes("/rest/v1/business_profiles")) {
@@ -405,7 +405,7 @@ async function testCapturedLeadPersistsDuringAIOutage() {
       return Response.json([{ id: accountId }]);
     }
     if (url.includes("/rest/v1/customer_leads")) {
-      savedLead = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+      savedLeads.push(JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
       return new Response(null, { status: 201 });
     }
     if (url.includes("api.openai.com/v1/responses")) {
@@ -434,13 +434,15 @@ async function testCapturedLeadPersistsDuringAIOutage() {
     assert.equal(body.salesState.lead.name, "Casey QA");
     assert.equal(body.salesState.lead.phone, "+12025550198");
     assert.equal(body.salesState.lead.address, "456 QA Lane, Austin, TX 78702");
-    assert.ok(savedLead, "captured lead must be durably upserted despite AI failure");
-    assert.equal(savedLead?.customer_account_id, accountId);
-    assert.equal(savedLead?.customer_name, "Casey QA");
-    assert.equal(savedLead?.customer_phone, "+12025550198");
-    assert.equal(savedLead?.service_address, "456 QA Lane, Austin, TX 78702");
-    assert.equal(savedLead?.primary_need, "Repair a leaking kitchen faucet");
-    assert.ok(!("transcript" in (savedLead || {})), "lead store must not persist the conversation transcript");
+    assert.equal(savedLeads.length, 1, "captured lead must be durably upserted despite AI failure");
+    const savedLead = savedLeads[0];
+    assert.ok(savedLead);
+    assert.equal(savedLead.customer_account_id, accountId);
+    assert.equal(savedLead.customer_name, "Casey QA");
+    assert.equal(savedLead.customer_phone, "+12025550198");
+    assert.equal(savedLead.service_address, "456 QA Lane, Austin, TX 78702");
+    assert.equal(savedLead.primary_need, "Repair a leaking kitchen faucet");
+    assert.ok(!("transcript" in savedLead), "lead store must not persist the conversation transcript");
     console.log("PASS — captured client lead persists and receives safe reply during AI quota outage");
   } finally {
     globalThis.fetch = originalFetch;

@@ -9,6 +9,7 @@ import { loadDemoLocal, saveDemoLocal } from "../../../lib/demoStore";
 type BootState =
   | { status: "loading" }
   | { status: "error"; message: string }
+  | { status: "auth" }
   | {
       status: "ready";
       demoId: string;
@@ -51,6 +52,10 @@ export default function DemoSlugPage() {
           });
           return;
         }
+        if (response.status === 401) {
+          setBoot({ status: "auth" });
+          return;
+        }
         if (response.status === 404) {
           setBoot({
             status: "error",
@@ -84,6 +89,15 @@ export default function DemoSlugPage() {
 
   if (boot.status === "loading") {
     return <DemoStatusScreen message="Loading your demo..." />;
+  }
+
+  if (boot.status === "auth") {
+    return (
+      <DemoStatusScreen
+        message="This business demo is linked to a client account. Sign in with that account to continue."
+        loginLink={`/login?next=${encodeURIComponent(`/demo/${slug}`)}`}
+      />
+    );
   }
 
   if (boot.status === "error") {

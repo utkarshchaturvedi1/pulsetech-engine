@@ -42,9 +42,11 @@ function BrandLogo() {
 export function DemoStatusScreen({
   message,
   showHomeLink = false,
+  loginLink,
 }: {
   message: string;
   showHomeLink?: boolean;
+  loginLink?: string;
 }) {
   return (
     <div className="pt-landing pt-demo pt-demo-status min-h-screen">
@@ -54,6 +56,11 @@ export function DemoStatusScreen({
           <p className="pt-demo-status-message mt-8 max-w-md text-center text-lg leading-8">
             {message}
           </p>
+          {loginLink ? (
+            <Link href={loginLink} className="pt-btn-primary mt-8 inline-flex">
+              Sign in to continue
+            </Link>
+          ) : null}
           {showHomeLink ? (
             <Link href="/" className="pt-btn-primary mt-8 inline-flex">
               Back to Homepage

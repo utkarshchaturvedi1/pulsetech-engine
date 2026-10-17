@@ -23,12 +23,12 @@ assert.equal(normalizeClientEmail("name@example.com\\nBcc:other@example.com"), n
 assert.equal(normalizeClientEmail("x".repeat(250) + "@x.com"), null);
 
 const migration = readFileSync(path.join(process.cwd(), "supabase/client_accounts.sql"), "utf8");
-assert.match(migration, /grant select \\(id, customer_id, business_name, demo_id, handover_status, created_at, updated_at\\)/, "client can read only its own embed identity through the account RLS policy");
+assert.ok(migration.includes("grant select (id, customer_id, business_name, demo_id, handover_status, created_at, updated_at)"), "client can read only its own embed identity through the account RLS policy");
 
 const loginPage = readFileSync(path.join(process.cwd(), "src/app/login/page.tsx"), "utf8");
 const loginForm = readFileSync(path.join(process.cwd(), "src/app/login/ClientLoginForm.tsx"), "utf8");
-assert.match(loginPage, /safeClientRedirect\\(next\\)/, "login page sanitizes the return path");
-assert.match(loginPage, /<ClientLoginForm nextPath=\\{nextPath\\} \\/>/, "login page passes requested destination to the OTP form");
-assert.match(loginForm, /encodeURIComponent\\(nextPath\\)/, "OTP callback preserves the sanitized destination");
+assert.ok(loginPage.includes("safeClientRedirect(next)"), "login page sanitizes the return path");
+assert.ok(loginPage.includes("<ClientLoginForm nextPath={nextPath} />"), "login page passes requested destination to the OTP form");
+assert.ok(loginForm.includes("encodeURIComponent(nextPath)"), "OTP callback preserves the sanitized destination");
 
 console.log("PASS client account regression: safe auth redirects, exact admin allowlist, normalized and bounded client email");

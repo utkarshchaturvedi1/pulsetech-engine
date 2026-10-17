@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 type Account = { id: string; customer_id: string; business_name: string; demo_id: string; handover_status: string };
 type HandoverRequest = { id: string; subject: string; details: string; status: string; created_at: string };
+type CustomerLead = { id: string; customer_name: string | null; customer_phone: string | null; customer_email: string | null; service_address: string | null; primary_need: string | null; urgency: string; preferred_timing: string | null; alert_delivery_status: string; updated_at: string };
 
 const statusLabels: Record<string, string> = {
   invited: "Invitation sent", setup: "Setup in progress", testing: "Testing", approved: "Awaiting launch", live: "Live",
@@ -35,6 +36,10 @@ export default async function ClientPortalPage() {
     ? await supabase.from("handover_requests").select("id,subject,details,status,created_at").eq("customer_account_id", account.id).order("created_at", { ascending: false }).limit(20)
     : { data: [] };
   const requests = (requestData || []) as HandoverRequest[];
+  const { data: leadData, error: leadQueryError } = account
+    ? await supabase.from("customer_leads").select("id,customer_name,customer_phone,customer_email,service_address,primary_need,urgency,preferred_timing,alert_delivery_status,updated_at").eq("customer_account_id", account.id).order("updated_at", { ascending: false }).limit(50)
+    : { data: [], error: null };
+  const leads = (leadData || []) as CustomerLead[];
 
   return <PortalShell email={user.email || ""}>
     {accountError ? <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
@@ -52,7 +57,10 @@ export default async function ClientPortalPage() {
           <InfoCard label="Customer ID" value={account.customer_id} />
           <InfoCard label="Handover status" value={statusLabels[account.handover_status] || account.handover_status} />
         </div>
-        <p className="mt-5 text-sm text-slate-600">This account is linked to {user.email}. Your handover requests stay with this customer account.</p>
+        <p className="mt-5 text-sm text-slate-600">This account is linked to {user.email}. Your handover requests and leads stay with this customer account.</p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link href={`/demo/${encodeURIComponent(account.demo_id)}`} className="inline-flex items-center rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Update business with Peter &amp; test</Link>
+        </div>
       </section>
       <ClientInstallation
         businessName={account.business_name}
@@ -61,6 +69,23 @@ export default async function ClientPortalPage() {
           ? `https://${process.env.VERCEL_URL}`
           : process.env.PULSETECH_PUBLIC_BASE_URL?.replace(/\/$/, "") || ""}
       />
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 className="text-xl font-bold text-slate-950">Recent leads</h2>
+        <p className="mt-1 text-sm text-slate-600">Captured customer details and service requests for this business.</p>
+        {leadQueryError ? <p role="status" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-950">Lead records are temporarily unavailable. Please contact PulseTech for help.</p>
+          : leads.length ? <div className="mt-4 space-y-3">{leads.map((lead) => <article key={lead.id} className="rounded-xl border border-slate-200 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold text-slate-950">{lead.customer_name || "New enquiry"}</h3><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">Alert {lead.alert_delivery_status.toLowerCase().replaceAll("_", " ")}</span></div>
+            {lead.primary_need && <p className="mt-2 text-sm text-slate-800"><span className="font-medium">Request:</span> {lead.primary_need}</p>}
+            <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm text-slate-600 sm:grid-cols-2">
+              {lead.customer_phone && <div><dt className="inline font-medium text-slate-700">Phone: </dt><dd className="inline">{lead.customer_phone}</dd></div>}
+              {lead.customer_email && <div><dt className="inline font-medium text-slate-700">Email: </dt><dd className="inline">{lead.customer_email}</dd></div>}
+              {lead.service_address && <div><dt className="inline font-medium text-slate-700">Address: </dt><dd className="inline">{lead.service_address}</dd></div>}
+              {lead.preferred_timing && <div><dt className="inline font-medium text-slate-700">Preferred time: </dt><dd className="inline">{lead.preferred_timing}</dd></div>}
+            </dl>
+            <time className="mt-3 block text-xs text-slate-400">Updated {new Date(lead.updated_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC</time>
+          </article>)}</div>
+          : <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No leads captured yet.</p>}
+      </section>
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-slate-950">Request a handover update</h2><p className="mt-2 text-sm leading-6 text-slate-600">Send a setup change, question, or launch-readiness request to PulseTech.</p><ClientHandoverRequest /></section>
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-slate-950">Recent requests</h2>

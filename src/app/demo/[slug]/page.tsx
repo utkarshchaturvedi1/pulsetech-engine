@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import DemoWorkspace, { DemoStatusScreen } from "../../../components/DemoWorkspace";
@@ -8,6 +9,7 @@ import { loadDemoLocal, saveDemoLocal } from "../../../lib/demoStore";
 
 type BootState =
   | { status: "loading" }
+  | { status: "auth" }
   | { status: "error"; message: string }
   | {
       status: "ready";
@@ -34,6 +36,18 @@ export default function DemoSlugPage() {
 
       try {
         const response = await fetch(`/api/demo/${encodeURIComponent(slug)}`);
+        if (response.status === 401) {
+          // Do not fall back to locally cached business data for an unauthenticated visitor.
+          setBoot({ status: "auth" });
+          return;
+        }
+        if (response.status === 403) {
+          setBoot({
+            status: "error",
+            message: "This account does not have access to this business profile. Contact PulseTech for help.",
+          });
+          return;
+        }
         if (response.ok) {
           const data = (await response.json()) as {
             id: string;
@@ -84,6 +98,29 @@ export default function DemoSlugPage() {
 
   if (boot.status === "loading") {
     return <DemoStatusScreen message="Loading your demo..." />;
+  }
+
+  if (boot.status === "auth") {
+    const returnPath = `/demo/${encodeURIComponent(slug)}`;
+    return (
+      <main className="pt-landing pt-demo pt-demo-status min-h-screen">
+        <div className="pt-shell min-h-screen">
+          <div className="pt-content flex min-h-screen flex-col items-center justify-center px-6 py-12">
+            <img src="/branding/pulsetech-logo-color.svg" alt="PulseTech Labs" className="pt-logo" />
+            <h1 className="mt-8 text-center text-2xl font-bold">Sign in to open your business setup</h1>
+            <p className="pt-demo-status-message mt-4 max-w-md text-center text-lg leading-8">
+              This saved business setup is private. Sign in with the email connected to your client account.
+            </p>
+            <Link
+              href={`/login?next=${encodeURIComponent(returnPath)}`}
+              className="pt-btn-primary mt-8 inline-flex"
+            >
+              Continue to sign in
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (boot.status === "error") {

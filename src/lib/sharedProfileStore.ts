@@ -27,6 +27,21 @@ function supabaseConfig() {
   return { url, key };
 }
 
+/**
+ * Supabase's new sb_secret_* keys are API keys, not JWTs. They must be sent
+ * in apikey only. Legacy service_role JWTs still use both headers.
+ */
+function supabaseRequestHeaders(key: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    apikey: key,
+    "Content-Type": "application/json",
+  };
+  if (/^eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(key)) {
+    headers.Authorization = "Bearer " + key;
+  }
+  return headers;
+}
+
 export function isDurableProfileStoreConfigured(): boolean {
   return supabaseConfig() !== null;
 }
@@ -55,9 +70,7 @@ async function saveSupabaseRecord(
       {
         method: expectedUpdatedAt ? "PATCH" : "POST",
         headers: {
-          apikey: config.key,
-          Authorization: "Bearer " + config.key,
-          "Content-Type": "application/json",
+          ...supabaseRequestHeaders(config.key),
           Prefer: expectedUpdatedAt ? "return=representation" : createOnly ? "resolution=ignore-duplicates,return=representation" : "resolution=merge-duplicates,return=minimal",
         },
         body: JSON.stringify({
@@ -105,10 +118,7 @@ async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
       encodeURIComponent(safe) +
       "&select=id,profile,updated_at",
     {
-      headers: {
-        apikey: config.key,
-        Authorization: "Bearer " + config.key,
-      },
+      headers: supabaseRequestHeaders(config.key),
       cache: "no-store",
     }
   );

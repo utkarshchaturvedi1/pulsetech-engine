@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import WidgetLauncherPreview from "./WidgetLauncherPreview";
+import { sanitizeDemoId } from "../../lib/demoRepository";
+import { loadSharedProfile } from "../../lib/sharedProfileStore";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -7,32 +10,44 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function WidgetInstallationPreview() {
+export default async function WidgetInstallationPreview({
+  searchParams,
+}: {
+  searchParams: Promise<{ demoId?: string }>;
+}) {
   if (process.env.VERCEL_ENV === "production") notFound();
+
+  const query = await searchParams;
+  const demoId = sanitizeDemoId(query.demoId || "texassolar");
+  const saved = demoId ? await loadSharedProfile(demoId) : null;
+  if (!saved?.profile?.businessName) notFound();
+
+  const businessName = saved.profile.businessName;
+  const primaryColor = saved.profile.primaryColor || "#2563eb";
+
   return (
-    <main className="min-h-screen bg-white px-5 py-10 text-slate-950 sm:px-10">
+    <main className="min-h-screen bg-white px-6 py-8 text-slate-950 sm:px-10">
       <div className="mx-auto max-w-6xl">
-        <header className="border-b border-slate-200 pb-5 font-semibold">PulseTech Labs · Website installation preview</header>
-        <section className="grid items-start gap-10 py-10 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">Private Preview test</p>
-            <h1 className="mt-3 max-w-xl text-4xl font-bold tracking-tight sm:text-5xl">How the client chat sits inside a real website.</h1>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">This is the same iframe installation used in the client handover code. It is isolated from the host page styles, keeps a consistent width, and uses a fixed chat height that can scroll independently.</p>
-            <p className="mt-5 max-w-xl rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">The conversation on this test page uses the bundled Texas Solar sample profile. It is not a PulseTech customer configuration.</p>
-          </div>
-          <div className="w-full max-w-[420px] overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-xl">
-            <iframe
-              src="/widget/texassolar"
-              title="Sample AI Sales Employee website installation"
-              width="100%"
-              height="640"
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              className="block w-full border-0"
-            />
+        <header className="flex items-center justify-between border-b border-slate-200 pb-5">
+          <span className="font-semibold">PulseTech Labs · Website installation preview</span>
+          <span className="text-sm text-slate-500">Private staging test</span>
+        </header>
+        <section className="max-w-3xl py-16 sm:py-24">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-700">Floating website chat</p>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">A compact chat window, opened when a visitor wants help.</h1>
+          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+            This preview uses the same installation code provided in the client handover. Select the chat button in the lower-right corner to open or close the conversation.
+          </p>
+          <div className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-6 sm:p-8">
+            <p className="text-sm font-medium text-slate-500">Preview configured for</p>
+            <p className="mt-1 text-xl font-semibold">{businessName}</p>
           </div>
         </section>
+        <footer className="border-t border-slate-200 py-6 text-sm text-slate-500">
+          Staging installation preview · This does not change the live PulseTech website.
+        </footer>
       </div>
+      <WidgetLauncherPreview demoId={demoId!} businessName={businessName} primaryColor={primaryColor} />
     </main>
   );
 }

@@ -29,7 +29,7 @@ assert.match(install, /Phone activation is configured with PulseTech/, "phone ha
 assert.match(portal, /demo_id/, "authenticated client portal loads the linked demo id");
 assert.match(portal, /ClientInstallation/, "authenticated client portal provides installation code");
 assert.match(pricing, /Lead records with captured customer details and service requests/, "pricing accurately lists the lead records provided by the client portal");
-assert.match(pricing, /Conversion status and sale value tracking[\\s\\S]*Not available yet/, "pricing marks unsupported conversion tracking as unavailable");
+assert.ok(pricing.includes("Conversion status and sale value tracking.") && pricing.includes("Not available yet."), "pricing marks unsupported conversion tracking as unavailable");
 
 assert.match(env, /INBOUND_VOICE_NUMBER_MAP/, "per-business phone routing remains explicit configuration");
 assert.match(voiceRoute, /resolveInboundVoice\(toNumber\)/, "mapped customer numbers resolve to a saved business profile");

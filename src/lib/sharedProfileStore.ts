@@ -1,4 +1,4 @@
-import { getBundledTestDemo } from "../data/testBusinessProfiles";
+import { getBundledTestDemo, isBundledTestDemoId } from "../data/testBusinessProfiles";
 import { BusinessProfile } from "../types/business";
 import {
   loadDemoRecord,
@@ -103,7 +103,7 @@ export async function resolveCurrentChatProfile(client: BusinessProfile, demoId?
   if (typeof demoId !== "string" || !sanitizeDemoId(demoId)) throw new Error("Invalid demo identity.");
   const saved = await loadSharedProfile(demoId);
   if (!saved || businessIdentityKey(saved.profile) !== businessIdentityKey(client)) throw new Error("Saved business identity does not match this chat.");
-  if (isEphemeralRuntime() && isDurableProfileStoreConfigured() && !saved.durableVersion) throw new Error("Saved business configuration is temporarily unavailable.");
+  if (isEphemeralRuntime() && isDurableProfileStoreConfigured() && !saved.durableVersion && !isBundledTestDemoId(demoId)) throw new Error("Saved business configuration is temporarily unavailable.");
   return saved.profile;
 }
 

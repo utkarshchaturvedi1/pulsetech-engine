@@ -57,7 +57,10 @@ export default async function ClientPortalPage() {
           <InfoCard label="Customer ID" value={account.customer_id} />
           <InfoCard label="Handover status" value={statusLabels[account.handover_status] || account.handover_status} />
         </div>
-        <p className="mt-5 text-sm text-slate-600">This account is linked to {user.email}. Your handover requests stay with this customer account.</p>
+        <p className="mt-5 text-sm text-slate-600">This account is linked to {user.email}. Your handover requests and leads stay with this customer account.</p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link href={`/demo/${encodeURIComponent(account.demo_id)}`} className="inline-flex items-center rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Update business with Peter &amp; test</Link>
+        </div>
       </section>
       <ClientInstallation
         businessName={account.business_name}

@@ -27,7 +27,8 @@ assert.ok(install.includes("/pulsetech-widget.js"), "client receives the hosted 
 assert.match(install, /data-demo-id/, "widget install code is scoped to the saved client profile");
 assert.match(install, /Custom HTML/, "WordPress instructions are present");
 assert.match(install, /Embed HTML/, "Wix and Squarespace instructions are present");
-assert.match(install, /Preview floating chat/, "client can inspect their floating widget URL");
+assert.ok(install.includes('const previewUrl = `${baseUrl}/widget/${encodeURIComponent(demoId)}`;'), "client preview link uses the production-safe embedded chat route");
+assert.match(install, /Open chat preview/, "client portal labels the direct chat preview accurately");
 assert.match(install, /Phone activation is configured with PulseTech/, "phone handover is stated as a supervised setup");
 assert.match(portal, /demo_id/, "authenticated client portal loads the linked demo id");
 assert.match(portal, /ClientInstallation/, "authenticated client portal provides installation code");

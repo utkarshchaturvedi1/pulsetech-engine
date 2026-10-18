@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createInitialSalesState } from "../src/lib/salesState";
-import { persistCustomerLead } from "../src/lib/customerLeadStore";
+import { persistCustomerLead, updateCustomerLeadAlertStatus } from "../src/lib/customerLeadStore";
 
 const accountId = "00000000-0000-4000-8000-000000000001";
 const originalFetch = globalThis.fetch;
@@ -26,6 +26,7 @@ async function main() {
       return Response.json({ id: accountId });
     }
     if (url.includes("/rest/v1/customer_leads")) {
+      if (method === "PATCH") return Response.json({ id: "lead-test-001" });
       return new Response(null, { status: 201 });
     }
     throw new Error("Unexpected request " + url);
@@ -60,6 +61,18 @@ async function main() {
   assert.equal(row.primary_need, "Repair a water heater");
   assert.equal(row.alert_delivery_status, "QUEUED");
   assert.ok(!("messages" in row) && !("transcript" in row), "store only the minimum lead fields, not chat transcripts");
+
+  assert.equal(
+    await updateCustomerLeadAlertStatus("pt-demo-test-001", state.conversationId, "SENT"),
+    true,
+    "delivery completion updates the same account's lead"
+  );
+  const statusUpdate = calls.at(-1);
+  assert.ok(statusUpdate);
+  assert.equal(statusUpdate.method, "PATCH");
+  assert.match(statusUpdate.url, /customer_account_id=eq\\.00000000-0000-4000-8000-000000000001/);
+  assert.match(statusUpdate.url, /conversation_id=eq\\.conversation-lead-test-001/);
+  assert.deepEqual(JSON.parse(statusUpdate.body || "{}"), { alert_delivery_status: "SENT" });
 
   const migration = readFileSync(path.join(process.cwd(), "supabase/customer_leads.sql"), "utf8");
   assert.match(migration, /enable row level security/i);

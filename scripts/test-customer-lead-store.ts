@@ -32,7 +32,7 @@ async function main() {
   }) as typeof fetch;
 
   const empty = await persistCustomerLead("pt-demo-test-001", state);
-  assert.deepEqual(empty, { saved: false, applicable: true });
+  assert.deepEqual(empty, { saved: false, applicable: false }, "empty chat is not a lead-save failure");
   assert.equal(calls.length, 0, "empty conversations should not create lead records");
 
   state.lead.name = "Jordan Test";

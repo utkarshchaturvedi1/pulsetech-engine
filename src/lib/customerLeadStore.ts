@@ -33,7 +33,8 @@ export async function persistCustomerLead(
     state.primaryNeed?.trim() ||
     state.customerNeed?.trim()
   );
-  if (!hasCapturedData) return { saved: false, applicable: true };
+  // No lead details means there is nothing to persist; this is not a save failure.
+  if (!hasCapturedData) return { saved: false, applicable: false };
 
   const admin = adminClient();
   if (!admin) return { saved: false, applicable: true };

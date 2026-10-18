@@ -101,7 +101,7 @@ function PortalShell({ children, email }: { children: React.ReactNode; email?: s
   return <main className="marketing-shell min-h-screen px-4 py-8 sm:px-8 sm:py-12"><div className="relative z-10 mx-auto max-w-5xl">
     <header className="mb-8 flex items-center justify-between rounded-2xl border border-white/80 bg-white/90 px-5 py-4 shadow-sm"><Link href="/" className="font-bold text-slate-950">PulseTech Labs</Link><div className="flex items-center gap-4">{email && <span className="hidden text-sm text-slate-500 sm:inline">{email}</span>}<ClientSignOutButton /></div></header>
     <div className="space-y-6">{children}</div>
-    <footer className="relative z-10 mt-8 text-center text-xs text-slate-500">Need help? <a className="text-blue-700 hover:underline" href="mailto:leads@pulsetechlabs.com">leads@pulsetechlabs.com</a></footer>
+    <footer className="relative z-10 mt-8 text-center text-xs text-slate-500">Need help? <a className="text-blue-700 hover:underline" href="mailto:contact@pulsetechlabs.com">contact@pulsetechlabs.com</a></footer>
   </div></main>;
 }
 

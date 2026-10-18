@@ -10,6 +10,9 @@ const portal = source("src/app/client/page.tsx");
 const voiceRoute = source("src/app/api/twilio/voice-demo/route.ts");
 const env = source(".env.example");
 const pricing = source("src/app/payment-test/PaymentTestView.tsx");
+const login = source("src/app/login/page.tsx");
+assert.match(portal, /mailto:contact@pulsetechlabs\\.com/, "client portal support points to the confirmed support inbox");
+assert.match(login, /mailto:contact@pulsetechlabs\\.com/, "sign-in help points to the confirmed support inbox");
 
 assert.match(widget, /loadSharedProfile\(id\)/, "widget reads the saved, server-side business profile");
 assert.match(widget, /<CustomerAI business=\{publicBusiness\} demoId=\{id\}/, "widget sends the profile identity to the existing chat session");

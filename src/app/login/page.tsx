@@ -21,7 +21,7 @@ export default async function ClientLoginPage({ searchParams }: { searchParams: 
         <p className="mt-3 text-sm leading-6 text-slate-600">Use the work email connected to your PulseTech account. We’ll send you a secure one-time sign-in link.</p>
         <div className="mt-8"><ClientLoginForm nextPath={nextPath} /></div>
         {error === "link" && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">That link could not be verified. Request a fresh sign-in link.</p>}
-        <p className="mt-7 text-center text-sm text-slate-500">Need access? <a className="font-medium text-blue-700 hover:underline" href="mailto:leads@pulsetechlabs.com">Contact PulseTech</a></p>
+        <p className="mt-7 text-center text-sm text-slate-500">Need access? <a className="font-medium text-blue-700 hover:underline" href="mailto:contact@pulsetechlabs.com">Contact PulseTech</a></p>
       </section>
     </main>
   );

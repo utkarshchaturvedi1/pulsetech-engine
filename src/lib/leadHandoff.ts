@@ -214,14 +214,15 @@ export type LeadAlertAfter = (task: () => void | Promise<void>) => void;
  */
 export function scheduleLeadAlertDelivery(
   afterFn: LeadAlertAfter,
-  delivery?: () => Promise<LeadDeliveryOutcome>,
+  delivery?: () => Promise<void | LeadDeliveryOutcome>,
   onComplete?: (status: LeadDeliveryOutcome) => void | Promise<void>
 ): void {
   if (!delivery) return;
   afterFn(async () => {
     let status: LeadDeliveryOutcome;
     try {
-      status = await delivery();
+      const outcome = await delivery();
+      status = outcome === "FAILED" ? "FAILED" : "SENT";
     } catch (error) {
       console.error("[leadHandoff] background delivery failed", error);
       status = "FAILED";

@@ -70,8 +70,8 @@ async function main() {
   const statusUpdate = calls.at(-1);
   assert.ok(statusUpdate);
   assert.equal(statusUpdate.method, "PATCH");
-  assert.match(statusUpdate.url, /customer_account_id=eq\\.00000000-0000-4000-8000-000000000001/);
-  assert.match(statusUpdate.url, /conversation_id=eq\\.conversation-lead-test-001/);
+  assert.ok(statusUpdate.url.includes("customer_account_id=eq." + accountId));
+  assert.ok(statusUpdate.url.includes("conversation_id=eq.conversation-lead-test-001"));
   assert.deepEqual(JSON.parse(statusUpdate.body || "{}"), { alert_delivery_status: "SENT" });
 
   const migration = readFileSync(path.join(process.cwd(), "supabase/customer_leads.sql"), "utf8");

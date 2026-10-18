@@ -440,7 +440,7 @@ async function main() {
     "TEST10: website chat must import after() from next/server"
   );
   assert(
-    chatRoute.includes("scheduleLeadAlertDelivery(after, leadDelivery, (status) => updateCustomerLeadAlertStatus(body.demoId, conversationId, status))"),
+    chatRoute.includes("scheduleLeadAlertDelivery(after, leadDelivery, async (status) =>") && chatRoute.includes("updateCustomerLeadAlertStatus(body.demoId, conversationId, status)"),
     "TEST10: website chat must schedule delivery with after()"
   );
   assert(
@@ -448,7 +448,7 @@ async function main() {
     "TEST10: inactivity handoff must import after() from next/server"
   );
   assert(
-    inactivityRoute.includes("scheduleLeadAlertDelivery(after, handoff.delivery, (status) => updateCustomerLeadAlertStatus(body.demoId, conversationId, status))"),
+    inactivityRoute.includes("scheduleLeadAlertDelivery(after, handoff.delivery, async (status) =>") && inactivityRoute.includes("updateCustomerLeadAlertStatus(body.demoId, conversationId, status)"),
     "TEST10: inactivity handoff must schedule delivery with after()"
   );
 

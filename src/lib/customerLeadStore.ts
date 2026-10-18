@@ -71,3 +71,41 @@ export async function persistCustomerLead(
   }
   return { saved: true, applicable: true };
 }
+
+
+export async function updateCustomerLeadAlertStatus(
+  demoIdValue: unknown,
+  conversationIdValue: unknown,
+  status: "SENT" | "FAILED"
+): Promise<boolean> {
+  const demoId = typeof demoIdValue === "string" ? sanitizeDemoId(demoIdValue) : null;
+  const conversationId = typeof conversationIdValue === "string" ? conversationIdValue.trim() : "";
+  if (!demoId || conversationId.length < 8 || conversationId.length > 128) return false;
+
+  const admin = adminClient();
+  if (!admin) return false;
+
+  const { data: account, error: accountError } = await admin
+    .from("customer_accounts")
+    .select("id")
+    .eq("demo_id", demoId)
+    .maybeSingle();
+  if (accountError) {
+    console.error("[customer-lead] alert account lookup failed", accountError.code);
+    return false;
+  }
+  if (!account) return false;
+
+  const { data: lead, error } = await admin
+    .from("customer_leads")
+    .update({ alert_delivery_status: status, updated_at: new Date().toISOString() })
+    .eq("customer_account_id", account.id)
+    .eq("conversation_id", conversationId)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error("[customer-lead] alert status update failed", error.code);
+    return false;
+  }
+  return Boolean(lead);
+}

@@ -391,6 +391,7 @@ async function main() {
     queued.push(task);
   };
 
+  let persistedDeliveryStatus: string | null = null;
   const sendStarted = Date.now();
   const smtpOnly = await maybeSendLeadHandoff(
     business,
@@ -398,7 +399,9 @@ async function main() {
     "closure",
     "Can you come tomorrow morning?"
   );
-  scheduleLeadAlertDelivery(vercelAfter, smtpOnly.delivery);
+  scheduleLeadAlertDelivery(vercelAfter, smtpOnly.delivery, (status) => {
+    persistedDeliveryStatus = status;
+  });
   const handoffMs = Date.now() - sendStarted;
   assert(smtpOnly.attempted === true, "TEST10: attempted");
   assert(smtpOnly.status === "QUEUED", "TEST10: live path queues delivery without waiting");
@@ -408,6 +411,20 @@ async function main() {
   assert(!deliveryFinished, "TEST10: email/SMS not finished before the response");
   await queued[0]();
   assert(deliveryFinished, "TEST10: after() lifecycle awaited delivery to completion");
+  assert(persistedDeliveryStatus === "SENT", "TEST10: successful configured email persists SENT when SMS is unconfigured");
+  setLeadHandoffTestDelivery(async () => ({ emailOk: false, smsOk: false }));
+  const failedAlert = await maybeSendLeadHandoff(
+    business,
+    qualifiedBase({ preferredTiming: "tomorrow morning", handoffReady: true }),
+    "closure",
+    "Can you come tomorrow morning?"
+  );
+  let failedDeliveryStatus: string | null = null;
+  scheduleLeadAlertDelivery(vercelAfter, failedAlert.delivery, (status) => {
+    failedDeliveryStatus = status;
+  });
+  await queued[1]();
+  assert(failedDeliveryStatus === "FAILED", "TEST10: failed email persists FAILED");
   setLeadHandoffTestDelivery(null);
 
   const chatRoute = readFileSync(
@@ -423,7 +440,7 @@ async function main() {
     "TEST10: website chat must import after() from next/server"
   );
   assert(
-    chatRoute.includes("scheduleLeadAlertDelivery(after, leadDelivery)"),
+    chatRoute.includes("scheduleLeadAlertDelivery(after, leadDelivery, (status) => updateCustomerLeadAlertStatus(body.demoId, conversationId, status))"),
     "TEST10: website chat must schedule delivery with after()"
   );
   assert(
@@ -431,7 +448,7 @@ async function main() {
     "TEST10: inactivity handoff must import after() from next/server"
   );
   assert(
-    inactivityRoute.includes("scheduleLeadAlertDelivery(after, handoff.delivery)"),
+    inactivityRoute.includes("scheduleLeadAlertDelivery(after, handoff.delivery, (status) => updateCustomerLeadAlertStatus(body.demoId, conversationId, status))"),
     "TEST10: inactivity handoff must schedule delivery with after()"
   );
 

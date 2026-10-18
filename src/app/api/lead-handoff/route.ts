@@ -112,7 +112,10 @@ export async function POST(request: NextRequest) {
     if (leadSave.applicable && !leadSave.saved) {
       console.error("[lead-handoff] captured lead could not be durably saved", { conversationId });
     }
-    scheduleLeadAlertDelivery(after, handoff.delivery, (status) => updateCustomerLeadAlertStatus(body.demoId, conversationId, status));
+    scheduleLeadAlertDelivery(after, handoff.delivery, async (status) => {
+      const updated = await updateCustomerLeadAlertStatus(body.demoId, conversationId, status);
+      if (!updated) console.error("[lead-handoff] could not update persisted lead alert status", { conversationId });
+    });
 
     return NextResponse.json({
       salesState,

@@ -8,6 +8,7 @@ import {
   maybeSendLeadHandoff,
   publicHandoffDecisionLog,
   toHandoffDeliveryLogStatus,
+  type LeadDeliveryOutcome,
 } from "./leadHandoff";
 import {
   buildFailedLeadHandoffCustomerMessage,
@@ -500,7 +501,7 @@ export async function generateSalesReply(
 ): Promise<{
   reply: string;
   salesState: SalesState;
-  leadDelivery?: () => Promise<void>;
+  leadDelivery?: () => Promise<void | LeadDeliveryOutcome>;
 }> {
   const started = Date.now();
   const latestUser = [...messages].reverse().find((m) => m.role === "user");

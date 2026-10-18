@@ -7,7 +7,7 @@ import {
 } from "../../../lib/salesChat";
 import { scheduleLeadAlertDelivery } from "../../../lib/leadHandoff";
 import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
-import { persistCustomerLead } from "../../../lib/customerLeadStore";
+import { persistCustomerLead, updateCustomerLeadAlertStatus } from "../../../lib/customerLeadStore";
 import {
   businessIdentityKey,
   createInitialSalesState,
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
       console.error("[chat] captured lead could not be durably saved", { conversationId });
     }
 
-    scheduleLeadAlertDelivery(after, leadDelivery);
+    scheduleLeadAlertDelivery(after, leadDelivery, (status) => updateCustomerLeadAlertStatus(body.demoId, conversationId, status));
 
     return NextResponse.json({ reply, salesState, conversationId });
   } catch (error) {

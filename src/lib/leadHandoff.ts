@@ -193,6 +193,8 @@ export function buildLeadNotificationEmail(
   return { subject, text: sections.join("\n").trim() };
 }
 
+export type LeadDeliveryOutcome = "SENT" | "FAILED";
+
 export type LeadHandoffResult = {
   attempted: boolean;
   status: "NOT_SENT" | "QUEUED" | "SENT" | "FAILED";
@@ -200,7 +202,7 @@ export type LeadHandoffResult = {
   emailTo?: string;
   smsTo?: string;
   /** Await inside Next.js `after()` — never fire-and-forget. */
-  delivery?: () => Promise<void>;
+  delivery?: () => Promise<LeadDeliveryOutcome>;
 };
 
 /** Next.js/Vercel `after()`-compatible scheduler. */
@@ -212,14 +214,22 @@ export type LeadAlertAfter = (task: () => void | Promise<void>) => void;
  */
 export function scheduleLeadAlertDelivery(
   afterFn: LeadAlertAfter,
-  delivery?: () => Promise<void>
+  delivery?: () => Promise<LeadDeliveryOutcome>,
+  onComplete?: (status: LeadDeliveryOutcome) => void | Promise<void>
 ): void {
   if (!delivery) return;
   afterFn(async () => {
+    let status: LeadDeliveryOutcome;
     try {
-      await delivery();
+      status = await delivery();
     } catch (error) {
       console.error("[leadHandoff] background delivery failed", error);
+      status = "FAILED";
+    }
+    try {
+      await onComplete?.(status);
+    } catch (error) {
+      console.error("[leadHandoff] could not persist background delivery status", error);
     }
   });
 }
@@ -542,7 +552,9 @@ export async function maybeSendLeadHandoff(
       if (result.error) {
         console.error("[leadHandoff] background delivery error:", result.error);
       }
-      return;
+      const emailOk = !transport.smtpConfigured || result.emailOk;
+      const smsOk = !transport.smsConfigured || result.smsOk;
+      return emailOk && smsOk ? "SENT" : "FAILED";
     }
 
     const emailStarted = Date.now();
@@ -587,6 +599,7 @@ export async function maybeSendLeadHandoff(
     if (!emailOk || !smsOk) {
       console.error("[leadHandoff] Failed to send website lead alert:", message);
     }
+    return emailOk && smsOk ? "SENT" : "FAILED";
   };
 
   console.log(

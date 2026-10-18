@@ -2,7 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 
 import { BusinessProfile } from "../../../types/business";
 import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
-import { persistCustomerLead } from "../../../lib/customerLeadStore";
+import { persistCustomerLead, updateCustomerLeadAlertStatus } from "../../../lib/customerLeadStore";
 import {
   applyLeadDeliveryResult,
   maybeSendLeadHandoff,
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     if (leadSave.applicable && !leadSave.saved) {
       console.error("[lead-handoff] captured lead could not be durably saved", { conversationId });
     }
-    scheduleLeadAlertDelivery(after, handoff.delivery);
+    scheduleLeadAlertDelivery(after, handoff.delivery, (status) => updateCustomerLeadAlertStatus(body.demoId, conversationId, status));
 
     return NextResponse.json({
       salesState,

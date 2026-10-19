@@ -3,7 +3,7 @@
 -- Stores verified notification records. It does not activate accounts or
 -- associate a payment with a business.
 -- Row level security is on and client access is not granted.
--- Only the server-side service role, which bypasses RLS, can read or write.
+-- Only the server-side service role can insert notifications.
 
 create table if not exists public.paddle_sandbox_notifications (
   event_id text primary key,

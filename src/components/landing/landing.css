@@ -901,3 +901,34 @@
   }
   .pt-hero-video-wash{display:none!important}
 }
+
+/* Simple, visible client sign-in link in the public site header */
+.pt-nav .pt-client-login{
+  display:inline-flex;
+  flex:0 0 auto;
+  align-items:center;
+  justify-content:center;
+  min-height:40px;
+  padding:9px 13px;
+  border:1px solid rgba(33,75,126,.25);
+  border-radius:12px;
+  background:rgba(255,255,255,.94);
+  color:#26354b!important;
+  font-size:13px;
+  font-weight:800;
+  line-height:1;
+  text-decoration:none;
+  text-shadow:none!important;
+  white-space:nowrap;
+}
+.pt-nav .pt-client-login:hover{
+  background:#eef5ff;
+  color:#176ff2!important;
+}
+@media(max-width:699px){
+  .pt-nav{gap:10px}
+  .pt-nav .pt-client-login{padding:9px 10px;font-size:12px}
+}
+@media(max-width:359px){
+  .pt-nav .pt-logo{width:128px}
+}

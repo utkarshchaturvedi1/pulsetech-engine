@@ -18,9 +18,9 @@ export default async function ClientLoginPage({ searchParams }: { searchParams: 
       <section className="relative z-10 w-full max-w-md rounded-3xl border border-white/80 bg-white/90 p-8 shadow-2xl shadow-blue-950/10 backdrop-blur sm:p-10">
         <Link href="/" className="text-sm font-semibold text-blue-700">PulseTech Labs</Link>
         <h1 className="mt-8 text-3xl font-bold tracking-tight text-slate-950">Client sign in</h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600">Enter the work email connected to your PulseTech account. We’ll send a fresh, one-time sign-in link each time you log in. There is no password to create, change, or remember.</p>
+        <p className="mt-3 text-sm leading-6 text-slate-600">Sign in with the work email and password connected to your PulseTech account. First time here? Open your invitation email to create your password.</p>
         <div className="mt-8"><ClientLoginForm nextPath={nextPath} /></div>
-        {error === "link" && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">That link may have expired or already been used. Enter your work email above to request a fresh link.</p>}
+        {error === "link" && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">That invitation or reset link expired or was already used. Request a fresh password reset link below.</p>}
         <p className="mt-7 text-center text-sm text-slate-500">Need account access? <a className="font-medium text-blue-700 hover:underline" href="mailto:contact@pulsetechlabs.com">Contact PulseTech</a></p>
       </section>
     </main>

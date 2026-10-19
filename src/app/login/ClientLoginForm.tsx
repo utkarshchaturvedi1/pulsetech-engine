@@ -21,7 +21,9 @@ export default function ClientLoginForm({ nextPath = "/client" }: { nextPath?: s
           emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
         },
       });
-      setMessage(error ? "We couldn’t send a sign-in link. Check the email address or contact PulseTech." : "Check your email for a secure sign-in link. It expires according to the account email settings.");
+      setMessage(error
+        ? "We couldn’t send a sign-in link. Check the email address or contact PulseTech."
+        : "If this email is linked to a PulseTech account, a fresh sign-in link is on its way. Use this same email each time you sign in. No password is needed. Check spam if it doesn’t arrive.");
     } catch {
       setMessage("Client sign-in is not configured yet. Please contact PulseTech.");
     } finally {

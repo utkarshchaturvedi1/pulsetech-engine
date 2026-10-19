@@ -81,7 +81,6 @@ export const supabasePaddleNotificationStore: PaddleNotificationStore = {
         method: "POST",
         headers: {
           apikey: config.key,
-          Authorization: "Bearer " + config.key,
           "Content-Type": "application/json",
           Prefer: "return=minimal",
         },

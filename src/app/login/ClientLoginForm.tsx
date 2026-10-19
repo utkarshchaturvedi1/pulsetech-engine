@@ -47,8 +47,8 @@ export default function ClientLoginForm({ nextPath = "/client" }: { nextPath?: s
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      <label className="block text-sm font-medium text-slate-700" htmlFor="client-email">Work email</label>
-      <input id="client-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="-mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="you@yourbusiness.com" />
+      <label className="block text-sm font-medium text-slate-700" htmlFor="client-email">Account email</label>
+      <input id="client-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="-mt-3 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="you@example.com" />
 
       {mode === "sign-in" ? (
         <>

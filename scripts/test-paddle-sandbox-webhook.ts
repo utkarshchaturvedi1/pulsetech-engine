@@ -466,11 +466,12 @@ async function testLiveSimulationNotificationIdStoresInSupabase() {
   const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const previousKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const originalFetch = globalThis.fetch;
-  const posts: Array<{ url: string; body: Record<string, unknown> }> = [];
+  const posts: Array<{ url: string; body: Record<string, unknown>; headers: Record<string, string> }> = [];
   process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co/";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test";
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-    posts.push({ url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> });
+    const requestHeaders = new Headers(init?.headers);
+    posts.push({ url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown>, headers: Object.fromEntries(requestHeaders.entries()) });
     return new Response(null, { status: posts.length === 1 ? 201 : 409 });
   }) as typeof fetch;
   try {
@@ -487,6 +488,8 @@ async function testLiveSimulationNotificationIdStoresInSupabase() {
       posts[0]?.url === "https://example.supabase.co/rest/v1/paddle_sandbox_notifications",
       "insert targets paddle_sandbox_notifications",
     );
+    assert(posts[0]?.headers.apikey === "service-role-test", "Supabase key is sent on apikey");
+    assert(posts[0]?.headers.authorization === undefined, "Supabase API key is not sent as a Bearer JWT");
     assert(posts[0]?.body.event_id === eventId, "stored event_id");
     assert(posts[0]?.body.notification_id === notificationId, "stored ntfsimntf_ notification_id");
     assert(posts[0]?.body.event_type === "transaction.completed", "stored event_type");

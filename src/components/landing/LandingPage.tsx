@@ -62,7 +62,6 @@ export default function LandingPage() {
             <button onClick={() => scrollToId("industries")}>Industries</button>
           </nav>
           <a className="pt-client-login" href="/login">Login</a>
-          <button className="pt-button pt-button-small" onClick={focusLiveChat}>Experience Yours</button>
         </div>
       </header>
 

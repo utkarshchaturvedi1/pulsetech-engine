@@ -932,3 +932,16 @@
 @media(max-width:359px){
   .pt-nav .pt-logo{width:128px}
 }
+
+/* Keep the homepage Login action readable on the light header. */
+.pt-header .pt-nav a.pt-client-login{
+  color:#18324f!important;
+  background:#fff!important;
+  border:1px solid #b8c8da!important;
+  text-shadow:none!important;
+}
+.pt-header .pt-nav a.pt-client-login:hover{
+  color:#1259c3!important;
+  background:#f2f7ff!important;
+  border-color:#7ea8e8!important;
+}

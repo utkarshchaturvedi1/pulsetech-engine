@@ -1,25 +1,30 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import ClientLoginForm from "./ClientLoginForm";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata = { title: "Client sign in | PulseTech Labs" };
+export const metadata = { title: "Log in | PulseTech Labs" };
 
-export default async function ClientLoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function ClientLoginPage({ searchParams }: { searchParams: Promise<{ error?: string; reset?: string }> }) {
   const supabase = await createClient().catch(() => null);
   const { data } = supabase ? await supabase.auth.getClaims() : { data: null };
   if (data?.claims?.sub) redirect("/client");
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
 
   return (
-    <main className="marketing-shell relative flex min-h-screen items-center justify-center px-5 py-12">
-      <section className="relative z-10 w-full max-w-md rounded-3xl border border-white/80 bg-white/90 p-8 shadow-2xl shadow-blue-950/10 backdrop-blur sm:p-10">
-        <Link href="/" className="text-sm font-semibold text-blue-700">PulseTech Labs</Link>
-        <h1 className="mt-8 text-3xl font-bold tracking-tight text-slate-950">Client sign in</h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600">Use the work email connected to your PulseTech account. We’ll send you a secure one-time sign-in link.</p>
-        <div className="mt-8"><ClientLoginForm /></div>
-        {error === "link" && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">That link could not be verified. Request a fresh sign-in link.</p>}
-        <p className="mt-7 text-center text-sm text-slate-500">Need access? <a className="font-medium text-blue-700 hover:underline" href="mailto:leads@pulsetechlabs.com">Contact PulseTech</a></p>
+    <main className="flex min-h-screen flex-col bg-white px-6">
+      <header className="mx-auto flex w-full max-w-6xl items-center py-7">
+        <Link href="/" aria-label="PulseTech Labs home">
+          <Image src="/branding/pulsetech-logo-blue-black.svg" alt="PulseTech Labs" width={210} height={42} priority />
+        </Link>
+      </header>
+      <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pb-24">
+        <h1 className="mb-8 text-center text-3xl font-semibold tracking-tight text-slate-950">Log in</h1>
+        {error === "link" && <p role="alert" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">That invitation or reset link has expired. Please request a new one.</p>}
+        {reset === "sent" && <p role="status" className="mb-5 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">If that email belongs to a client account, a password reset link is on its way.</p>}
+        <ClientLoginForm />
+        <p className="mt-7 text-center text-sm text-slate-500">New client? Set your password from the invitation email.</p>
       </section>
     </main>
   );

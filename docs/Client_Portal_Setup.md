@@ -4,10 +4,12 @@ This feature is additive. Existing public chat, voice, demo and lead-alert route
 
 ## What it adds
 
-- Email one-time-link login at `/login`. Login does not create unapproved accounts.
+- Email-and-password login at `/login`. Login does not create unapproved accounts.
+- Invited clients set a password from their invitation email; clients can request a password-reset link from the login screen.
 - An account receives a unique database-generated ID such as `PTC-000001`.
 - Each account links to one existing saved business profile (`demo_id`).
-- The client can view the linked business identity and handover status, submit requests, and review their own requests.
+- The client can view their saved business information, open their personalized assistant workspace, submit support requests, and review their own requests.
+- The portal shows a pre-launch view until the account handover status is `live`, then shows a live-service view.
 - Supabase Row Level Security limits account and request rows to an authenticated account member.
 - A PulseTech administrator can invite a client from `/client` after signing in.
 
@@ -27,7 +29,8 @@ The invited business profile must already exist in the current shared profile st
 
 ## Current limits
 
-- This is a login and handover foundation, not a full dashboard or a launch approval.
+- Lead history and analytics are not yet stored in a client dashboard. Website chat and inbound voice continue to send configured alerts, but the portal cannot list historical leads yet.
+- Website installation remains coordinated with PulseTech; the portal does not yet publish an embed script or verify website installation.
 - Handover requests are saved to Supabase and visible to that client. There is not yet an internal request queue, alert, status-update screen, or automatic reply.
 - Customer ID assignment is database-generated; do not create or edit customer IDs by hand.
 - Each account currently supports one sign-in user and one saved business profile.

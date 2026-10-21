@@ -75,4 +75,5 @@ grant all on public.customer_accounts, public.customer_memberships, public.hando
 revoke select on public.customer_accounts from authenticated;
 grant select (id, customer_id, business_name, handover_status, created_at, updated_at)
   on public.customer_accounts to authenticated;
+grant select (demo_id) on public.customer_accounts to authenticated;
 grant usage, select on sequence public.customer_accounts_customer_number_seq to service_role;

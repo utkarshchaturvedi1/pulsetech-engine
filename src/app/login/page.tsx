@@ -14,7 +14,7 @@ export default async function ClientLoginPage({ searchParams }: { searchParams: 
 
   return (
     <main className="flex min-h-screen flex-col bg-white px-6">
-      <header className="mx-auto flex w-full max-w-6xl items-center py-7">
+      <header className="mx-auto flex w-full max-w-6xl items-center justify-center py-7">
         <Link href="/" aria-label="PulseTech Labs home">
           <Image src="/branding/pulsetech-logo-blue-black.svg" alt="PulseTech Labs" width={210} height={42} priority />
         </Link>

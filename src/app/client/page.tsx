@@ -21,7 +21,7 @@ const statusLabels: Record<string, string> = {
 
 export default async function ClientPortalPage() {
   const supabase = await createClient().catch(() => null);
-  if (!supabase) return <PortalShell><MessagePanel title="Account setup is in progress">Please contact PulseTech if you need help signing in.</MessagePanel></PortalShell>;
+  if (!supabase) return <PortalUnavailable />;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const admin = isPulseTechAdmin(user.email, process.env.PULSETECH_ADMIN_EMAILS);
@@ -164,4 +164,21 @@ function ProfileItem({ label, value }: { label: string; value?: string | string[
 
 function MessagePanel({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="rounded-2xl border border-slate-200 bg-white p-6"><h1 className="text-xl font-semibold text-slate-950">{title}</h1><p className="mt-2 text-sm leading-6 text-slate-600">{children}</p></section>;
+}
+
+function PortalUnavailable() {
+  return <main className="min-h-screen bg-white px-4">
+    <header className="mx-auto flex min-h-[76px] max-w-6xl items-center justify-between border-b border-slate-100">
+      <Link href="/" aria-label="PulseTech Labs home"><Image src="/branding/pulsetech-logo-blue-black.svg" alt="PulseTech Labs" width={190} height={38} priority /></Link>
+      <Link href="/login" className="text-sm font-semibold text-blue-700 hover:text-blue-800">Back to log in</Link>
+    </header>
+    <section className="mx-auto flex min-h-[65vh] max-w-lg items-center justify-center py-12">
+      <div className="w-full rounded-2xl border border-blue-100 bg-white p-8 text-center shadow-sm">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-xl font-semibold text-blue-700" aria-hidden="true">P</div>
+        <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">Client account unavailable</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">We couldn’t connect to the account service. Please try again later or return to the login page.</p>
+        <Link href="/login" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-5 font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200">Return to log in</Link>
+      </div>
+    </section>
+  </main>;
 }

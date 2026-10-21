@@ -1016,3 +1016,7 @@
  .pt-hero-visual{width:100%!important}
  .pt-hero-chat-wrap{width:100%!important}
 }
+
+
+/* Keep the supplied hero reference clean: remove the older neon aura behind the chat. */
+.pt-hero-chat-wrap:before,.pt-hero-chat-wrap:after{display:none!important;content:none!important}

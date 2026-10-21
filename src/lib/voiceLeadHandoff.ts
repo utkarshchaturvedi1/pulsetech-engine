@@ -7,6 +7,7 @@ import {
   maybeSendLeadHandoff,
   scheduleLeadAlertDelivery,
   type LeadAlertAfter,
+  type LeadDeliveryOutcome,
   type LeadHandoffResult,
 } from "./leadHandoff";
 import { evaluateHandoffReadiness } from "./leadHandoffShared";
@@ -61,7 +62,7 @@ export type VoiceLeadHandoffResult = VoiceLeadHandoffDecision & {
   attempted: boolean;
   emailTo?: string;
   smsTo?: string;
-  delivery?: () => Promise<void>;
+  delivery?: () => Promise<void | LeadDeliveryOutcome>;
   salesState?: SalesState;
 };
 
@@ -430,7 +431,7 @@ export async function processVoiceLeadHandoff(params: {
 
 export function scheduleVoiceLeadAlertDelivery(
   afterFn: LeadAlertAfter,
-  delivery?: () => Promise<void>
+  delivery?: () => Promise<void | LeadDeliveryOutcome>
 ): void {
   scheduleLeadAlertDelivery(afterFn, delivery);
 }

@@ -26,6 +26,7 @@ jobs:
       - run: npm run test:inbound-voice
       - run: npm run test:owner-profile-update
       - run: npm run test:client-account-regression
+      - run: npm run test:customer-lead-store
       - run: npm run test:client-handover
       - run: npm run test:profile-access
       - run: npm run test:voice-demo

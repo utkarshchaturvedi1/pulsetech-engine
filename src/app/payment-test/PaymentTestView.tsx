@@ -253,6 +253,10 @@ function PricingPage({
                 </span>
               </li>
               <li className="flex items-start gap-3">
+                <CheckIcon />
+                <span>Lead records with captured customer details and service requests.</span>
+              </li>
+              <li className="flex items-start gap-3">
                 <span
                   aria-hidden="true"
                   className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[#cbd5e1] text-xs text-[#64748b]"
@@ -260,7 +264,7 @@ function PricingPage({
                   –
                 </span>
                 <span>
-                  Lead list with captured details, conversion status, and sale value.
+                  Conversion status and sale value tracking.
                   <span className="mt-1 block text-sm font-semibold text-[#5c6b80]">
                     Not available yet.
                   </span>

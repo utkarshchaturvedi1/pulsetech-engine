@@ -29,7 +29,7 @@ export default function ClientInstallation({
 
   const safeColor = /^#[\\da-f]{3,8}$/i.test(primaryColor) ? primaryColor : "#2563eb";
   const scriptUrl = `${baseUrl}/pulsetech-widget.js`;
-  const previewUrl = `${baseUrl}/widget-test?demoId=${encodeURIComponent(demoId)}`;
+  const previewUrl = `${baseUrl}/widget/${encodeURIComponent(demoId)}`;
   const snippet = `<script
   src="${escapeHtmlAttribute(scriptUrl)}"
   data-demo-id="${escapeHtmlAttribute(demoId)}"
@@ -59,7 +59,7 @@ export default function ClientInstallation({
       <textarea id="pt-chat-install-code" readOnly value={snippet} rows={7} className="mt-2 w-full resize-y rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-800" />
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="button" onClick={copySnippet} className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">{copied ? "Copied" : "Copy code"}</button>
-        <a href={previewUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-700 hover:underline">Preview floating chat</a>
+        <a href={previewUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-700 hover:underline">Open chat preview</a>
       </div>
       <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
         <div>

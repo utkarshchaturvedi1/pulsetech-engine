@@ -373,11 +373,92 @@ async function testFailureAndRoute() {
   console.log("PASS — failure fallback, route isolation, and production request path");
 }
 
+async function testCapturedLeadPersistsDuringAIOutage() {
+  const originalFetch = globalThis.fetch;
+  const originalUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const originalKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://staging.example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "sb_secret_fake_test_key";
+  process.env.OPENAI_API_KEY = "test-only";
+
+  const demoId = "staging-demo-test-001";
+  const accountId = "00000000-0000-4000-8000-000000000001";
+  const business = profile("https://persist.test", []);
+  const state = createInitialSalesState({
+    conversationId: "conv_outage_lead_001",
+    businessKey: business.website,
+  });
+  state.lead.name = "Casey QA";
+  state.lead.phone = "+12025550198";
+  state.lead.address = "456 QA Lane, Austin, TX 78702";
+  state.primaryNeed = "Repair a leaking kitchen faucet";
+  state.customerNeed = state.primaryNeed;
+  state.intent = "HIGH";
+
+  const savedLeads: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/rest/v1/business_profiles")) {
+      return Response.json([{ id: demoId, profile: business, updated_at: "2026-10-17T00:00:00.000Z" }]);
+    }
+    if (url.includes("/rest/v1/customer_accounts")) {
+      return Response.json([{ id: accountId }]);
+    }
+    if (url.includes("/rest/v1/customer_leads")) {
+      savedLeads.push(JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
+      return new Response(null, { status: 201 });
+    }
+    if (url.includes("api.openai.com/v1/responses")) {
+      return new Response(JSON.stringify({
+        error: { message: "Insufficient quota", type: "insufficient_quota", code: "insufficient_quota" },
+      }), { status: 429, headers: { "Content-Type": "application/json" } });
+    }
+    throw new Error("Unexpected outage-test request: " + url);
+  }) as typeof fetch;
+
+  try {
+    const response = await POST(new NextRequest("http://localhost/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        demoId,
+        conversationId: state.conversationId,
+        business,
+        messages: [{ role: "user", content: "What is the exact total price?" }],
+        salesState: state,
+      }),
+    }));
+    const body = await response.json() as { reply: string; salesState: SalesState };
+    assert.equal(response.status, 200, "AI outage should still return a safe chat response");
+    assert.doesNotMatch(body.reply, /openai|quota|api key/i);
+    assert.equal(body.salesState.lead.name, "Casey QA");
+    assert.equal(body.salesState.lead.phone, "+12025550198");
+    assert.equal(body.salesState.lead.address, "456 QA Lane, Austin, TX 78702");
+    assert.equal(savedLeads.length, 1, "captured lead must be durably upserted despite AI failure");
+    const savedLead = savedLeads[0];
+    assert.ok(savedLead);
+    assert.equal(savedLead.customer_account_id, accountId);
+    assert.equal(savedLead.customer_name, "Casey QA");
+    assert.equal(savedLead.customer_phone, "+12025550198");
+    assert.equal(savedLead.service_address, "456 QA Lane, Austin, TX 78702");
+    assert.equal(savedLead.primary_need, "Repair a leaking kitchen faucet");
+    assert.ok(!("transcript" in savedLead), "lead store must not persist the conversation transcript");
+    console.log("PASS — captured client lead persists and receives safe reply during AI quota outage");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = originalKey;
+  }
+}
+
 async function main() {
   await testProductionRepeat();
   await testUnfamiliarBusinesses();
   await testIsolationAndReplay();
   await testFailureAndRoute();
+  await testCapturedLeadPersistsDuringAIOutage();
   console.log("PASS — conversation reliability");
 }
 

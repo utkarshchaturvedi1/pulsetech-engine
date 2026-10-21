@@ -21,7 +21,9 @@ export default function ClientHandoverRequest() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not send request.");
       form.reset();
-      setMessage("Your handover request is saved to this client account.");
+      setMessage(result.notificationSent
+        ? "Your request is saved and PulseTech has been notified."
+        : "Your request is saved to this client account, but an email alert could not be confirmed. For urgent help, email contact@pulsetechlabs.com.");
       window.location.reload();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not send request. Please try again.");

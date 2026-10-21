@@ -22,7 +22,7 @@ export default function ClientInstallation({
     return (
       <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
         <h2 className="text-xl font-bold">Website installation link is being prepared</h2>
-        <p className="mt-2 text-sm leading-6">PulseTech needs to finish configuring the public service address before it can provide your website code. Contact <a className="font-semibold underline" href="mailto:leads@pulsetechlabs.com">leads@pulsetechlabs.com</a>.</p>
+        <p className="mt-2 text-sm leading-6">PulseTech needs to finish configuring the public service address before it can provide your website code. Contact <a className="font-semibold underline" href="mailto:contact@pulsetechlabs.com">contact@pulsetechlabs.com</a>.</p>
       </section>
     );
   }
@@ -64,11 +64,19 @@ export default function ClientInstallation({
       <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
         <div>
           <h3 className="font-semibold text-slate-900">WordPress</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Add the code through a Custom HTML block or your site’s footer code area. If WordPress removes script tags, use your site administrator’s approved code-insertion method.</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">The simplest route is a site-wide footer code area. If you use a page block, choose Custom HTML, paste the snippet, and publish. Some WordPress editors remove scripts; in that case use your host’s approved header/footer code tool or ask us to guide the installation.</p>
         </div>
         <div>
           <h3 className="font-semibold text-slate-900">Wix or Squarespace</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Add an Embed HTML or custom-code block, paste the snippet, and publish. Check the chat button on desktop and mobile.</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Use the site-wide custom-code or code-injection area, choose the end of the body when asked, paste the snippet, then publish. Confirm the floating button appears on desktop and mobile.</p>
+        </div>
+        <div>
+          <h3 className="font-semibold text-slate-900">Shopify or Webflow</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Add the script in the site-wide theme custom-code area near the closing body tag. Save and publish the theme or site before checking the chat.</p>
+        </div>
+        <div>
+          <h3 className="font-semibold text-slate-900">Other website platforms</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-600">Send us your platform name and we’ll provide the right steps. Please don’t paste the code into a public page paragraph or share your website password.</p>
         </div>
       </div>
       <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">

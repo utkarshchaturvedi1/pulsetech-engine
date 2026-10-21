@@ -29,8 +29,16 @@ assert.ok(migration.includes("grant select (id, customer_id, business_name, demo
 const loginPage = source("src/app/login/page.tsx");
 const loginForm = source("src/app/login/ClientLoginForm.tsx");
 assert.ok(loginPage.includes("safeClientRedirect(next)"), "login page sanitizes the return path");
-assert.ok(loginPage.includes("<ClientLoginForm nextPath={nextPath} />"), "login page passes requested destination to the OTP form");
-assert.ok(loginForm.includes("encodeURIComponent(nextPath)"), "OTP callback preserves the sanitized destination");
+assert.ok(loginPage.includes("<ClientLoginForm nextPath={nextPath} />"), "login page passes the safe destination to the password form");
+assert.ok(loginForm.includes("signInWithPassword"), "clients use familiar email and password sign-in");
+assert.ok(loginForm.includes("resetPasswordForEmail"), "clients can request password recovery");
+assert.ok(loginForm.includes("/auth/callback?next="), "password recovery returns to the password reset page");
+const passwordForm = source("src/app/client/password/ClientPasswordForm.tsx");
+assert.ok(passwordForm.includes("updateUser({ password })"), "invited clients can set or reset a password");
+const authCallback = source("src/app/auth/callback/route.ts");
+assert.ok(authCallback.includes("exchangeCodeForSession(code)"), "PKCE callback links are exchanged for a session");
+assert.ok(authCallback.includes("verifyOtp({ token_hash: tokenHash!"), "Supabase invite and recovery token-hash links are verified");
+assert.ok(authCallback.includes('suppliedType === "invite"') && authCallback.includes('suppliedType === "recovery"'), "invite and password-recovery link types are explicitly accepted");
 
 const demoPage = source("src/app/demo/[slug]/page.tsx");
 assert.ok(demoPage.includes('response.status === 401'), "unauthenticated demo opens an explicit sign-in state");

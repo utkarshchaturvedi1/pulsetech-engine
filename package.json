@@ -14,6 +14,7 @@
     "test:handoff-timing": "npx --yes tsx scripts/test-handoff-timing.ts",
     "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts",
     "test:client-account-regression": "npx --yes tsx scripts/test-client-account-regression.ts",
+    "test:client-portal": "npx --yes tsx scripts/test-client-portal.ts",
     "test:customer-lead-store": "npx --yes tsx scripts/test-customer-lead-store.ts",
     "test:client-handover": "npx --yes tsx scripts/test-client-handover.ts",
     "test:profile-access": "npx --yes tsx scripts/test-profile-access.ts",

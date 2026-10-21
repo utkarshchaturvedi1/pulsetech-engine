@@ -13,7 +13,7 @@ export default function SiteFooter() {
           </p>
         </div>
         <nav className="pt-footer-nav" aria-label="Legal and support">
-          <a href="/login">Client Login</a>
+          <a href="/login">Login</a>
           <a href="/privacy">Privacy Policy</a>
           <a href="/terms">Terms of Service</a>
           <a href={CONTACT_MAILTO}>Contact &amp; Support</a>

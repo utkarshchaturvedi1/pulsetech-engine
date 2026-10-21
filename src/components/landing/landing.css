@@ -945,3 +945,10 @@
   background:#f2f7ff!important;
   border-color:#7ea8e8!important;
 }
+
+
+/* Restore the dark readability wash behind the hero copy in the review environment. */
+.pt-hero-video-wash{
+  display:block!important;
+  background:rgba(0,0,0,.48)!important;
+}

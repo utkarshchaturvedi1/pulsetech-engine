@@ -82,7 +82,8 @@ export default async function ClientPortalPage() {
           <DetailCard label="Business hours" value={profile.businessHours || "Not confirmed"} />
           <DetailCard label="Verified prices and visit fees" value={profile.pricingRules || "No prices or fees confirmed"} />
           <DetailCard label="Policies and common answers" value={profile.faqs?.map((item) => `${item.question}: ${item.answer}`).join("\n") || "Not added yet"} />
-          <DetailCard label="Customer questions" value={profile.leadQuestions?.join(" · ") || "Name, phone, and service address are collected first"} />
+          <DetailCard label="Lead capture order" value="Name → Phone → Service address" />
+          <DetailCard label="Additional customer questions" value={profile.leadQuestions?.join(" · ") || "None configured"} />
           <DetailCard label="Lead alert recipients" value={[profile.leadNotificationEmail, profile.leadNotificationPhone].filter(Boolean).join(" · ") || "Contact PulseTech to confirm recipients"} />
         </div> : <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-950">Saved business details are temporarily unavailable. You can still ask Peter to update them; please contact PulseTech if this continues.</p>}
         <p className="mt-4 text-sm text-slate-600">To change services, hours, prices, policies, customer questions, or alert recipients, tell Peter in plain language. Your updates are saved to the business profile used by chat and voice.</p>

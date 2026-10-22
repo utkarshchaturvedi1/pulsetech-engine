@@ -7,6 +7,7 @@ import { loadSharedProfile } from "@/lib/sharedProfileStore";
 import ClientHandoverRequest from "./ClientHandoverRequest";
 import ClientInviteForm from "./ClientInviteForm";
 import ClientSignOutButton from "./ClientSignOutButton";
+import ClientLeadTable, { type ClientLead } from "./ClientLeadTable";
 import type { BusinessProfile } from "@/types/business";
 
 export const metadata = { title: "Your account | PulseTech Labs" };
@@ -33,19 +34,23 @@ export default async function ClientPortalPage() {
     : { data: null, error: null };
   const accountError = membershipError || accountQueryError;
   const account = accountData as Account | null;
-  const [requestResult, savedProfile] = account ? await Promise.all([
+  const [requestResult, savedProfile, leadResult] = account ? await Promise.all([
     supabase.from("handover_requests").select("id,subject,details,status,created_at").eq("customer_account_id", account.id).order("created_at", { ascending: false }).limit(20),
     loadSharedProfile(account.demo_id),
-  ]) : [{ data: [] as HandoverRequest[] }, null];
+    account.handover_status === "live"
+      ? supabase.from("customer_leads").select("id,customer_name,customer_phone,customer_email,service_address,primary_need,preferred_timing,urgency,sales_outcome,sale_amount_usd,first_captured_at").eq("customer_account_id", account.id).order("first_captured_at", { ascending: false }).limit(50)
+      : Promise.resolve({ data: [] as ClientLead[], error: null }),
+  ]) : [{ data: [] as HandoverRequest[] }, null, { data: [] as ClientLead[], error: null }];
   const requests = (requestResult.data || []) as HandoverRequest[];
   const profile = savedProfile?.profile as BusinessProfile | undefined;
+  const leads = (leadResult.data || []) as ClientLead[];
 
   return <PortalShell email={user.email || ""} showLeads={account?.handover_status === "live"}>
     {accountError ? <MessagePanel title="We’re finishing your account setup">Your client account database setup needs attention. Please contact PulseTech and we’ll help.</MessagePanel> : !account ? <section className="rounded-2xl border border-slate-200 bg-white p-7">
       <h1 className="text-2xl font-semibold text-slate-950">No client account is connected</h1>
       <p className="mt-2 text-slate-600">This sign-in email is not linked to a PulseTech client account yet.</p>
       {admin && <div className="mt-7 border-t border-slate-200 pt-6"><h2 className="text-lg font-semibold">Invite a client</h2><p className="mt-1 text-sm text-slate-600">Connect an existing saved business profile to a client login.</p><ClientInviteForm /></div>}
-    </section> : account.handover_status === "live" ? <LiveDashboard account={account} profile={profile} requests={requests} /> : <PreLaunchDashboard account={account} profile={profile} requests={requests} />}
+    </section> : account.handover_status === "live" ? <LiveDashboard account={account} profile={profile} requests={requests} leads={leads} leadTableReady={!leadResult.error} /> : <PreLaunchDashboard account={account} profile={profile} requests={requests} />}
     {admin && account && <section className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-lg font-semibold">Invite another client</h2><ClientInviteForm /></section>}
   </PortalShell>;
 }
@@ -57,17 +62,17 @@ function PreLaunchDashboard({ account, profile, requests }: { account: Account; 
     <section id="overview" className="space-y-2">
       <StatusPill label={stage} tone="blue" />
       <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Let’s get your assistant ready</h1>
-      <p className="text-slate-600">Test your assistant and work through setup with PulseTech.</p>
+      <p className="text-slate-600">Your account setup is being prepared with PulseTech. You can test the assistant if you wish; testing is optional.</p>
     </section>
     <section id="assistant" className="grid gap-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
-      <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Next step</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Test your assistant</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Try your business’s website chat and confirm its answers before launch.</p></div>
-      <Link href={demoUrl} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">Open test chat</Link>
+      <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Optional</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Try your assistant</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Test the chat or phone experience whenever you like. PulseTech will complete the launch checks and send your installation instructions.</p></div>
+      <Link href={demoUrl} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">Try the demo</Link>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" aria-label="Setup progress">
       <ol className="grid gap-4 md:grid-cols-3">
-        <ProgressStep number="1" title="Review business details" state={profile ? "Ready to review" : "Loading details"} active />
-        <ProgressStep number="2" title="Test chat and phone" state={account.handover_status === "testing" ? "In progress" : "Next"} active={account.handover_status === "testing"} />
-        <ProgressStep number="3" title="Install on your website" state={account.handover_status === "approved" ? "Next" : "After testing"} />
+        <ProgressStep number="1" title="Business details" state={profile ? "Saved from your demo" : "Being prepared"} active />
+        <ProgressStep number="2" title="PulseTech launch checks" state={account.handover_status === "testing" ? "In progress" : "Handled by PulseTech"} active={account.handover_status === "testing"} />
+        <ProgressStep number="3" title="Install and go live" state={account.handover_status === "approved" ? "Ready to arrange" : "Instructions sent after checks"} />
       </ol>
     </section>
     <div className="grid gap-5 md:grid-cols-2">
@@ -82,7 +87,7 @@ function PreLaunchDashboard({ account, profile, requests }: { account: Account; 
   </>;
 }
 
-function LiveDashboard({ account, profile, requests }: { account: Account; profile?: BusinessProfile; requests: HandoverRequest[] }) {
+function LiveDashboard({ account, profile, requests, leads, leadTableReady }: { account: Account; profile?: BusinessProfile; requests: HandoverRequest[]; leads: ClientLead[]; leadTableReady: boolean }) {
   const alerts = [profile?.leadNotificationEmail, profile?.leadNotificationPhone].filter(Boolean);
   return <>
     <section id="overview" className="space-y-2">
@@ -91,7 +96,7 @@ function LiveDashboard({ account, profile, requests }: { account: Account; profi
       <p className="text-slate-600">{account.business_name}</p>
     </section>
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <SummaryCard label="New leads" value="—" note="Lead history is not available in this portal yet." />
+      <SummaryCard label="Leads captured" value={leadTableReady ? String(leads.length) : "—"} note={leadTableReady ? "Recent enquiries saved in your account." : "Lead list setup is pending."} />
       <SummaryCard label="Website chat" value="Live" note="Included in your AI Sales Employee service." green />
       <SummaryCard label="Inbound phone" value="Live" note="Inbound calls only." green />
       <SummaryCard label="Lead alerts" value={alerts.length ? "Recipients saved" : "Check setup"} note={alerts.join(" · ") || "Confirm recipients with PulseTech."} green={alerts.length > 0} />
@@ -99,11 +104,7 @@ function LiveDashboard({ account, profile, requests }: { account: Account; profi
     <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
       <section id="leads" className="min-h-72 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
         <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold text-slate-950">Recent leads</h2><span className="text-sm text-slate-500">Customer enquiries</span></div>
-        <div className="flex min-h-52 flex-col items-center justify-center text-center">
-          <div className="text-3xl text-slate-300" aria-hidden="true">○</div>
-          <p className="mt-3 font-semibold text-slate-800">Lead history isn’t connected to this portal yet</p>
-          <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">Your team continues to receive configured lead alerts. Contact PulseTech if you need a lead record or alert recipient updated.</p>
-        </div>
+        {leadTableReady ? <ClientLeadTable initialLeads={leads} /> : <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">Lead history is waiting for the V1.2 Supabase lead migration. Your configured email and SMS alerts continue to operate.</div>}
       </section>
       <div className="space-y-5">
         <section id="assistant" className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-lg font-semibold text-slate-950">Business instructions</h2><p className="mt-2 text-sm leading-6 text-slate-600">Update services, hours, pricing, policies, and other business instructions through Peter.</p><Link href={`/demo/${encodeURIComponent(account.demo_id)}`} className="mt-4 inline-flex rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800">Review with Peter</Link></section>
@@ -132,8 +133,8 @@ function RequestsAndSupport({ requests }: { requests: HandoverRequest[] }) {
 }
 
 function PortalShell({ children, email, showLeads = false }: { children: React.ReactNode; email?: string; showLeads?: boolean }) {
-  return <main className="min-h-screen bg-slate-50 px-4 sm:px-6">
-    <header className="-mx-4 border-b border-slate-200 bg-white px-4 sm:-mx-6 sm:px-6">
+  return <main className="min-h-screen bg-[#f5f5f7] px-4 text-[#111217] sm:px-6">
+    <header className="-mx-4 border-b border-black/10 bg-[#f5f5f7]/95 px-4 sm:-mx-6 sm:px-6">
       <div className="mx-auto flex min-h-[72px] max-w-7xl flex-wrap items-center justify-between gap-4 py-3">
         <Link href="/client" aria-label="PulseTech account overview"><Image src="/branding/pulsetech-logo-blue-black.svg" alt="PulseTech Labs" width={190} height={38} priority /></Link>
         <nav aria-label="Client account" className="order-3 flex w-full gap-5 overflow-x-auto text-sm font-medium text-slate-700 sm:order-2 sm:w-auto sm:gap-7"><a href="#overview" className="py-2 hover:text-blue-700">Overview</a><a href="#assistant" className="py-2 hover:text-blue-700">Assistant</a>{showLeads && <a href="#leads" className="py-2 hover:text-blue-700">Leads</a>}<a href="#installation" className="py-2 hover:text-blue-700">Installation</a><a href="#support" className="py-2 hover:text-blue-700">Support</a></nav>
@@ -167,17 +168,17 @@ function MessagePanel({ title, children }: { title: string; children: React.Reac
 }
 
 function PortalUnavailable() {
-  return <main className="min-h-screen bg-white px-4">
-    <header className="mx-auto flex min-h-[76px] max-w-6xl items-center justify-between border-b border-slate-100">
+  return <main className="min-h-screen bg-[#f5f5f7] px-4">
+    <header className="mx-auto flex min-h-[76px] max-w-6xl items-center justify-between border-b border-black/10">
       <Link href="/" aria-label="PulseTech Labs home"><Image src="/branding/pulsetech-logo-blue-black.svg" alt="PulseTech Labs" width={190} height={38} priority /></Link>
       <Link href="/login" className="text-sm font-semibold text-blue-700 hover:text-blue-800">Back to log in</Link>
     </header>
     <section className="mx-auto flex min-h-[65vh] max-w-lg items-center justify-center py-12">
-      <div className="w-full rounded-2xl border border-blue-100 bg-white p-8 text-center shadow-sm">
+      <div className="w-full rounded-2xl border border-black/10 bg-white p-8 text-center shadow-sm">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-xl font-semibold text-blue-700" aria-hidden="true">P</div>
         <h1 className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">Client account unavailable</h1>
         <p className="mt-3 text-sm leading-6 text-slate-600">We couldn’t connect to the account service. Please try again later or return to the login page.</p>
-        <Link href="/login" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-blue-700 px-5 font-semibold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200">Return to log in</Link>
+        <Link href="/login" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-lg bg-[#111217] px-5 font-semibold text-white transition hover:bg-[#246bfe] focus:outline-none focus:ring-4 focus:ring-lime-200">Return to log in</Link>
       </div>
     </section>
   </main>;

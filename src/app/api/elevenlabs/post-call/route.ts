@@ -1,5 +1,6 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { verifyElevenLabsSignature } from "../../../../lib/elevenlabsWebhook";
+import { persistLiveClientLead } from "../../../../lib/persistClientLead";
 import {
   logInboundVoiceResolution,
   resolvePostCallBusiness,
@@ -61,6 +62,22 @@ export async function POST(request: NextRequest) {
     demoId: resolution.ok ? resolution.demoId : resolution.demoId,
     demoResolved: resolution.ok,
   });
+
+  // Persist a complete live-client call lead even when SMS/email delivery fails.
+  if (result.salesState) {
+    try {
+      const deliveryState = {
+        ...result.salesState,
+        leadDeliveryStatus: result.queueStatus === "sent" ? "SENT" as const
+          : result.queueStatus === "queued" ? "QUEUED" as const
+          : result.queueStatus === "failed" ? "FAILED" as const
+          : result.salesState.leadDeliveryStatus,
+      };
+      await persistLiveClientLead(resolution.demoId, deliveryState);
+    } catch (error) {
+      console.error("[voice-lead] portal lead persistence failed", error);
+    }
+  }
 
   scheduleVoiceLeadAlertDelivery(after, result.delivery);
 

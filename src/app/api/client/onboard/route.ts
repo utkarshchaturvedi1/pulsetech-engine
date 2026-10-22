@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   }
 
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${baseUrl}/auth/callback?next=%2Freset-password`,
+    redirectTo: `${baseUrl}/auth/callback`,
     data: { customer_id: account.customer_id },
   });
   if (inviteError || !invited.user) {

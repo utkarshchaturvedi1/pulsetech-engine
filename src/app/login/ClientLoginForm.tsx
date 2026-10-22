@@ -20,7 +20,9 @@ export default function ClientLoginForm() {
       const supabase = createClient();
       const normalizedEmail = email.trim().toLowerCase();
       if (resetMode) {
-        const redirectTo = `${window.location.origin}/auth/callback?next=%2Freset-password`;
+        // Keep the redirect URL identical to Supabase's allowlisted callback URL.
+        // The callback route defaults to password setup, so no query string is needed.
+        const redirectTo = `${window.location.origin}/auth/callback`;
         const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
         setMessage(error ? "We couldn’t send a reset link. Check the email address or contact PulseTech." : "If that email belongs to a client account, a password reset link is on its way.");
         return;

@@ -44,7 +44,7 @@ Rules:
 - Only set ownerLeadQuestions when the owner explicitly selects which existing questions are mandatory or optional. Use exact saved question strings, preserve all leadQuestions and unrelated facts. For ordinary additions, omit ownerLeadQuestions; the application marks newly added owner questions required.
 - Also fold the new facts into systemPrompt so the sales employee knows them.
 - Never change website.
-- reply must be a short confirmation of the actual change.
+- reply must be a short, natural confirmation of the actual change in plain language. Never mention internal field names such as leadQuestions, ownerLeadQuestions, systemPrompt, patches or JSON. For example: "Saved the visiting fee and the question about pets."
 - Return JSON only.
 `;
 

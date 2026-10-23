@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { LabMessage, LabProfile } from "@/lib/salesLab/policy";
+import type { OwnerLead } from "@/lib/salesLab/leads";
 type RecordView = { id: string; profile: LabProfile; updated_at: string };
 
 export default function SalesLab() {
@@ -15,7 +16,12 @@ export default function SalesLab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [visitor, setVisitor] = useState(false);
+  const [closed, setClosed] = useState(false);
+  const [leads, setLeads] = useState<OwnerLead[]>([]);
+  const [emailConfigured, setEmailConfigured] = useState(false);
+  const conversation = useRef("");
   const end = useRef<HTMLDivElement>(null);
+  function newChat() { conversation.current = crypto.randomUUID(); setMessages([]); setClosed(false); setError(""); }
   useEffect(() => {
     const params = new URLSearchParams(location.hash.slice(1));
     if (params.get("id")) setId(params.get("id")!);
@@ -29,23 +35,27 @@ export default function SalesLab() {
       const response = await fetch("/api/sales-lab/peter", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${ownerKey}` }, body: JSON.stringify({ action, id, version: record?.updated_at, ...extra }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
+      if (action === "leads") { setLeads(data.leads); setEmailConfigured(data.emailConfigured); return; }
       setRecord(data); setId(data.id); setName(data.profile.businessName);
       location.hash = new URLSearchParams({ id: data.id }).toString();
-      if (action === "create" || record?.id !== data.id) setMessages([]);
+      if (action === "create" || record?.id !== data.id) { newChat(); setLeads([]); }
       if (action === "add" || action === "instruct") setInstruction("");
       setPeterReply(data.peterReply ? `${data.changed ? "Saved. " : ""}${data.peterReply}` : action === "revoke" ? "Removed. The sales employee will use the updated instructions on its next reply." : "");
     } catch (e) { setError(e instanceof Error ? e.message : "Please try again."); }
     finally { setBusy(false); }
   }
   async function send() {
-    if (!draft.trim() || busy || !id) return;
+    if (!draft.trim() || busy || !id || closed) return;
+    if (!conversation.current) conversation.current = crypto.randomUUID();
     const next: LabMessage[] = [...messages, { role: "user", content: draft.trim() }];
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/sales-lab/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, messages: next }) });
+      const response = await fetch("/api/sales-lab/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, messages: next, conversationId: conversation.current }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setMessages([...next, { role: "assistant", content: data.reply, version: data.version }]); setDraft(""); setName(data.businessName);
+      setClosed(data.closed === true);
+      if (data.closed === true && !visitor) await peter("leads");
     } catch (e) { setError(e instanceof Error ? e.message : "Please try again."); }
     finally { setBusy(false); }
   }
@@ -70,17 +80,23 @@ export default function SalesLab() {
           {!record.profile.instructions.length && <p>No business instructions saved yet.</p>}
           <ul className="lab-instructions">{record.profile.instructions.map(item => <li key={item.id}><p>{item.text}</p><button className="lab-text-button" disabled={busy} onClick={() => peter("revoke", { instructionId: item.id })}>Revoke</button></li>)}</ul>
           <a className="lab-link" target="_blank" rel="noreferrer" href={`/sales-lab#${new URLSearchParams({ id: record.id, view: "customer" })}`}>Open customer-only test ↗</a>
+          <div className="lab-divider" />
+          <div className="lab-saved-heading"><h3>Lead inbox</h3><button className="lab-text-button" disabled={busy} onClick={() => peter("leads")}>View / refresh leads</button></div>
+          <p>Completed requests are saved here. Tell Peter “Send lead alerts to my email…” to set your recipient. Email delivery also needs the mail connection.</p>
+          {record.profile.leadAlertEmail && <p>Lead alerts: {record.profile.leadAlertEmail}</p>}
+          {leads.length > 0 && <p>{emailConfigured ? "Email connection configured." : "Email alerts are not connected. Leads are saved in this inbox."}</p>}
+          <ul className="lab-instructions">{leads.map(item => <li key={item.id}><p><strong>{item.profile.lead.name}</strong> · {new Date(item.updated_at).toLocaleString()}<br />{item.profile.lead.phone}<br />{item.profile.lead.address}<br />{item.profile.lead.serviceNeed}<br />Requested: {item.profile.lead.preferredTime}<br />{item.profile.lead.notes}<br />Email: {item.profile.emailStatus || "pending"}</p></li>)}</ul>
         </>}
       </aside>}
       <section className="lab-panel lab-chat" aria-label="Customer conversation">
-        <div className="lab-panel-heading"><span className="lab-avatar lab-sales">S</span><div><h2>{name || "Sales employee"}</h2><p><span className="lab-dot" /> Here to help</p></div><button className="lab-text-button lab-reset" disabled={busy} onClick={() => { setMessages([]); setError(""); }}>New chat</button></div>
+        <div className="lab-panel-heading"><span className="lab-avatar lab-sales">S</span><div><h2>{name || "Sales employee"}</h2><p><span className="lab-dot" /> Here to help</p></div><button className="lab-text-button lab-reset" disabled={busy} onClick={newChat}>New chat</button></div>
         <div className="lab-transcript" role="log" aria-live="polite">
           {!messages.length && <div className="lab-welcome"><span className="lab-welcome-icon">✦</span><h2>Let’s talk.</h2><p>{chatReady ? "Hi! What can I help you with today?" : "Create a test business with Peter, then start a customer conversation here."}</p></div>}
           {messages.map((message, index) => <div className={`lab-message ${message.role}`} key={index}><span>{message.role === "user" ? "You" : name || "Sales employee"}</span><p>{message.content}</p></div>)}
           {busy && <p className="lab-thinking" role="status">One moment…</p>}<div ref={end} />
         </div>
-        <form className="lab-composer" onSubmit={e => { e.preventDefault(); void send(); }}><label className="lab-sr" htmlFor="customer-message">Your message</label><input id="customer-message" maxLength={4000} value={draft} onChange={e => setDraft(e.target.value)} disabled={!chatReady || busy} placeholder="Type as a customer…" /><button disabled={!chatReady || busy || !draft.trim()} type="submit">Send ↗</button></form>
-        <p className="lab-test-note">Test conversation · No real bookings or notifications</p>
+        <form className="lab-composer" onSubmit={e => { e.preventDefault(); void send(); }}><label className="lab-sr" htmlFor="customer-message">Your message</label><input id="customer-message" maxLength={4000} value={draft} onChange={e => setDraft(e.target.value)} disabled={!chatReady || busy || closed} placeholder={closed ? "Request submitted. Thank you." : "Type as a customer…"} /><button disabled={!chatReady || busy || closed || !draft.trim()} type="submit">Send ↗</button></form>
+        <p className="lab-test-note">Test conversation · Visit times require the business’s confirmation</p>
       </section>
     </div>
     {error && <div className="lab-error" role="alert">{error}</div>}

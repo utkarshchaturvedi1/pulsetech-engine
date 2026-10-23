@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { LabError, labError, readBody, readLab, requireOwner, validLabId, writeLab } from "@/lib/salesLab/store";
 import { applyPeterPlan, askPeter } from "@/lib/salesLab/peter";
+import { listLeads } from "@/lib/salesLab/leads";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -15,13 +16,14 @@ export async function POST(request: Request) {
       return Response.json(record, { headers: { "Cache-Control": "no-store" } });
     }
     const record = await readLab(validLabId(body.id));
+    if (body.action === "leads") return Response.json({ leads: await listLeads(record.id), emailConfigured: !!(record.profile.leadAlertEmail && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM) }, { headers: { "Cache-Control": "no-store" } });
     if (body.action === "load") return Response.json(record, { headers: { "Cache-Control": "no-store" } });
     if (body.version !== record.updated_at) throw new LabError("Reload Peter: these instructions have changed.", 409);
     if (body.action === "instruct") {
       if (typeof body.text !== "string" || !body.text.trim() || body.text.length > 12000) throw new LabError("Tell Peter what to include, change, or exclude.");
       const plan = await askPeter(record.profile, body.text);
       const next = applyPeterPlan(record.profile, plan);
-      const changed = plan.add.length + plan.revise.length + plan.revoke.length > 0;
+      const changed = plan.add.length + plan.revise.length + plan.revoke.length > 0 || (plan.leadAlertEmail != null && plan.leadAlertEmail !== record.profile.leadAlertEmail);
       const saved = changed ? await writeLab(next, record) : record;
       return Response.json({ ...saved, peterReply: plan.reply, changed }, { headers: { "Cache-Control": "no-store" } });
     }

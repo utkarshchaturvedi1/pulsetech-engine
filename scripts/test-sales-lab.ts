@@ -45,13 +45,27 @@ async function main() {
   let aiReply = "We can help. What would you like to know?";
   let changeDuringAI = false;
   let calls = 0;
+  let leadRow: Record<string, unknown> | null = null;
+  let failLeadSave = false;
+  let leadWrites = 0;
+  let leadPayload: Record<string, string> | null = null;
   const actualFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const url = String(input instanceof Request ? input.url : input);
     if (url.startsWith("https://database.test/rest/v1/business_profiles")) {
-      if (init?.method === "PATCH" || init?.method === "POST") {
-        saved = JSON.parse(String(init.body));
+      if (url.includes("id=eq.saleslab-lead-")) {
+        if (init?.method === "PATCH" && leadRow) leadRow = { ...leadRow, ...JSON.parse(String(init.body)) };
+        return Response.json(leadRow ? [leadRow] : []);
       }
+      if (init?.method === "POST" && String(init.body).includes("independent-sales-lab-lead-v1")) {
+        if (failLeadSave) return Response.json({}, { status: 500 });
+        if (leadRow) return Response.json([]);
+        leadWrites++;
+        leadRow = JSON.parse(String(init.body));
+        return Response.json([leadRow]);
+      }
+      if (url.includes("profile->>kind")) return Response.json(leadRow ? [leadRow] : []);
+      if (init?.method === "PATCH" || init?.method === "POST") saved = JSON.parse(String(init.body));
       return Response.json([saved]);
     }
     if (url.includes("api.openai.com")) {
@@ -60,11 +74,12 @@ async function main() {
       assert.equal(requestBody.store, false);
       assert(!requestBody.instructions.includes("test-only-service-key"));
       if (changeDuringAI) saved = { ...saved, updated_at: "changed-during-ai" };
+      if (leadPayload) return Response.json({ id: "resp_test", object: "response", status: "completed", output: [{ type: "function_call", name: "submit_lead", call_id: "call_test", arguments: JSON.stringify(leadPayload) }] });
       return Response.json({ id: "resp_test", object: "response", status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: aiReply, annotations: [] }] }] });
     }
     throw new Error("Unexpected network request: " + url);
   };
-  const request = (body: unknown, owner = false) => new Request("https://test.local/api/sales-lab", { method: "POST", headers: { "Content-Type": "application/json", ...(owner ? { Authorization: `Bearer ${process.env.SALES_LAB_OWNER_KEY}` } : {}) }, body: JSON.stringify(body) });
+  const request = (body: unknown, owner = false) => new Request("https://test.local/api/sales-lab", { method: "POST", headers: { "Content-Type": "application/json", ...(owner ? { Authorization: `Bearer ${process.env.SALES_LAB_OWNER_KEY}` } : {}) }, body: JSON.stringify({ conversationId: "12345678-1234-4234-8234-123456789abc", ...(body as object) }) });
   try {
     assert.equal((await peter(request({ action: "load", id: saved.id }))).status, 401);
     assert.equal((await peter(request({ action: "load", id: "live-customer" }, true))).status, 400);
@@ -88,6 +103,36 @@ async function main() {
     response = await peter(request({ action: "instruct", id: saved.id, version: saved.updated_at, text: "Remove the visit fee" }, true));
     assert.equal(response.status, 200);
     assert(saved.profile.instructions.some(item => item.text === "No visit fee applies."));
+    assert.equal((await peter(request({action:"leads",id:saved.id}))).status, 401);
+    assert.equal((await peter(request({action:"leads",id:saved.id},true))).status, 200);
+    const complete = [{ role: "user", content: "My kitchen sink is clogged. I'm Sam, phone 2145550101, address 1500 Marilla St, Dallas TX 75201. Please come today anytime." }];
+    leadPayload = { name: "Sam", phone: "2145550101", address: "1500 Marilla St, Dallas TX 75201", serviceNeed: "Kitchen sink is clogged", preferredTime: "today anytime", notes: "" };
+    failLeadSave = true;
+    response = await chat(request({id:saved.id,messages:complete}));
+    assert.equal(response.status, 503);
+    assert.equal(leadWrites,0);
+    failLeadSave = false;
+    response = await chat(request({id:saved.id,messages:complete}));
+    assert.equal(response.status, 200);
+    const submitted = await response.json();
+    assert.equal(submitted.closed,true);
+    assert.equal(submitted.reply, "Thank you — we’ll contact you ASAP to confirm the visit.");
+    assert(!submitted.reply.includes("?"));
+    assert.equal(leadWrites,1);
+    const beforeReplay = calls;
+    response = await chat(request({id:saved.id,messages:complete}));
+    assert.equal(response.status,200);
+    assert.equal(calls,beforeReplay);
+    assert.equal(leadWrites,1);
+    const inbox = await (await peter(request({action:"leads",id:saved.id},true))).json();
+    assert.equal(inbox.leads.length,1);
+    assert.equal(inbox.leads[0].profile.lead.phone,"2145550101");
+    assert.equal(inbox.leads[0].profile.emailStatus,"not_configured");
+    assert.equal(inbox.emailConfigured,false);
+    leadRow = null;
+    leadPayload = {...leadPayload, phone:"9999999999"};
+    assert.equal((await chat(request({id:saved.id,messages:complete}))).status,400);
+    assert.equal(leadWrites,1);
   } finally { globalThis.fetch = actualFetch; }
   console.log("PASS: Peter additions, targeted changes, exclusions, persistence, owner authorization, isolation, contact blocking, and concurrent revocation. Model/database calls mocked; live behavior not tested.");
 }

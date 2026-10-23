@@ -129,7 +129,9 @@ async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
     updated_at?: string;
   }>;
   const row = rows[0];
-  if (!row?.profile?.businessName) return null;
+  // This server-only table also holds namespaced lead/photo records. Never
+  // expose those through public demo/profile lookups.
+  if (!row?.profile?.businessName || typeof row.profile.website !== "string") return null;
   return {
     id: row.id || safe,
     profile: row.profile,

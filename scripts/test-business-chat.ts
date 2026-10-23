@@ -3,6 +3,7 @@ import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import SimplePeterChat from "../src/components/BusinessChat/SimplePeterChat";
 import SimpleCustomerChat from "../src/components/BusinessChat/SimpleCustomerChat";
+import {loadSharedProfile} from "../src/lib/sharedProfileStore";
 import {createBusinessProfile} from "../src/lib/businessProfile";
 import {businessInstructions,submissionState,generateBusinessReply,leadClosing} from "../src/lib/businessChat/engine";
 import {currentConversation,parseMessages} from "../src/lib/businessChat/policy";
@@ -68,6 +69,7 @@ async function main(){
   tool=payload;failSave=true;response=await chat(request());assert.equal(response.status,503);assert(!JSON.stringify(await response.json()).includes(leadClosing));failSave=false;
   process.env.LEAD_HANDOFF_DRY_RUN="1";response=await chat(request());assert.equal(response.status,200);assert.equal((await response.json()).reply,leadClosing);assert.equal(leadWrites,1);
   const callsBefore=modelCalls;tool=null;aiText="That's outside our scope. We specialize in plumbing.";response=await chat(request({messages:[...messages,{role:"assistant",content:leadClosing,version:record.updated_at},{role:"user",content:"How do I fix an electrical panel?"}]}));assert.equal(response.status,200);assert(sawSubmitted);assert.equal(modelCalls,callsBefore+1);assert.equal(leadWrites,1);
+  assert.equal(await loadSharedProfile(lead.id),null,"Private lead rows must never be returned by the public profile loader");
   assert.equal(await saveLead({id:record.id,profile:business,updatedAt:record.updated_at},conversationId,payload,"QUEUED"),false);
   delete process.env.LEAD_HANDOFF_DRY_RUN;
   let deliveries=0;setLeadHandoffTestDelivery(async details=>{deliveries++;assert.equal(details.emailTo,"owner@example.test");assert.equal(details.smsTo,"+12145550199");assert(details.text.includes("today anytime"));return {emailOk:true,smsOk:true};});

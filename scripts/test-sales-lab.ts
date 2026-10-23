@@ -116,7 +116,7 @@ async function main() {
     assert.equal(response.status, 200);
     const submitted = await response.json();
     assert.equal(submitted.closed,true);
-    assert.equal(submitted.reply, "Thank you — we’ll contact you ASAP to confirm the visit.");
+    assert.equal(submitted.reply, "I’ve passed your details to our team. They’ll contact you ASAP to help get this sorted. You’ve come to the right team—we’ll take it from here.");
     assert(!submitted.reply.includes("?"));
     assert.equal(leadWrites,1);
     const beforeReplay = calls;

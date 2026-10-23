@@ -79,4 +79,4 @@ export async function recordEmailStatus(labId: string, conversationId: string, s
     await fetch(`${url}/rest/v1/business_profiles?id=eq.${row.id}`, { method: "PATCH", headers, body: JSON.stringify({ profile: { ...row.profile, emailStatus: status } }), signal: AbortSignal.timeout(10000) });
   } catch { /* The lead remains in the owner inbox even if status recording fails. */ }
 }
-export const leadClosing = "Thank you — we’ll contact you ASAP to confirm the visit.";
+export const leadClosing = "I’ve passed your details to our team. They’ll contact you ASAP to help get this sorted. You’ve come to the right team—we’ll take it from here.";

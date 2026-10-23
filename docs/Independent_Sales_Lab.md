@@ -24,6 +24,8 @@ The page does not book confirmed appointments, take payments, or connect voice. 
 
 Peter's primary screen is now a simple conversation. Business settings, saved instructions and the owner lead inbox are expandable sections. The owner password remains required to change business information or read private leads/photos.
 
+Live verification for this release: a sample PNG uploaded successfully and displayed a preview. A complete plumbing lead with the photo submitted successfully, and the message input remained enabled after the closing reply. An electrical-panel follow-up received only a brief plumbing-scope refusal, with no new question or repeated closing pitch. Owner photo access and association with the lead were tested with mocked routes; no new owner-password handoff was requested for live owner-inbox inspection.
+
 ## Photo uploads
 
 Customers can attach up to three JPG, PNG or WebP photos per conversation, each stored photo no larger than 2 MiB. Larger source photos up to 15 MiB are reduced in the browser to at most 1600 pixels on the longest edge before upload. The upload route checks size, MIME type and file signature, resolves the saved lab business, and associates each photo with both business and conversation. The model receives validated server-loaded image data rather than arbitrary user URLs. Image content cannot change business instructions and must not become a technical repair guide. Owners view photos from their lead inbox through the authenticated Peter endpoint. Photos added after submission remain attached to the same conversation's lead.

@@ -62,7 +62,7 @@ export default function SalesLab() {
       if (action === "leads") { setLeads(data.leads); setEmailConfigured(data.emailConfigured); return; }
       setRecord(data); setId(data.id); setName(data.profile.businessName);
       location.hash = new URLSearchParams({ id: data.id }).toString();
-      if (action === "create" || record?.id !== data.id) { newChat(); setLeads([]); setPeterMessages([{role:"assistant",content:"Tell me about your business, or what you’d like to change."}]); }
+      if (action === "create" || record?.id !== data.id) { newChat(); setLeads([]); setOwnerPhoto(""); setPeterMessages([{role:"assistant",content:"Tell me about your business, or what you’d like to change."}]); }
       if (action === "add" || action === "instruct") {
         setInstruction("");
         setPeterMessages(previous => [...previous, {role:"user",content:String(extra.text || "")}, {role:"assistant",content:data.changed ? "Saved. " + data.peterReply : data.peterReply}]);
@@ -108,8 +108,11 @@ export default function SalesLab() {
         <p>Tell Peter about your business. Ask him to add, change, or remove anything.</p>
         <details className="lab-setup" open={!record}><summary>{record ? "Business settings" : "Start here"}</summary>
         <label>Owner password<input type="password" autoComplete="off" value={ownerKey} onChange={e => setOwnerKey(e.target.value)} placeholder="Your owner password" /></label>
+        {!!id && !record && <button disabled={busy || !ownerKey} onClick={() => peter("load")}>Open business</button>}
+        <details open={!id}><summary>{id ? "Start another business" : "Create a test business"}</summary>
         <label>Business name<input value={name} maxLength={150} onChange={e => setName(e.target.value)} placeholder="Your test business" /></label>
         <button disabled={busy || !ownerKey || !name.trim()} onClick={() => peter("create", { businessName: name })}>Start test</button>
+        </details>
         <details><summary>Open an existing business</summary><label>Test business ID<input value={id} onChange={e => { setId(e.target.value); setRecord(null); newChat(); }} /></label><button disabled={busy || !ownerKey || !id} onClick={() => peter("load")}>Open business</button></details></details>
         {record && <>
           <div className="lab-peter-chat" role="log" aria-label="Conversation with Peter" aria-live="polite">{peterMessages.map((message,index) => <div className={`lab-message ${message.role}`} key={index}><span>{message.role === "user" ? "You" : "Peter"}</span><p>{message.content}</p></div>)}</div>

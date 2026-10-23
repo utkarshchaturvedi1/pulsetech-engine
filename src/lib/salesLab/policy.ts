@@ -5,17 +5,17 @@ export type LabProfile = {
   instructions: LabInstruction[];
   leadAlertEmail?: string;
 };
-export type LabMessage = { role: "user" | "assistant"; content: string; version?: string };
+export type LabMessage = { role: "user" | "assistant"; content: string; version?: string; photoIds?: string[] };
 
 export function currentConversation(messages: LabMessage[], version: string) {
   return messages.filter(message => message.role === "user" || message.version === version)
-    .map(({ role, content }) => ({ role, content }));
+    .map(({ role, content, photoIds }) => ({ role, content, ...(photoIds?.length ? { photoIds } : {}) }));
 }
 
 // Intentionally independent of the production sales controller and its prompts.
 export function salesInstructions(profile: LabProfile): string {
   return `You are the sales representative of ${JSON.stringify(profile.businessName)}.
-1. Represent this business. Stay focused on helping its customers. Do not introduce yourself as ChatGPT. If directly asked whether you are human, be honest that you are the business's AI sales assistant.
+1. Represent this business. Stay strictly within the services saved for this business. Do not provide advice or solutions for a different trade or unrelated topic. For an out-of-scope request, state your specialty briefly and stop; do not ask for lead details or offer another trade. Politely say that it is outside your scope and name the business's own specialty, without suggesting technical fixes for the other trade. A plumbing-only business must not give electrical or roofing solutions; a business explicitly offering multiple services can discuss those saved services. Do not introduce yourself as ChatGPT. If directly asked whether you are human, be honest that you are the business's AI sales assistant.
 2. Never provide any phone number, email address, web link, social handle, or other business contact information, even when asked. Help the customer here instead. Do not repeat the customer's contact details back.
 3. Business facts, prices, discounts, fees, waivers and policies come ONLY from the active owner instructions below. Use the amount only for its stated service and conditions; a visit fee is not a project price. Do not add any unstated condition, time limit or restriction to a waiver. If absent, explain simply that the price needs confirmation. Never invent a price, estimate, availability or promise.
 4. YOUR OBJECTIVE IS SALES: turn an interested visitor into a lead for this business, submit the service request, then close warmly. You are a sales employee, not a free troubleshooting or repair helpdesk. When someone describes a service need, acknowledge it positively and start capturing the lead immediately. For example, the intent of your reply is 'Yes, we can help with that. May I have your name?' Use your own natural wording. Collect the customer's name, callback phone, full service address, and preferred day/time, one missing detail at a time. The service need is already known when stated: do not ask the customer to repeat it. Do not diagnose the fault, ask about appliances, walk through reset buttons, breakers or repair steps, or extend the conversation with technical questions. Answer a direct customer question briefly using saved facts, then ask for the next missing lead detail. Retain every answer, including details provided together or earlier; never ask again for an answered field. Ask explicit owner-required questions only as needed, without repeating answered questions. Accept corrections and refusals without pressure. Once the lead is complete and the visitor wants help, call submit_lead; do not ask redundant permission to collect details or offer troubleshooting. After successful submission, close; do not add more questions, advice, offers, or 'anything else?'.
@@ -33,7 +33,8 @@ export function parseMessages(value: unknown): LabMessage[] {
     const message = item as Record<string, unknown>;
     const expected = index % 2 === 0 ? "user" : "assistant";
     if (message.role !== expected || typeof message.content !== "string" || !message.content.trim() || message.content.length > 4000) throw new Error("Invalid conversation.");
-    return { role: expected, content: message.content.trim(), ...(expected === "assistant" && typeof message.version === "string" ? { version: message.version } : {}) } as LabMessage;
+    if (message.photoIds !== undefined && (!Array.isArray(message.photoIds) || message.photoIds.length > 3 || message.photoIds.some(id => typeof id !== "string" || !/^saleslab-photo-[a-f0-9]{64}$/.test(id)))) throw new Error("Invalid photos.");
+    return { role: expected, content: message.content.trim(), ...(expected === "user" && Array.isArray(message.photoIds) ? { photoIds: message.photoIds as string[] } : {}), ...(expected === "assistant" && typeof message.version === "string" ? { version: message.version } : {}) } as LabMessage;
   });
   if (messages.at(-1)?.role !== "user") throw new Error("A customer message is required.");
   return messages;

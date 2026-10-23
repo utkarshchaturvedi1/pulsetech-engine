@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { containsContact, currentConversation, parseMessages, salesInstructions, type LabProfile } from "../src/lib/salesLab/policy";
 import { applyPeterPlan } from "../src/lib/salesLab/peter";
 import { POST as peter } from "../src/app/api/sales-lab/peter/route";
+import { validatePhoto } from "../src/lib/salesLab/media";
+import { POST as upload } from "../src/app/api/sales-lab/media/route";
 import { POST as chat } from "../src/app/api/sales-lab/chat/route";
 
 async function main() {
@@ -45,14 +47,26 @@ async function main() {
   let aiReply = "We can help. What would you like to know?";
   let changeDuringAI = false;
   let calls = 0;
+  let sawImage = false;
   let leadRow: Record<string, unknown> | null = null;
   let failLeadSave = false;
   let leadWrites = 0;
   let leadPayload: Record<string, string> | null = null;
+  const photoRows: Record<string, Record<string, unknown>> = {};
   const actualFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const url = String(input instanceof Request ? input.url : input);
     if (url.startsWith("https://database.test/rest/v1/business_profiles")) {
+      if (url.includes("id=eq.saleslab-photo-")) {
+        const id = new URL(url).searchParams.get("id")!.slice(3);
+        return Response.json(photoRows[id] ? [photoRows[id]] : []);
+      }
+      if (url.includes("profile->>kind=eq.independent-sales-lab-photo-v1") || url.includes("profile-%3E%3Ekind=eq.independent-sales-lab-photo-v1")) {
+        return Response.json(Object.values(photoRows).map(row => ({id:row.id,...(row.profile as object)})));
+      }
+      if (init?.method === "POST" && String(init.body).includes("independent-sales-lab-photo-v1")) {
+        const row = JSON.parse(String(init.body)); photoRows[row.id] = row; return Response.json([row]);
+      }
       if (url.includes("id=eq.saleslab-lead-")) {
         if (init?.method === "PATCH" && leadRow) leadRow = { ...leadRow, ...JSON.parse(String(init.body)) };
         return Response.json(leadRow ? [leadRow] : []);
@@ -66,12 +80,14 @@ async function main() {
       }
       if (url.includes("profile->>kind")) return Response.json(leadRow ? [leadRow] : []);
       if (init?.method === "PATCH" || init?.method === "POST") saved = JSON.parse(String(init.body));
-      return Response.json([saved]);
+      const requestedId = new URL(url).searchParams.get("id");
+      return Response.json(requestedId && requestedId !== "eq." + saved.id ? [] : [saved]);
     }
     if (url.includes("api.openai.com")) {
       calls++;
       const requestBody = JSON.parse(String(init?.body));
       assert.equal(requestBody.store, false);
+      if (Array.isArray(requestBody.input) && requestBody.input.some((message: {content: unknown}) => Array.isArray(message.content) && message.content.some((part: {type:string})=>part.type === "input_image"))) sawImage = true;
       assert(!requestBody.instructions.includes("test-only-service-key"));
       if (changeDuringAI) saved = { ...saved, updated_at: "changed-during-ai" };
       if (leadPayload) return Response.json({ id: "resp_test", object: "response", status: "completed", output: [{ type: "function_call", name: "submit_lead", call_id: "call_test", arguments: JSON.stringify(leadPayload) }] });
@@ -120,9 +136,11 @@ async function main() {
     assert(!submitted.reply.includes("?"));
     assert.equal(leadWrites,1);
     const beforeReplay = calls;
-    response = await chat(request({id:saved.id,messages:complete}));
+    leadPayload = null; aiReply = "You're welcome.";
+    response = await chat(request({id:saved.id,messages:[...complete,{role:"assistant",content:submitted.reply,version:saved.updated_at},{role:"user",content:"Thank you"}]}));
     assert.equal(response.status,200);
-    assert.equal(calls,beforeReplay);
+    assert.equal(calls,beforeReplay + 1);
+    assert.equal((await response.json()).reply,"You're welcome.");
     assert.equal(leadWrites,1);
     const inbox = await (await peter(request({action:"leads",id:saved.id},true))).json();
     assert.equal(inbox.leads.length,1);
@@ -130,9 +148,35 @@ async function main() {
     assert.equal(inbox.leads[0].profile.emailStatus,"not_configured");
     assert.equal(inbox.emailConfigured,false);
     leadRow = null;
-    leadPayload = {...leadPayload, phone:"9999999999"};
+    leadPayload = {name:"Sam",phone:"9999999999",address:"1500 Marilla St, Dallas TX 75201",serviceNeed:"sink clogged",preferredTime:"today",notes:""};
     assert.equal((await chat(request({id:saved.id,messages:complete}))).status,400);
     assert.equal(leadWrites,1);
+    assert.throws(()=>validatePhoto(new Uint8Array([60,115,118,103]),"image/png"));
+    assert.throws(()=>validatePhoto(new Uint8Array(2*1024*1024+1),"image/jpeg"));
+    assert.throws(()=>validatePhoto(new Uint8Array([255,216,255]),"image/svg+xml"));
+    const form = new FormData(); form.set("id",saved.id); form.set("conversationId","12345678-1234-4234-8234-123456789abc");
+    form.set("photo",new File([new Uint8Array([137,80,78,71,13,10,26,10,1,2,3])],"issue.png",{type:"image/png"}));
+    response = await upload(new Request("https://test.local/api/sales-lab/media",{method:"POST",body:form}));
+    assert.equal(response.status,200);
+    const photo = await response.json();
+    assert.match(photo.id,/^saleslab-photo-/);
+    assert.equal((await peter(request({action:"photo",id:saved.id,photoId:photo.id}))).status,401);
+    const image = await (await peter(request({action:"photo",id:saved.id,photoId:photo.id},true))).json();
+    assert(image.dataUrl.startsWith("data:image/png;base64,"));
+    leadPayload = null; aiReply = "I can see the photo. May I have your name?";
+    response = await chat(request({id:saved.id,messages:[{role:"user",content:"Photo of my sink",photoIds:[photo.id]}]}));
+    assert.equal(response.status,200);
+    assert(sawImage);
+    const otherBusiness = "saleslab-87654321-1234-4234-8234-123456789abc";
+    assert.equal((await peter(request({action:"photo",id:otherBusiness,photoId:photo.id},true))).status,404);
+    response = await chat(request({id:saved.id,conversationId:"87654321-1234-4234-8234-123456789abc",messages:[{role:"user",content:"Photo",photoIds:[photo.id]}]}));
+    assert.equal(response.status,404);
+    leadPayload = {name:"Sam",phone:"2145550101",address:"1500 Marilla St, Dallas TX 75201",serviceNeed:"sink clogged",preferredTime:"today",notes:""};
+    response = await chat(request({id:saved.id,messages:[{...complete[0],photoIds:[photo.id]}]}));
+    assert.equal(response.status,200);
+    const photoInbox = await (await peter(request({action:"leads",id:saved.id},true))).json();
+    assert.equal(photoInbox.leads[0].photos.length,1);
+    assert.equal(photoInbox.leads[0].photos[0].id,photo.id);
   } finally { globalThis.fetch = actualFetch; }
   console.log("PASS: Peter additions, targeted changes, exclusions, persistence, owner authorization, isolation, contact blocking, and concurrent revocation. Model/database calls mocked; live behavior not tested.");
 }

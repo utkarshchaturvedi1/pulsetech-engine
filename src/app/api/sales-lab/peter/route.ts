@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { LabError, labError, readBody, readLab, requireOwner, validLabId, writeLab } from "@/lib/salesLab/store";
 import { applyPeterPlan, askPeter } from "@/lib/salesLab/peter";
 import { listLeads } from "@/lib/salesLab/leads";
+import { listPhotos, readPhoto } from "@/lib/salesLab/media";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
@@ -16,7 +17,11 @@ export async function POST(request: Request) {
       return Response.json(record, { headers: { "Cache-Control": "no-store" } });
     }
     const record = await readLab(validLabId(body.id));
-    if (body.action === "leads") return Response.json({ leads: await listLeads(record.id), emailConfigured: !!(record.profile.leadAlertEmail && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM) }, { headers: { "Cache-Control": "no-store" } });
+    if (body.action === "photo") return Response.json({ dataUrl: await readPhoto(record.id, String(body.photoId)) }, { headers: { "Cache-Control": "no-store" } });
+    if (body.action === "leads") {
+      const [leads, photos] = await Promise.all([listLeads(record.id), listPhotos(record.id)]);
+      return Response.json({ leads: leads.map(lead => ({ ...lead, photos: photos.filter(photo => photo.conversationId === lead.profile.conversationId) })), emailConfigured: !!(record.profile.leadAlertEmail && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_FROM) }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (body.action === "load") return Response.json(record, { headers: { "Cache-Control": "no-store" } });
     if (body.version !== record.updated_at) throw new LabError("Reload Peter: these instructions have changed.", 409);
     if (body.action === "instruct") {

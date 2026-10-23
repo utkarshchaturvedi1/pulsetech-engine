@@ -4,7 +4,7 @@ import { LabError, labDatabaseConfig, type LabRecord, validLabId } from "./store
 import type { LabMessage } from "./policy";
 
 export type LabLead = { name: string; phone: string; address: string; serviceNeed: string; preferredTime: string; notes: string };
-export type OwnerLead = { id: string; profile: { kind: "independent-sales-lab-lead-v1"; businessName: string; labId: string; lead: LabLead; emailStatus?: string }; updated_at: string };
+export type OwnerLead = { id: string; profile: { kind: "independent-sales-lab-lead-v1"; businessName: string; labId: string; conversationId?: string; lead: LabLead; emailStatus?: string }; photos?: import("./media").PhotoSummary[]; updated_at: string };
 export const leadTool = {
   type: "function" as const, name: "submit_lead",
   description: "Submit a customer's service request to the owner's lead inbox after collecting the required details. The visitor must have asked for service or agreed to business follow-up. All values must come from customer messages; never invent missing details. Do not call this for browsing or a declined visit.",
@@ -45,7 +45,7 @@ function leadId(labId: string, conversationId: string) {
 }
 export async function saveLead(record: LabRecord, conversationId: string, lead: LabLead): Promise<{ created: boolean }> {
   const { url, headers } = labDatabaseConfig();
-  const row: OwnerLead = { id: leadId(record.id, conversationId), profile: { kind: "independent-sales-lab-lead-v1", businessName: record.profile.businessName, labId: record.id, lead }, updated_at: new Date().toISOString() };
+  const row: OwnerLead = { id: leadId(record.id, conversationId), profile: { kind: "independent-sales-lab-lead-v1", businessName: record.profile.businessName, labId: record.id, conversationId, lead }, updated_at: new Date().toISOString() };
   const response = await fetch(`${url}/rest/v1/business_profiles?on_conflict=id`, {
     method: "POST", headers: { ...headers, Prefer: "resolution=ignore-duplicates,return=representation" }, body: JSON.stringify(row), signal: AbortSignal.timeout(10000),
   });

@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { containsContact, parseMessages, salesInstructions } from "@/lib/salesLab/policy";
+import { containsContact, currentConversation, parseMessages, salesInstructions } from "@/lib/salesLab/policy";
 import { LabError, labError, readBody, readLab, validLabId } from "@/lib/salesLab/store";
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const response = await client.responses.create({
       model: process.env.SALES_LAB_MODEL,
       instructions: salesInstructions(record.profile),
-      input: messages,
+      input: currentConversation(messages, record.updated_at),
       store: false,
       max_output_tokens: 1500,
     });

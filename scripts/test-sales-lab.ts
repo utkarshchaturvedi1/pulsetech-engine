@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { containsContact, parseMessages, salesInstructions, type LabProfile } from "../src/lib/salesLab/policy";
+import { containsContact, currentConversation, parseMessages, salesInstructions, type LabProfile } from "../src/lib/salesLab/policy";
 import { applyPeterPlan } from "../src/lib/salesLab/peter";
 import { POST as peter } from "../src/app/api/sales-lab/peter/route";
 import { POST as chat } from "../src/app/api/sales-lab/chat/route";
@@ -18,6 +18,19 @@ async function main() {
   assert.equal(updated.instructions[0].text, "Visit fee is $30, waived if proceeding.");
   assert.equal(updated.instructions[1].text, "Open weekdays.");
   assert.equal(profile.instructions[0].text.includes("$20"), true);
+  const history = parseMessages([
+    { role: "user", content: "My sink is clogged." },
+    { role: "assistant", content: "The fee is $20, waived during the same visit.", version: "old" },
+    { role: "user", content: "What is the visiting fee now?" },
+    { role: "assistant", content: "The current fee is $35.", version: "current" },
+    { role: "user", content: "Does the waiver apply?" },
+  ]);
+  const current = currentConversation(history, "current");
+  assert.equal(current.length, 4);
+  assert(!JSON.stringify(current).includes("same visit"));
+  assert(JSON.stringify(current).includes("My sink is clogged"));
+  assert(JSON.stringify(current).includes("$35"));
+  assert(!("version" in current[2]));
   const revoked = applyPeterPlan(updated, { reply: "Removed", add: [], revise: [], revoke: ["fee"] });
   assert(!salesInstructions(revoked).includes("$30"));
   assert.throws(() => applyPeterPlan(profile, { reply: "Bad", add: [], revise: [], revoke: ["unknown"] }));

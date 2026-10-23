@@ -45,7 +45,7 @@ export default function SalesLab() {
       const response = await fetch("/api/sales-lab/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, messages: next }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      setMessages([...next, { role: "assistant", content: data.reply }]); setDraft(""); setName(data.businessName);
+      setMessages([...next, { role: "assistant", content: data.reply, version: data.version }]); setDraft(""); setName(data.businessName);
     } catch (e) { setError(e instanceof Error ? e.message : "Please try again."); }
     finally { setBusy(false); }
   }

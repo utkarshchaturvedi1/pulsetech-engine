@@ -1,5 +1,9 @@
 # PulseTech Permanent Regression Control
 
+## 23 October 2026 — isolated sales experiment: obsolete assistant context
+
+The separate `/sales-lab` experiment exposed an inferred commercial restriction in Peter's capture, followed by a customer reply repeating that restriction from previous assistant history after Peter corrected it. Experiment-only repair: require faithful business terms without inferred conditions, version assistant replies against the saved profile timestamp, and exclude obsolete assistant turns from model input after configuration changes. Retain customer messages and unrelated active owner instructions. `scripts/test-sales-lab.ts` covers the obsolete waiver wording, preserved customer context, current-version replies, Peter revisions/revocations, isolation, and stale saves. Existing production chat, voice, and alerts remain unchanged.
+
 ## 1 October 2026 — explicit business phone requests
 
 The live question `What is your business phone number?` received generic consultation wording. The phone-request recognizer omitted business/office/telephone wording, so validation could reject the saved number. Explicit requests for the saved business phone must work without a model, preserve the next required contact/owner question, and never populate the customer's phone with the business number. Normal service inquiries must still follow name → customer phone → service address without unsolicited business-phone handoff. The owner/pricing regression covers business phone, office telephone, ordinary phone wording, interrupted capture, and pending owner qualification.

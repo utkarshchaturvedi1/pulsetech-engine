@@ -28,6 +28,8 @@ The page does not arrange real visits, send alerts, take payments, or connect vo
 
 ## Verification — 23 October 2026
 
+Live preview follow-up: owner authentication and creation of a separate database-backed test business passed. Peter saved instructions, changed a fee, removed a required question while retaining unrelated facts, and subsequently revoked the fee. The customer chat used the changed amount and withheld explicitly requested business phone/email. A live defect was found: Peter inferred an unstated same-visit waiver restriction, and a later sales reply retained it from old assistant history after correction. The repair tightens Peter's faithful capture requirement and tags assistant replies with the saved configuration version; older assistant turns are excluded from model context after any configuration change, while customer history is retained. A regression reproduces the obsolete waiver wording and verifies its removal from the next model input.
+
 - New mocked experiment tests: PASS (Peter additions, targeted revisions, exclusions, persistence requests, owner authorization, existing-record isolation, contact blocking, stale-version rejection, in-flight revocation).
 - Existing demo-chat, handoff-timing, inbound-voice, voice-demo, owner-profile-update and owner-pricing-regression suites: all PASS. The environment forbids the tsx CLI's IPC socket; the same scripts ran successfully through Node's tsx import loader instead.
 - TypeScript: PASS.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import SimpleCustomerChat from "./BusinessChat/SimpleCustomerChat";
 import ChatWindow from "./Chat/ChatWindow";
 import ChatAgentShell from "./Chat/ChatAgentShell";
 import { BusinessProfile } from "../types/business";
@@ -41,7 +42,7 @@ function profileContentSignature(business: BusinessProfile): string {
   });
 }
 
-export default function CustomerAI({
+function LegacyCustomerAI({
   business,
   demoId,
   disabled,
@@ -104,4 +105,8 @@ export default function CustomerAI({
       />
     </ChatAgentShell>
   );
+}
+
+export default function CustomerAI(props: CustomerAIProps) {
+  return props.demoId ? <SimpleCustomerChat key={props.demoId} {...props} demoId={props.demoId} /> : <LegacyCustomerAI {...props} />;
 }

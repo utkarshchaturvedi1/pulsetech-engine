@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import SimplePeterChat from "./BusinessChat/SimplePeterChat";
 import ChatWindow from "./Chat/ChatWindow";
 import ChatAgentShell from "./Chat/ChatAgentShell";
 import AnalysisProgressIndicator from "./AnalysisProgressIndicator";
@@ -68,7 +69,7 @@ function elapsedForProgress(progress: number): number {
   return -18000 * Math.log(1 - progress / 99);
 }
 
-export default function PulseTechEngineChat({
+function LegacyPulseTechEngineChat({
   website,
   additionalInfo = "",
   className = "",
@@ -421,4 +422,10 @@ You can reply "retry" to try analyzing again.`
       />
     </ChatAgentShell>
   );
+}
+
+export default function PulseTechEngineChat(props: PulseTechEngineChatProps) {
+  return props.skipAnalysis && props.business && props.demoId
+    ? <SimplePeterChat key={props.demoId} business={props.business} demoId={props.demoId} onProfileUpdate={props.onProfileUpdate} className={props.className} />
+    : <LegacyPulseTechEngineChat {...props} />;
 }

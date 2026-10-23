@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "../components/BusinessChat/business-chat.css";
 
 export const metadata: Metadata = {
   title: "PulseTech Labs | AI Sales Employees",

@@ -1,0 +1,22 @@
+# Approved website chat replacement — 23 October 2026
+
+Scope: replace Peter and the business customer chat with the tested conversational sales experience. Peter contains only a transcript and message composer; there is no extra password, business-name editor, settings console, or business creation flow. Existing account ownership remains enforced by the existing update-profile and demo APIs. Public, unclaimed demos retain their existing test-edit behavior; account-linked profiles require membership. Lead inbox/photo viewing additionally requires a signed-in owner of a linked account, or a PulseTech administrator. The separate lead inbox sits outside Peter.
+
+Base: exact live Production source `7ae317512c69601d6035a046652cd063816aa64f`. Main and pending release-branch changes are not merged. Homepage website entry, voice routes, providers, and legacy controller remain unchanged. Peter still saves the shared profile, so owner changes to business facts continue to apply to voice as they did previously; voice conversational logic is unchanged.
+
+## Integration
+
+- CustomerAI with a saved demoId uses SimpleCustomerChat and `/api/business-chat`. Existing embedded widget also uses CustomerAI and therefore gets the new website experience. No client-supplied profile or pricing is trusted by the new route.
+- Tested sales-lab six rules retained: concise human sales replies, immediate capture, no DIY troubleshooting, no business contact disclosure, saved prices only, in-scope follow-ups only after submission. Typing remains available; no proactive re-engagement.
+- Peter uses the existing targeted profile-patch writer and optimistic concurrency, including revisions/revocations. Legacy analysis/onboarding entry remains available outside the saved-business workspace.
+- Tool submission validates core customer fields and exact active owner question/part answers against user messages. Missing answers block submission. It preserves refusals and answers supplied together. No owner-question templates are hardcoded.
+- Each business/conversation gets an idempotent lead record. Only the winning insert schedules the existing `after()` email/SMS handoff. A failed save cannot show the success close. Delivery failure does not erase the durable inbox record. The closing statement confirms delivery to the team's inbox, not an appointment or successful external notification.
+- Separate `businesschat-lead-*` and `businesschat-photo-*` rows in the existing server-only business_profiles table; never overwrite a business profile. Uploaded JPG/PNG/WebP images are limited to three, 2 MiB each; larger client files are scaled. Both model and owner reads check the business; model reads also check conversation. Images are not public URLs. Server-only table RLS is documented in supabase/business_profiles.sql.
+- Bounded image-in-JSON storage carries over the test implementation and needs a private object-storage migration/retention policy before high-volume rollout. Current upload limits prevent unbounded per-conversation image storage. An abandoned upload remains stored; no destructive cleanup is part of this release.
+- No additional API key or password is introduced. Uses the existing OPENAI_API_KEY and Supabase settings; optional BUSINESS_CHAT_MODEL defaults to the already-used gpt-5-mini model.
+
+## Validation
+
+All 15 suites passed: new business-chat, demo-chat, handoff-timing, inbound-voice, voice-demo, owner-profile-update, owner-pricing-regression, client-account-regression, client-handover, profile-access, conversation-reliability, paddle-sandbox-webhook, v1-stabilization, raja-closure, raja-handoff-data. Existing assertions were retained. TypeScript and production build passed.
+
+The new route tests include successful save and replay, failed save, stale profile during AI generation, client profile authority, no contact disclosure or false submission claim, required owner answers, server-loaded photo input, cross-business/conversation rejection, and background delivery to the correct email/SMS recipients. Peter markup has no password or business-name controls. Authenticated inbox fails closed without a user session. Live deployed checks are recorded after staging validation.

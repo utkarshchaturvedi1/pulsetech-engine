@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import PulseTechEngineChat from "./PulseTechEngineChat";
+import LeadInbox from "./BusinessChat/LeadInbox";
 import CustomerAI from "./CustomerAI";
 import VoiceDemoCard from "./VoiceDemoCard";
 import { BusinessProfile } from "../types/business";
@@ -186,6 +187,8 @@ export default function DemoWorkspace({
               </div>
             </section>
           </div>
+
+          <LeadInbox demoId={resolvedDemoId} />
 
           {/* Outside the two-panel grid — must stay visible on mobile after both chats. */}
           <div

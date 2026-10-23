@@ -164,6 +164,7 @@ Return this JSON structure exactly:
   "businessName": "",
   "tagline": "",
   "logo": "",
+  "siteIcon": "",
   "primaryColor": "#2563eb",
   "secondaryColor": "#0f172a",
   "phone": "",
@@ -185,7 +186,7 @@ Rules:
 
 - Infer services whenever possible from THIS website.
 - Infer service areas whenever possible from THIS website.
-- Extract contact details, a usable logo or favicon URL, and brand colours when available.
+- Extract contact details and brand colours when available. Put the full business logo in logo, and a square website favicon/apple-touch-icon in siteIcon. Never put a wide wordmark in siteIcon. Leave siteIcon empty if not present.
 - Prefer owner-provided additional information over conflicting website text when they disagree.
 - Populate leadQuestions with natural discovery questions a sales employee would ask.
 - Write a detailed professional systemPrompt that:
@@ -267,6 +268,7 @@ Rules:
     businessName,
     tagline: data.tagline ?? "",
     logo: (data.logo || data.siteIcon || "").trim(),
+    siteIcon: (data.siteIcon || "").trim(),
     primaryColor: data.primaryColor ?? "#2563eb",
     secondaryColor: data.secondaryColor ?? "#0f172a",
     phone: data.phone ?? "",

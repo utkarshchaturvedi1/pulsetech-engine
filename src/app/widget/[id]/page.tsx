@@ -36,6 +36,7 @@ export default async function EmbeddedChatPage({
     businessName: saved.profile.businessName,
     tagline: saved.profile.tagline,
     logo: saved.profile.logo,
+    siteIcon: saved.profile.siteIcon,
     primaryColor: saved.profile.primaryColor,
     secondaryColor: saved.profile.secondaryColor,
     agentName: saved.profile.agentName,

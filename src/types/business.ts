@@ -11,6 +11,8 @@ export type BusinessProfile = {
   tagline: string;
 
   logo: string;
+  /** Square website favicon/app icon, distinct from the full business logo. */
+  siteIcon?: string;
 
   primaryColor: string;
   secondaryColor: string;

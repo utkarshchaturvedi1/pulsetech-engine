@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import {businessChatIcon} from "../src/lib/businessChat/icon";
 import {createElement} from "react";
 import {renderToStaticMarkup} from "react-dom/server";
 import SimplePeterChat from "../src/components/BusinessChat/SimplePeterChat";
@@ -21,6 +22,8 @@ async function main(){
  assert(peterMarkup.includes("Message Peter"));assert(!/type="password"|Business name|Open business|Start test/.test(peterMarkup));
  const deniedInbox=await inbox(new Request("https://site.test/api/business-chat/inbox",{method:"POST",body:JSON.stringify({demoId:"qa-plumbing"})}));assert(deniedInbox.status>=400,"Inbox must fail closed without an authenticated owner session");
  const freshMarkup=renderToStaticMarkup(createElement(SimplePeterChat,{business:{...business,leadNotificationEmail:undefined,leadNotificationPhone:undefined},demoId:"qa-fresh"}));assert(freshMarkup.includes("Where should we send new lead alerts?"));assert(!freshMarkup.includes('type="password"'));assert(!peterMarkup.includes("Where should we send new lead alerts?"),"Saved recipients must not be requested again");
+ assert.equal(businessChatIcon({website:"https://plumbing.test",siteIcon:"/icon.png"}),"https://plumbing.test/icon.png");assert(businessChatIcon({website:"https://plumbing.test"})?.includes("domain=plumbing.test"));assert(!businessChatIcon({website:""}));
+ const brandedMarkup=renderToStaticMarkup(createElement(SimpleCustomerChat,{business:{...business,logo:"https://plumbing.test/wide-wordmark.svg",siteIcon:"https://plumbing.test/square-icon.png"},demoId:"qa-plumbing",disabled:false}));assert(brandedMarkup.includes("square-icon.png"));assert(!brandedMarkup.includes("wide-wordmark.svg"));
  const customerMarkup=renderToStaticMarkup(createElement(SimpleCustomerChat,{business,demoId:"qa-plumbing",disabled:false}));assert(customerMarkup.includes("Attach photo"));assert(customerMarkup.includes('autoComplete="off"'));
  const instructions=businessInstructions(business);assert(instructions.includes("$20 visit fee"));assert(!instructions.includes("Website discovery question?"));assert(instructions.includes("Do not diagnose"));
  const conversationId="12345678-1234-4234-8234-123456789abc";

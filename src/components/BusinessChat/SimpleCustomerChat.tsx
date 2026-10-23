@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BusinessProfile } from "../../types/business";
 import type { LabMessage } from "../../lib/businessChat/policy";
+import { businessChatIcon } from "../../lib/businessChat/icon";
 import Conversation from "./Conversation";
 import { preparePhoto } from "./preparePhoto";
 export default function SimpleCustomerChat({business,demoId,disabled,className=""}:{business:BusinessProfile;demoId:string;disabled:boolean;className?:string}) {
@@ -26,7 +27,7 @@ export default function SimpleCustomerChat({business,demoId,disabled,className="
       if(!active.current)return;setMessages([...next,{role:"assistant",content:data.reply,version:data.version}]);setDraft("");setPending([]);setClosed(data.closed===true);
     }catch(e){if(active.current)setError(e instanceof Error?e.message:"Please try again.");}finally{locked.current=false;if(active.current)setBusy(false);}
   }
-  return <div className={`bc-container ${className}`}><Conversation avatar={business.logo||undefined} subtitle={business.agentName?business.businessName:undefined} name={business.agentName||business.businessName||"Sales employee"} messages={messages} busy={busy} reset={reset} welcome="Hi! What can I help you with today?" photos={photos}>
+  return <div className={`bc-container ${className}`}><Conversation avatar={businessChatIcon(business)} subtitle={business.agentName?business.businessName:undefined} name={business.agentName||business.businessName||"Sales employee"} messages={messages} busy={busy} reset={reset} welcome="Hi! What can I help you with today?" photos={photos}>
     {pending.length>0&&<div className="bc-photo-drafts">{pending.map(id=><img src={photos[id]} alt="Photo ready to send" key={id}/>)}<span>Ready to send</span></div>}
     {error&&<p className="bc-error" role="alert">{error}</p>}
     <form data-chat-input className="bc-composer" autoComplete="off" onSubmit={e=>{e.preventDefault();void send();}}>

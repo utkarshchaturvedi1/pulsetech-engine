@@ -127,11 +127,17 @@ export default function DemoWorkspace({
                 >
                   Skip to customer test ↓
                 </a>
-                <div className="pt-demo-account-actions">
+                <div className="pt-demo-account-actions" aria-label="Account actions">
                   <Link href={`/login?mode=signup&next=${encodeURIComponent(`/demo?id=${resolvedDemoId}`)}`} className="pt-demo-account-link">
-                    Log in or create a free account to save changes and view your dashboard
+                    <span>Create Free Account</span>
+                    <small>Save your Agent &amp; see pricing</small>
                   </Link>
-                  <Link href="/client" className="pt-demo-dashboard-link">Open dashboard</Link>
+                  <Link href={`/login?mode=login&next=${encodeURIComponent(`/demo?id=${resolvedDemoId}`)}`} className="pt-demo-login-link">
+                    Login
+                  </Link>
+                  <Link href="/client" className="pt-demo-dashboard-link">
+                    Open Dashboard
+                  </Link>
                 </div>
               </div>
             </div>

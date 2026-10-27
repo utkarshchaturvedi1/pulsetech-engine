@@ -643,26 +643,59 @@ body:has(.pt-demo) {
 .pt-demo-account-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.9rem;
-  margin-top: 0.45rem;
+  align-items: stretch;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
 }
-.pt-demo-account-link {
-  color: #075a70;
+.pt-demo-account-actions a {
+  min-height: 2.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.12rem;
+  padding: 0.48rem 0.8rem;
+  border: 1px solid #c9d8ed;
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #16345f;
   font-size: 0.82rem;
   font-weight: 800;
-  text-decoration: underline;
-  text-underline-offset: 0.16em;
-  animation: pt-demo-account-pulse 1.8s ease-in-out infinite;
+  line-height: 1.15;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
-.pt-demo-account-link:hover, .pt-demo-account-link:focus-visible,
-.pt-demo-dashboard-link:hover, .pt-demo-dashboard-link:focus-visible { color: #023047; }
+.pt-demo-account-actions a:hover,
+.pt-demo-account-actions a:focus-visible {
+  border-color: #3988ec;
+  box-shadow: 0 5px 16px rgba(17, 73, 153, 0.14);
+  transform: translateY(-1px);
+}
+.pt-demo-account-link {
+  border-color: #247df0 !important;
+  background: linear-gradient(110deg, #168fe9, #5557f5 60%, #7954ef) !important;
+  color: #fff !important;
+  animation: pt-demo-account-pulse 2.2s ease-in-out infinite;
+}
+.pt-demo-account-link small {
+  color: rgba(255,255,255,.92);
+  font-size: 0.69rem;
+  font-weight: 650;
+}
+.pt-demo-login-link,
 .pt-demo-dashboard-link {
-  color: #0b7285;
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 0.16em;
+  align-items: center;
+  white-space: nowrap;
 }
-@keyframes pt-demo-account-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.58; } }
-@media (prefers-reduced-motion: reduce) { .pt-demo-account-link { animation: none; } }
+@keyframes pt-demo-account-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(45, 126, 239, 0.18); }
+  50% { box-shadow: 0 0 0 4px rgba(45, 126, 239, 0.10); }
+}
+@media (max-width: 640px) {
+  .pt-demo-account-actions { gap: 0.4rem; }
+  .pt-demo-account-actions a { min-height: 2.55rem; padding: 0.42rem 0.65rem; font-size: 0.76rem; }
+  .pt-demo-account-link small { font-size: 0.65rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-demo-account-link { animation: none; }
+  .pt-demo-account-actions a { transition: none; }
+}

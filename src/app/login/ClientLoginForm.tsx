@@ -39,8 +39,11 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
         return;
       }
       if (signupMode) {
-        const demoMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(destination);
-        if (!demoMatch) {
+        const destinationUrl = new URL(destination, window.location.origin);
+        const demoMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(destinationUrl.pathname);
+        const demoId = demoMatch?.[1] ? decodeURIComponent(demoMatch[1])
+          : destinationUrl.pathname === "/demo" ? destinationUrl.searchParams.get("id") : null;
+        if (!demoId || !/^[a-z0-9_-]{2,120}$/i.test(demoId)) {
           setMessage("Start from your two-chatbot demo to create a free account.");
           return;
         }
@@ -50,7 +53,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
         const { data, error } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
-          options: { emailRedirectTo, data: { pending_demo_id: decodeURIComponent(demoMatch[1]) } },
+          options: { emailRedirectTo, data: { pending_demo_id: demoId } },
         });
         if (error) {
           setMessage(error.message.toLowerCase().includes("already")
@@ -62,7 +65,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
           const claimResponse = await fetch("/api/client/claim-demo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ demoId: decodeURIComponent(demoMatch[1]) }),
+            body: JSON.stringify({ demoId }),
           });
           if (!claimResponse.ok) {
             const claimResult = await claimResponse.json().catch(() => ({}));

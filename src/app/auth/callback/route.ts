@@ -19,18 +19,22 @@ export async function GET(request: NextRequest) {
       const { error } = result;
       if (!error) {
         const next = safeClientRedirect(searchParams.get("next") || "/reset-password");
-        const demoMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(next);
+        const nextUrl = new URL(next, origin);
+        const demoMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(nextUrl.pathname);
+        const requestedDemoId = demoMatch?.[1]
+          ? decodeURIComponent(demoMatch[1])
+          : nextUrl.pathname === "/demo" ? nextUrl.searchParams.get("id") : null;
         const user = result.data.user ?? (await supabase.auth.getUser()).data.user;
         const pendingDemoId = typeof user?.user_metadata?.pending_demo_id === "string"
           ? sanitizeDemoId(user.user_metadata.pending_demo_id)
           : null;
-        const demoId = demoMatch ? sanitizeDemoId(decodeURIComponent(demoMatch[1])) : requestedType === "signup" ? pendingDemoId : null;
+        const demoId = requestedDemoId ? sanitizeDemoId(requestedDemoId) : requestedType === "signup" ? pendingDemoId : null;
         if (demoId) {
           const claimResult = user ? await claimDemoForUser(demoId, user) : "conflict";
           if (claimResult !== "claimed" && claimResult !== "already-linked") {
             return NextResponse.redirect(new URL("/login?error=account", origin));
           }
-          if (!demoMatch) return NextResponse.redirect(new URL(`/demo/${encodeURIComponent(demoId)}`, origin));
+          if (!requestedDemoId) return NextResponse.redirect(new URL(`/demo?id=${encodeURIComponent(demoId)}`, origin));
         }
         return NextResponse.redirect(new URL(next, origin));
       }

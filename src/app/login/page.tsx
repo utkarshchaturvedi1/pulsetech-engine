@@ -25,10 +25,10 @@ export default async function ClientLoginPage({ searchParams }: { searchParams: 
         <div className="pt-login-card rounded-[28px] border p-7 sm:p-9">
           <p className="text-center text-xs font-extrabold uppercase tracking-[.18em] text-[#246bfe]">PulseTech account</p>
           <h1 className="mt-3 text-center text-3xl font-extrabold tracking-tight text-[#111217]">{mode === "signup" ? "Create your free account" : "Log in"}</h1>
-          <p className="mt-2 text-center text-sm text-slate-600">{mode === "signup" ? "Use your email as your login ID and choose a password." : "Use your email and password to open your PulseTech account."}</p>
+          <p className="mt-2 text-center text-sm text-slate-600">{mode === "signup" ? "Use your email and password. We’ll email a confirmation link and bring you back to this demo." : "Use your email and password to open your PulseTech account."}</p>
           {error === "link" && <p role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">That invitation or reset link has expired. Please request a new one.</p>}
           {reset === "sent" && <p role="status" className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">If that email belongs to a client account, a password reset link is on its way.</p>}
-          <div className="mt-7"><ClientLoginForm initialMode={mode === "signup" ? "signup" : "login"} nextPath={next} /></div>
+          <div className="mt-7"><ClientLoginForm initialMode={mode === "signup" ? "signup" : "login"} nextPath={next} publicBaseUrl={process.env.PULSETECH_PUBLIC_BASE_URL} /></div>
           {error === "account" && <p role="alert" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">We couldn’t connect this demo to your account. Please contact PulseTech for help.</p>}
         </div>
       </section>

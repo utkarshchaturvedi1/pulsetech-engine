@@ -14,6 +14,15 @@ function safeNextPath(value?: string) {
   return value;
 }
 
+function demoIdFromPath(value: string): string | null {
+  const destination = new URL(value, "https://pulsetech.invalid");
+  const pathMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(destination.pathname);
+  const id = pathMatch?.[1]
+    ? decodeURIComponent(pathMatch[1])
+    : destination.pathname === "/demo" ? destination.searchParams.get("id") : null;
+  return id && /^[a-z0-9_-]{2,120}$/i.test(id) ? id : null;
+}
+
 export default function ClientLoginForm({ nextPath, initialMode = "login" }: ClientLoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -39,11 +48,8 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
         return;
       }
       if (signupMode) {
-        const destinationUrl = new URL(destination, window.location.origin);
-        const demoMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(destinationUrl.pathname);
-        const demoId = demoMatch?.[1] ? decodeURIComponent(demoMatch[1])
-          : destinationUrl.pathname === "/demo" ? destinationUrl.searchParams.get("id") : null;
-        if (!demoId || !/^[a-z0-9_-]{2,120}$/i.test(demoId)) {
+        const demoId = demoIdFromPath(destination);
+        if (!demoId) {
           setMessage("Start from your two-chatbot demo to create a free account.");
           return;
         }
@@ -83,6 +89,19 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
       if (error) {
         setMessage("That email and password didn’t match. Try again or reset your password.");
         return;
+      }
+      const demoId = demoIdFromPath(destination);
+      if (demoId) {
+        const claimResponse = await fetch("/api/client/claim-demo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ demoId }),
+        });
+        if (!claimResponse.ok) {
+          const claimResult = await claimResponse.json().catch(() => ({}));
+          setMessage(claimResult.error || "We couldn’t connect your demo to your account. Please try again.");
+          return;
+        }
       }
       router.replace(destination);
       router.refresh();

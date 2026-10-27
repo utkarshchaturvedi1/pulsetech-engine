@@ -21,7 +21,7 @@ export default function ClientInviteForm() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not invite client.");
       form.reset();
-      setMessage(`Invitation sent. ${result.businessName} is customer ${result.customerId}.`);
+      setMessage(`${result.message || "Invitation sent."} ${result.businessName} is customer ${result.customerId}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not invite client.");
     } finally {

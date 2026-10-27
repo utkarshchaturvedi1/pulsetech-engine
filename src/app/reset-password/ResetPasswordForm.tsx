@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function ResetPasswordForm() {
+export default function ResetPasswordForm({ nextPath = "/client" }: { nextPath?: string }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -25,7 +25,7 @@ export default function ResetPasswordForm() {
         setMessage("We couldn’t save that password. Please use at least 8 characters and try again.");
         return;
       }
-      router.replace("/client");
+      router.replace(nextPath);
       router.refresh();
     } catch {
       setMessage("We couldn’t save that password. Please reopen your invitation link and try again.");

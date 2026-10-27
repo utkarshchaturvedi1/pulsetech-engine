@@ -638,3 +638,31 @@ body:has(.pt-demo) {
     z-index: 1 !important;
   }
 }
+
+
+.pt-demo-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  margin-top: 0.45rem;
+}
+.pt-demo-account-link {
+  color: #075a70;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+  animation: pt-demo-account-pulse 1.8s ease-in-out infinite;
+}
+.pt-demo-account-link:hover, .pt-demo-account-link:focus-visible,
+.pt-demo-dashboard-link:hover, .pt-demo-dashboard-link:focus-visible { color: #023047; }
+.pt-demo-dashboard-link {
+  color: #0b7285;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+@keyframes pt-demo-account-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.58; } }
+@media (prefers-reduced-motion: reduce) { .pt-demo-account-link { animation: none; } }

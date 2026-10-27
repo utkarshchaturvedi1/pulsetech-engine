@@ -127,6 +127,12 @@ export default function DemoWorkspace({
                 >
                   Skip to customer test ↓
                 </a>
+                <div className="pt-demo-account-actions">
+                  <Link href={`/login?mode=signup&next=${encodeURIComponent(`/demo/${resolvedDemoId}`)}`} className="pt-demo-account-link">
+                    Log in or create a free account to save changes and view your dashboard
+                  </Link>
+                  <Link href="/client" className="pt-demo-dashboard-link">Open dashboard</Link>
+                </div>
               </div>
             </div>
           </header>

@@ -32,19 +32,50 @@ export async function POST(request: Request) {
   const admin = createSupabaseClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
   });
-  const { data: account, error: accountError } = await admin.from("customer_accounts")
-    .insert({ business_name: profile.profile.businessName, owner_email: email, demo_id: demoId })
-    .select("id,customer_id,business_name").single();
-  if (accountError || !account) {
-    return NextResponse.json({ error: accountError?.code === "23505" ? "This email or saved business profile is already connected to a client account." : "Could not create the client account. Check that the client account migration has been applied." }, { status: 409 });
+  const { data: existingAccount, error: existingAccountError } = await admin.from("customer_accounts")
+    .select("id,customer_id,business_name,owner_email").eq("demo_id", demoId).maybeSingle();
+  if (existingAccountError) {
+    return NextResponse.json({ error: "Could not check the existing client account. Please try again." }, { status: 503 });
+  }
+
+  let account = existingAccount;
+  let createdAccount = false;
+  if (account) {
+    if (normalizeClientEmail(account.owner_email) !== email) {
+      return NextResponse.json({ error: "This business profile is already connected to a different account. Do not create a second account; contact PulseTech to update access." }, { status: 409 });
+    }
+    const { data: existingMembership, error: existingMembershipError } = await admin.from("customer_memberships")
+      .select("user_id").eq("customer_account_id", account.id).maybeSingle();
+    if (existingMembershipError) {
+      return NextResponse.json({ error: "Could not check the existing account login. Please try again." }, { status: 503 });
+    }
+    if (existingMembership) {
+      return NextResponse.json({
+        ok: true,
+        existingAccount: true,
+        invitationSent: false,
+        customerId: account.customer_id,
+        businessName: account.business_name,
+        message: "This email already has an account for this business. Keep the same login; do not create another account.",
+      });
+    }
+  } else {
+    const { data: created, error: accountError } = await admin.from("customer_accounts")
+      .insert({ business_name: profile.profile.businessName, owner_email: email, demo_id: demoId })
+      .select("id,customer_id,business_name,owner_email").single();
+    if (accountError || !created) {
+      return NextResponse.json({ error: accountError?.code === "23505" ? "This email or saved business profile was connected at the same time. Refresh and use the existing account." : "Could not create the client account. Check that the client account migration has been applied." }, { status: 409 });
+    }
+    account = created;
+    createdAccount = true;
   }
 
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${baseUrl}/auth/callback?next=%2Freset-password`,
+    redirectTo: `${baseUrl}/auth/callback?next=${encodeURIComponent(`/reset-password?next=${encodeURIComponent(`/demo/${demoId}`)}`)}`,
     data: { customer_id: account.customer_id },
   });
   if (inviteError || !invited.user) {
-    await admin.from("customer_accounts").delete().eq("id", account.id);
+    if (createdAccount) await admin.from("customer_accounts").delete().eq("id", account.id);
     return NextResponse.json({ error: "Account created, but the invitation could not be sent. Confirm Supabase email delivery and try again." }, { status: 502 });
   }
 
@@ -54,9 +85,9 @@ export async function POST(request: Request) {
   });
   if (membershipError) {
     await admin.auth.admin.deleteUser(invited.user.id);
-    await admin.from("customer_accounts").delete().eq("id", account.id);
+    if (createdAccount) await admin.from("customer_accounts").delete().eq("id", account.id);
     return NextResponse.json({ error: "Could not connect the invited user to the client account. No account was kept." }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, customerId: account.customer_id, businessName: account.business_name }, { status: 201 });
+  return NextResponse.json({ ok: true, existingAccount: !createdAccount, invitationSent: true, customerId: account.customer_id, businessName: account.business_name, message: createdAccount ? "Invitation sent." : "Connected this login to the existing business account. Invitation sent." }, { status: createdAccount ? 201 : 200 });
 }

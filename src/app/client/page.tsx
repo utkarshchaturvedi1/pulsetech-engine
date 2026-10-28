@@ -51,6 +51,7 @@ export default async function ClientPortalPage() {
       <p className="mt-2 text-slate-600">This sign-in email is not linked to a PulseTech client account yet.</p>
       {admin && <div className="mt-7 border-t border-slate-200 pt-6"><h2 className="text-lg font-semibold">Invite a client</h2><p className="mt-1 text-sm text-slate-600">Connect an existing saved business profile to a client login.</p><ClientInviteForm /></div>}
     </section> : account.handover_status === "live" ? <LiveDashboard account={account} profile={profile} requests={requests} leads={leads} leadTableReady={!leadResult.error} /> : <PreLaunchDashboard account={account} profile={profile} requests={requests} />}
+    <PlanPricingSection />
     {admin && account && <section className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-lg font-semibold">Invite another client</h2><ClientInviteForm /></section>}
   </PortalShell>;
 }
@@ -132,12 +133,43 @@ function RequestsAndSupport({ requests }: { requests: HandoverRequest[] }) {
   </section>;
 }
 
+function PlanPricingSection() {
+  return <section id="plan" className="rounded-2xl border border-blue-100 bg-white p-6 sm:p-8">
+    <div className="mb-6">
+      <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Plan & billing</p>
+      <h2 className="mt-2 text-2xl font-semibold text-slate-950">Clear pricing, with the service included</h2>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">These are the total plan prices. Hosting, platform tools, upkeep, and routine agent updates are included in the monthly service; they are not extra line-item charges.</p>
+    </div>
+    <div className="grid gap-5 md:grid-cols-2">
+      <article className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">One-time setup</p>
+        <p className="mt-3 text-4xl font-bold tracking-tight text-slate-950">$2,000</p>
+        <p className="mt-1 text-sm text-slate-600">Charged once.</p>
+        <p className="mt-4 text-sm leading-6 text-slate-700">Configuration of an AI Sales Employee around your business, including your services, policies, operating details, and instructions.</p>
+      </article>
+      <article className="rounded-2xl border-2 border-blue-600 bg-white p-6">
+        <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Monthly service</p>
+        <p className="mt-3 text-4xl font-bold tracking-tight text-slate-950">$500 <span className="text-lg font-medium text-slate-600">/ month</span></p>
+        <p className="mt-1 text-sm text-slate-600">Ongoing service and support.</p>
+        <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-700">
+          <li>Website chat and inbound voice AI Sales Employees</li>
+          <li>Hosting, AI processing, and the tools needed to run the service</li>
+          <li>System upkeep, monitoring, and maintenance</li>
+          <li>Routine agent improvements and future updates, with no separate update fee</li>
+          <li>Business knowledge updates through Peter</li>
+          <li>Email and SMS lead alerts, plus email support</li>
+        </ul>
+      </article>
+    </div>
+  </section>;
+}
+
 function PortalShell({ children, email, showLeads = false }: { children: React.ReactNode; email?: string; showLeads?: boolean }) {
   return <main className="min-h-screen bg-[#f5f5f7] px-4 text-[#111217] sm:px-6">
     <header className="-mx-4 border-b border-black/10 bg-[#f5f5f7]/95 px-4 sm:-mx-6 sm:px-6">
       <div className="mx-auto flex min-h-[72px] max-w-7xl flex-wrap items-center justify-between gap-4 py-3">
         <Link href="/client" aria-label="PulseTech account overview"><Image src="/branding/pulsetech-logo-blue-black.svg" alt="PulseTech Labs" width={190} height={38} priority /></Link>
-        <nav aria-label="Client account" className="order-3 flex w-full gap-5 overflow-x-auto text-sm font-medium text-slate-700 sm:order-2 sm:w-auto sm:gap-7"><a href="#overview" className="py-2 hover:text-blue-700">Overview</a><a href="#assistant" className="py-2 hover:text-blue-700">Assistant</a>{showLeads && <a href="#leads" className="py-2 hover:text-blue-700">Leads</a>}<a href="#installation" className="py-2 hover:text-blue-700">Installation</a><a href="#support" className="py-2 hover:text-blue-700">Support</a></nav>
+        <nav aria-label="Client account" className="order-3 flex w-full gap-5 overflow-x-auto text-sm font-medium text-slate-700 sm:order-2 sm:w-auto sm:gap-7"><a href="#overview" className="py-2 hover:text-blue-700">Overview</a><a href="#assistant" className="py-2 hover:text-blue-700">Assistant</a>{showLeads && <a href="#leads" className="py-2 hover:text-blue-700">Leads</a>}<a href="#installation" className="py-2 hover:text-blue-700">Installation</a><a href="#support" className="py-2 hover:text-blue-700">Support</a><a href="#plan" className="py-2 hover:text-blue-700">Pricing</a></nav>
         <div className="order-2 flex items-center gap-3 sm:order-3">{email && <span className="hidden max-w-48 truncate text-sm text-slate-500 md:inline">{email}</span>}<ClientSignOutButton /></div>
       </div>
     </header>

@@ -137,6 +137,7 @@ function PricingPage({
   status,
   scriptError,
   onCheckout,
+  publicBaseUrl,
 }: {
   readyToLoad: boolean;
   scriptReady: boolean;
@@ -144,6 +145,7 @@ function PricingPage({
   status: string;
   scriptError: string;
   onCheckout: () => void;
+  publicBaseUrl: string;
 }) {
   return (
     <div className="min-h-screen bg-white text-[#0b1f44]">
@@ -398,6 +400,7 @@ export default function PaymentTestView({
         status={status}
         scriptError={scriptError}
         onCheckout={startCheckout}
+        publicBaseUrl={publicBaseUrl}
       />
     </>
   );

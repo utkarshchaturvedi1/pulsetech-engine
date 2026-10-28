@@ -25,6 +25,7 @@ export default function PaymentTestPage() {
         clientToken={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN ?? ""}
         setupPriceId={process.env.NEXT_PUBLIC_PADDLE_SETUP_PRICE_ID ?? ""}
         monthlyPriceId={process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID ?? ""}
+        publicBaseUrl={process.env.PULSETECH_PUBLIC_BASE_URL ?? "http://localhost:3000"}
       />
     </div>
   );

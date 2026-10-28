@@ -312,8 +312,7 @@ function PricingPage({
         <p className="mx-auto mt-10 max-w-2xl text-center text-sm leading-6 text-[#5c6b80]">
           Uses the Sandbox client-side token only. No secret API key is read or sent from this
           page. Before opening checkout, set the Sandbox default payment link to{" "}
-          <code className="font-mono">http://localhost:3000</code> if you are testing on this
-          machine.
+          <code className="font-mono">{publicBaseUrl}</code>.
         </p>
       </main>
     </div>
@@ -324,10 +323,12 @@ export default function PaymentTestView({
   clientToken,
   setupPriceId,
   monthlyPriceId,
+  publicBaseUrl,
 }: {
   clientToken: string;
   setupPriceId: string;
   monthlyPriceId: string;
+  publicBaseUrl: string;
 }) {
   const config = readConfig(clientToken, setupPriceId, monthlyPriceId);
   const readyToLoad = config.problems.length === 0;

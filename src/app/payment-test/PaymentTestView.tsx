@@ -255,20 +255,13 @@ function PricingPage({
                 </span>
               </li>
               <li className="flex items-start gap-3">
-                <span
-                  aria-hidden="true"
-                  className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[#cbd5e1] text-xs text-[#64748b]"
-                >
-                  –
-                </span>
+                <CheckIcon />
                 <span>
-                  Lead list with captured details, conversion status, and sale value.
-                  <span className="mt-1 block text-sm font-semibold text-[#5c6b80]">
-                    Not available yet.
-                  </span>
+                  Client dashboard lead list with captured details and timestamps, editable conversion status, and job value.
                 </span>
               </li>
             </ul>
+            <p className="mt-4 rounded-xl bg-[#eff6ff] p-4 text-sm leading-6 text-[#334155]"><strong>Usage limits apply:</strong> your monthly website chat and inbound voice allowance will be confirmed in writing before launch. The service is not unlimited, and no usage-related extra charge will be added without your approval.</p>
             <p className="mt-4 text-sm leading-6 text-[#5c6b80]">Routine agent improvements and standard platform updates are included. Optional add-ons or custom integrations, such as future calendar management, are scoped and priced separately; we will ask for your approval before any added charge.</p>
             <p className="mt-5 inline-flex rounded-full bg-[#f1f5f9] px-3 py-1.5 text-sm text-[#64748b]">
               Dashboard analysis — Coming soon

@@ -1,5 +1,5 @@
--- V1.2 client lead list. Apply only to a dedicated V1.2 Supabase project.
--- This matches the schema already present in PulseTech V1.2.
+-- V1.2 client lead list. Requires customer_accounts and customer_memberships.
+-- Additive: creates the lead table and tenant-scoped policies; does not modify existing lead or account rows.
 create table if not exists public.customer_leads (
   id uuid primary key default gen_random_uuid(),
   customer_account_id uuid not null references public.customer_accounts(id) on delete cascade,
@@ -48,6 +48,6 @@ create policy "Client updates own lead outcome" on public.customer_leads
       and membership.user_id = (select auth.uid())
   ));
 
-revoke all on public.customer_leads from anon, public;
+revoke all on public.customer_leads from anon, authenticated, public;
 grant select, update (sales_outcome, sale_amount_usd) on public.customer_leads to authenticated;
 grant all on public.customer_leads to service_role;

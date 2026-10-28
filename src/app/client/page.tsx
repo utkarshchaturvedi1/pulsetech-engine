@@ -70,10 +70,11 @@ function PreLaunchDashboard({ account, profile, requests }: { account: Account; 
       <Link href={demoUrl} className="inline-flex min-h-12 items-center justify-center rounded-xl bg-blue-700 px-6 py-3 font-semibold text-white hover:bg-blue-800">Try the demo</Link>
     </section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" aria-label="Setup progress">
-      <ol className="grid gap-4 md:grid-cols-3">
-        <ProgressStep number="1" title="Business details" state={profile ? "Saved from your demo" : "Being prepared"} active />
-        <ProgressStep number="2" title="PulseTech launch checks" state={account.handover_status === "testing" ? "In progress" : "Handled by PulseTech"} active={account.handover_status === "testing"} />
-        <ProgressStep number="3" title="Install and go live" state={account.handover_status === "approved" ? "Ready to arrange" : "Instructions sent after checks"} />
+      <ol className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <ProgressStep number="1" title="Payment" state="For initial clients, receipt is confirmed by email with PulseTech." active />
+        <ProgressStep number="2" title="Business details" state={profile ? "Saved from your demo" : "Being prepared"} active />
+        <ProgressStep number="3" title="PulseTech launch checks" state={account.handover_status === "testing" ? "In progress" : "Handled by PulseTech"} active={account.handover_status === "testing"} />
+        <ProgressStep number="4" title="Install and go live" state={account.handover_status === "approved" ? "Ready to arrange" : "Instructions sent after checks"} />
       </ol>
     </section>
     <div className="grid gap-5 md:grid-cols-2">

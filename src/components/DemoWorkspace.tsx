@@ -9,7 +9,6 @@ import { BusinessProfile } from "../types/business";
 import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
 import { DEMO_CHAT_LAYOUT } from "../lib/demoChatLayout";
 import { hasConfiguredWebsiteChatLeadAlerts } from "../lib/leadAlertRecipients";
-import { createClient } from "../lib/supabase/client";
 import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
 
 type DemoWorkspaceProps = {
@@ -71,8 +70,6 @@ export default function DemoWorkspace({
   demoId,
 }: DemoWorkspaceProps) {
   const [business, setBusiness] = useState<BusinessProfile>(initialProfile);
-  const [accountEmail, setAccountEmail] = useState<string | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
   const resolvedDemoId = demoId || demoIdFromWebsite(business.website || "demo");
 
   const handleProfileUpdate = useCallback(
@@ -82,27 +79,6 @@ export default function DemoWorkspace({
     },
     [resolvedDemoId]
   );
-
-  useEffect(() => {
-    const supabase = createClient();
-    let active = true;
-    void supabase.auth.getUser().then(({ data, error }) => {
-      if (!active) return;
-      setAccountEmail(error ? null : data.user?.email ?? null);
-      setAuthChecked(true);
-    }).catch(() => {
-      if (active) setAuthChecked(true);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!active) return;
-      setAccountEmail(session?.user?.email ?? null);
-      setAuthChecked(true);
-    });
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     saveDemoLocal({
@@ -151,25 +127,11 @@ export default function DemoWorkspace({
                 >
                   Skip to customer test ↓
                 </a>
-                <div className="pt-demo-account-actions" aria-label="Account actions">
-                  {!authChecked ? (
-                    <span className="pt-demo-login-link" role="status">Checking account…</span>
-                  ) : accountEmail ? (
-                    <span className="pt-demo-login-link" aria-live="polite">Signed in: {accountEmail}</span>
-                  ) : (
-                    <>
-                      <Link href={`/login?mode=signup&next=${encodeURIComponent(`/demo?id=${resolvedDemoId}`)}`} className="pt-demo-account-link">
-                        <span>Create Free Account</span>
-                        <small>Save your Agent &amp; see pricing</small>
-                      </Link>
-                      <Link href={`/login?mode=login&next=${encodeURIComponent(`/demo?id=${resolvedDemoId}`)}`} className="pt-demo-login-link">
-                        Login
-                      </Link>
-                    </>
-                  )}
-                  <Link href="/client" className="pt-demo-dashboard-link">
-                    Open Dashboard
+                <div className="pt-demo-account-actions">
+                  <Link href={`/login?mode=signup&next=${encodeURIComponent(`/demo?id=${resolvedDemoId}`)}`} className="pt-demo-account-link">
+                    Log in or create a free account to save changes and view your dashboard
                   </Link>
+                  <Link href="/client" className="pt-demo-dashboard-link">Open dashboard</Link>
                 </div>
               </div>
             </div>

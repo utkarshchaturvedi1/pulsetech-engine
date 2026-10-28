@@ -7,17 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 type ClientLoginFormProps = {
   nextPath?: string;
   initialMode?: "login" | "signup";
-  publicBaseUrl?: string;
 };
 
 function safeNextPath(value?: string) {
   if (!value?.startsWith("/") || value.startsWith("//") || /[\\\\\u0000-\u0020\u007f]/.test(value)) return "/client";
   return value;
-}
-
-function authOrigin(publicBaseUrl?: string): string {
-  if (!publicBaseUrl) return window.location.origin;
-  try { return new URL(publicBaseUrl).origin; } catch { return window.location.origin; }
 }
 
 function demoIdFromPath(value: string): string | null {
@@ -29,7 +23,7 @@ function demoIdFromPath(value: string): string | null {
   return id && /^[a-z0-9_-]{2,120}$/i.test(id) ? id : null;
 }
 
-export default function ClientLoginForm({ nextPath, initialMode = "login", publicBaseUrl }: ClientLoginFormProps) {
+export default function ClientLoginForm({ nextPath, initialMode = "login" }: ClientLoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,10 +40,9 @@ export default function ClientLoginForm({ nextPath, initialMode = "login", publi
       const supabase = createClient();
       const normalizedEmail = email.trim().toLowerCase();
       const destination = safeNextPath(nextPath);
-      const redirectOrigin = authOrigin(publicBaseUrl);
       if (resetMode) {
         // Password reset always returns to password setup; successful reset defaults to the dashboard.
-        const redirectTo = `${redirectOrigin}/auth/callback?next=${encodeURIComponent("/reset-password")}`;
+        const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`;
         const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
         setMessage(error ? "We couldn’t send a reset link. Check the email address or contact PulseTech." : "If that email belongs to a client account, a password reset link is on its way.");
         return;
@@ -62,7 +55,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login", publi
         }
         // Keep the redirect on the exact Supabase-allowlisted callback path. The
         // demo ID travels in verified user metadata so no new redirect URL is needed.
-        const emailRedirectTo = `${redirectOrigin}/auth/callback`;
+        const emailRedirectTo = `${window.location.origin}/auth/callback`;
         const { data, error } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
@@ -88,7 +81,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login", publi
           router.replace(destination);
           router.refresh();
         } else {
-          setMessage(`Check ${normalizedEmail} for a PulseTech confirmation email. Open its confirmation link and we’ll return you to your demo. If you already have an account, choose “Already have an account? Log in” or use Forgot password.`);
+          setMessage("If this is a new account, check your email to confirm it and return to your demo. If you already have an account, log in or use Forgot password.");
         }
         return;
       }

@@ -14,7 +14,8 @@
     "test:handoff-timing": "npx --yes tsx scripts/test-handoff-timing.ts",
     "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts",
     "test:client-account-regression": "npx --yes tsx scripts/test-client-account-regression.ts",
-    "test:profile-access": "npx --yes tsx scripts/test-profile-access.ts"
+    "test:profile-access": "npx --yes tsx scripts/test-profile-access.ts",
+    "test:paddle-sandbox-webhook": "npx --yes tsx scripts/test-paddle-sandbox-webhook.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

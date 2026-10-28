@@ -155,12 +155,13 @@ function PlanPricingSection() {
           <li>Website chat and inbound voice AI Sales Employees</li>
           <li>Hosting, AI processing, and the tools needed to run the service</li>
           <li>System upkeep, monitoring, and maintenance</li>
-          <li>Routine agent improvements and future updates, with no separate update fee</li>
+          <li>Routine agent improvements and standard platform updates are included, with no separate update fee</li>
           <li>Business knowledge updates through Peter</li>
           <li>Email and SMS lead alerts, plus email support</li>
         </ul>
       </article>
     </div>
+        <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-slate-700">Optional add-ons or custom integrations, such as future calendar management, are not included unless we confirm the scope and price with you. We will get your approval before adding any charge.</p>
   </section>;
 }
 

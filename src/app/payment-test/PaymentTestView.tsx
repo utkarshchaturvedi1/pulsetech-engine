@@ -269,6 +269,7 @@ function PricingPage({
                 </span>
               </li>
             </ul>
+            <p className="mt-4 text-sm leading-6 text-[#5c6b80]">Routine agent improvements and standard platform updates are included. Optional add-ons or custom integrations, such as future calendar management, are scoped and priced separately; we will ask for your approval before any added charge.</p>
             <p className="mt-5 inline-flex rounded-full bg-[#f1f5f9] px-3 py-1.5 text-sm text-[#64748b]">
               Dashboard analysis — Coming soon
             </p>

@@ -1,6 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   BusinessIntelligence,
   ControlRail,
@@ -36,6 +39,28 @@ function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function AccountButton() {
+  const [destination, setDestination] = useState<"login" | "client">("login");
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active && data.session) setDestination("client");
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) setDestination(session ? "client" : "login");
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  return <Link className="pt-button pt-button-small" href={destination === "client" ? "/client" : "/login"}>
+    {destination === "client" ? "Open Dashboard" : "Log in"}
+  </Link>;
+}
+
 function LiveChat() {
   return (
     <div id="live-chat" className="pt-live-chat">
@@ -61,7 +86,7 @@ export default function LandingPage() {
             <button onClick={() => scrollToId("revenue")}>Revenue Calculator</button>
             <button onClick={() => scrollToId("industries")}>Industries</button>
           </nav>
-          <button className="pt-button pt-button-small" onClick={focusLiveChat}>Experience Yours</button>
+          <AccountButton />
         </div>
       </header>
 
@@ -116,7 +141,7 @@ export default function LandingPage() {
           <div className="pt-heading">
             <p className="pt-eyebrow">RESPOND WHILE INTENT IS HIGH</p>
             <h2>Every inbound enquiry is a hot lead.</h2>
-            <p>They've already taken the first step. They're looking for help, asking a question, or considering your service. The longer they wait, the greater the chance they move on to another business.</p>
+            <p>They&apos;ve already taken the first step. They&apos;re looking for help, asking a question, or considering your service. The longer they wait, the greater the chance they move on to another business.</p>
           </div>
           <InboundSignal />
           <div className="pt-inbound-copy">
@@ -139,7 +164,7 @@ export default function LandingPage() {
           <div className="pt-heading">
             <p className="pt-eyebrow">YOUR BUSINESS. YOUR RULES.</p>
             <h2>Not another generic AI. Yours.</h2>
-            <p>Your AI Sales Employee is built specifically around your business, your services and the way you work. And your website doesn't need to contain everything.</p>
+            <p>Your AI Sales Employee is built specifically around your business, your services and the way you work. And your website doesn&apos;t need to contain everything.</p>
           </div>
           <PeterTransfer />
         </section>

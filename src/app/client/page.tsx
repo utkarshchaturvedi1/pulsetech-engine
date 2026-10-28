@@ -163,7 +163,7 @@ function PlanPricingSection() {
         </ul>
       </article>
     </div>
-    <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-slate-700"><strong>Usage limits apply:</strong> your monthly website chat and inbound voice allowance will be confirmed in writing before launch. The service is not unlimited, and we will not add usage charges without your approval.</p>
+    <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-slate-700"><strong>Monthly usage included:</strong> up to 1,000 website chat conversations and 250 inbound voice minutes per billing month. The service is not unlimited. Any additional usage or charge must be agreed with you in writing first.</p>
     <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-slate-700">Optional add-ons or custom integrations, such as future calendar management, are not included unless we confirm the scope and price with you. We will get your approval before adding any charge.</p>
   </section>;
 }

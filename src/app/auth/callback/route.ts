@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { safeClientRedirect } from "@/lib/clientAccess";
-import { sanitizeDemoId } from "@/lib/demoRepository";
 import { claimDemoForUser } from "@/lib/clientDemoClaim";
+import { resolveCallbackDemoId } from "@/lib/authCallbackDestination";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
           ? decodeURIComponent(demoMatch[1])
           : nextUrl.pathname === "/demo" ? nextUrl.searchParams.get("id") : null;
         const user = result.data.user ?? (await supabase.auth.getUser()).data.user;
-        const pendingDemoId = typeof user?.user_metadata?.pending_demo_id === "string"
-          ? sanitizeDemoId(user.user_metadata.pending_demo_id)
-          : null;
-        const demoId = requestedDemoId ? sanitizeDemoId(requestedDemoId) : requestedType === "signup" ? pendingDemoId : null;
+        // Supabase's PKCE confirmation callback commonly returns a `code` without
+        // a `type` query parameter. The signup demo ID is stored in user metadata,
+        // so use it whenever there is no explicit destination demo. Requiring
+        // `type=signup` here silently dropped the demo after email confirmation.
+        const demoId = resolveCallbackDemoId(searchParams.get("next"), user?.user_metadata?.pending_demo_id);
         if (demoId) {
           const claimResult = user ? await claimDemoForUser(demoId, user) : "conflict";
           if (claimResult !== "claimed" && claimResult !== "already-linked") {

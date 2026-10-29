@@ -114,6 +114,18 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <div className="mb-2">
+        <h1 className="text-center text-3xl font-extrabold tracking-tight text-[#111217]">
+          {resetMode ? "Reset your password" : signupMode ? "Create your free account" : "Log in"}
+        </h1>
+        <p className="mt-2 text-center text-sm text-slate-600">
+          {resetMode
+            ? "Enter your email and we’ll send you a secure password reset link."
+            : signupMode
+              ? "Use your email as your login ID and choose a password."
+              : "Use your email and password to open your PulseTech account."}
+        </p>
+      </div>
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-slate-800" htmlFor="client-email">Email</label>
         <input id="client-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="you@business.com" />

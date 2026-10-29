@@ -68,6 +68,8 @@ export default function VoiceDemoCard({ demoId }: VoiceDemoCardProps) {
   );
 
   useEffect(() => {
+    // The session request is an external side effect; it owns its loading state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadSession();
   }, [loadSession]);
 

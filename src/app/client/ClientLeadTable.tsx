@@ -4,6 +4,7 @@ import { useState } from "react";
 
 export type ClientLead = {
   id: string;
+  source?: "website" | "phone";
   customer_name: string | null;
   customer_phone: string | null;
   customer_email: string | null;
@@ -69,7 +70,7 @@ export default function ClientLeadTable({ initialLeads }: { initialLeads: Client
   if (!leads.length) return <div className="flex min-h-52 flex-col items-center justify-center text-center">
     <div className="text-3xl text-slate-300" aria-hidden="true">○</div>
     <p className="mt-3 font-semibold text-slate-800">No leads yet</p>
-    <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">New enquiries captured by your live website chat will appear here. Lead alerts continue by email and SMS.</p>
+    <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">New enquiries captured by your live website chat or inbound phone assistant will appear here. Lead alerts continue by email and SMS.</p>
   </div>;
 
   return <div className="mt-5 space-y-4">
@@ -79,7 +80,7 @@ export default function ClientLeadTable({ initialLeads }: { initialLeads: Client
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold text-slate-950">{lead.customer_name || "Customer name not provided"}</h3>
-            <p className="mt-1 text-xs text-slate-500">{new Date(lead.first_captured_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}{lead.urgency !== "NONE" ? ` · ${lead.urgency.toLowerCase()} urgency` : ""}</p>
+            <p className="mt-1 text-xs text-slate-500">{lead.source === "phone" ? "Phone call" : "Website chat"} · {new Date(lead.first_captured_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}{lead.urgency !== "NONE" ? ` · ${lead.urgency.toLowerCase()} urgency` : ""}</p>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">New enquiry</span>
         </div>

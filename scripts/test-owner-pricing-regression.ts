@@ -125,7 +125,7 @@ async function run() {
     assert.notEqual(firstPrice,repeatPrice);assert(!repeatPrice.includes('$20'));
 
     const ownerBusiness={...business,leadQuestions:[...business.leadQuestions,'Is there a parking restriction?'],leadNotificationEmail:'alerts@example.test',leadNotificationPhone:'+12145550199'};
-    let s=secured();s.customerAgreed=true;s.preferredTiming='tomorrow morning';
+    const s=secured();s.customerAgreed=true;s.preferredTiming='tomorrow morning';
     let result=await generateSalesReply(ownerBusiness,[{role:'user',content:'Please proceed tomorrow morning'}],s);
     assert.equal(result.reply,ownerBusiness.leadQuestions[0]);assert.equal(result.salesState.leadDeliveryStatus,'NOT_SENT');
     assert(!evaluateHandoffReadiness(result.salesState).handoffReady);assert(!shouldAttemptLeadHandoff(result.salesState,'inactivity'));

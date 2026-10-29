@@ -30,6 +30,8 @@ export default function ChatWindow({
   useEffect(() => {
     if (!initialMessage) return;
 
+    // Intentional mount/update sync: the supplied greeting initializes this thread.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessages([
       {
         id: crypto.randomUUID(),

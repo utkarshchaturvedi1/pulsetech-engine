@@ -7,16 +7,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:inbound-voice": "npx --yes tsx scripts/test-inbound-voice.ts",
-    "test:owner-profile-update": "npx --yes tsx scripts/test-owner-profile-update.ts",
-    "test:owner-pricing-regression": "npx --yes tsx scripts/test-owner-pricing-regression.ts",
-    "test:demo-chat": "npx --yes tsx scripts/test-demo-chat.ts",
-    "test:handoff-timing": "npx --yes tsx scripts/test-handoff-timing.ts",
-    "test:voice-demo": "npx --yes tsx scripts/test-voice-demo.ts",
-    "test:client-account-regression": "npx --yes tsx scripts/test-client-account-regression.ts",
-    "test:auth-callback": "npx --yes tsx scripts/test-auth-callback.ts",
-    "test:profile-access": "npx --yes tsx scripts/test-profile-access.ts",
-    "test:paddle-sandbox-webhook": "npx --yes tsx scripts/test-paddle-sandbox-webhook.ts"
+    "test:inbound-voice": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-inbound-voice.ts",
+    "test:owner-profile-update": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-owner-profile-update.ts",
+    "test:owner-pricing-regression": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-owner-pricing-regression.ts",
+    "test:demo-chat": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-demo-chat.ts",
+    "test:handoff-timing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-handoff-timing.ts",
+    "test:voice-demo": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-voice-demo.ts",
+    "test:client-account-regression": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-account-regression.ts",
+    "test:auth-callback": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-auth-callback.ts",
+    "test:profile-access": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-profile-access.ts",
+    "test:paddle-sandbox-webhook": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-paddle-sandbox-webhook.ts",
+    "test:client-billing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-billing.ts",
+    "test:client-billing-sql": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-billing-sql.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -31,6 +33,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.13",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
@@ -39,6 +42,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

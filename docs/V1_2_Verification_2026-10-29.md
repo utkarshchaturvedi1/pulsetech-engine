@@ -1,31 +1,34 @@
-# V1.2 verification — 29 October 2026
+# V1.2 product completion — 29 October 2026
 
-## Target
+## Release target
 
-- Development branch: `codex/v1.2-client-deployment`, base `46698b36545a615ca487d746992d8a924365258a`.
-- Current Preview alias: `https://staging.pulsetechlabs.com`.
-- Vercel Preview configuration points to Supabase project `wzjpcesxfsuykefcijju` (PulseTech V1.2).
-- The older project `odyjjpnpstvevqalqsew` (PulseTech V1.2 Staging) is not the database used by this Preview. Do not apply its configuration to the current project.
-- No Production deployment, configuration, or customer-data changes are part of this verification.
+- Development branch: `codex/v1.2-client-deployment` (published baseline `92b534bb6c9d009f2e1537d549bdc4d34769afde`).
+- Staging alias: `https://staging.pulsetechlabs.com`.
+- The Vercel Preview project currently uses Supabase project `wzjpcesxfsuykefcijju` (PulseTech V1.2), shown as the `main PRODUCTION` database in Supabase.
+- The separate project `odyjjpnpstvevqalqsew` is isolated staging and is not wired to the current Preview. It is not a substitute for the active Preview database.
+- Do not apply the new migration to the `main PRODUCTION` database or promote/deploy to production without explicit approval for those exact actions.
 
-## Database checks
+## Completed in the development branch
 
-Two synthetic tenants were inserted inside a transaction, then queried as the authenticated role with each user's JWT subject. Verified own account/membership/lead reads, own lead outcome update, rejection of cross-tenant lead updates, rejection of account self-promotion, rejection of cross-tenant support requests, own support-request insert/read, and reverse-direction account/request isolation. The transaction was rolled back; subsequent queries returned zero fixture users and accounts. These checks passed on both projects, including the project actually used by Preview.
+- Account recovery and invitation callbacks keep their intended destination and do not let stale signup metadata hijack the flow.
+- Client portal has account billing and service state, recoverable lead history, support request history, full lead export, weekly lead outcomes, and monthly usage totals.
+- Checkout uses a verified-email account membership, a single-use server-issued intent, exact setup/monthly item validation, signed webhook verification, idempotent billing lifecycle changes, and refund/dispute handling. No browser-supplied account ID is trusted.
+- Operations view supports launch checks, status changes, request triage, domain validation, phone-number mapping checks, and internal launch attestation.
+- Website assistant has a domain-restricted, isolated, accessible embed. Chat and phone leads are saved to the tenant's lead list; existing lead outcomes and first-captured timestamps survive updates.
+- Monthly chat and inbound voice quotas are enforced and the usage summary is visible only to the signed-in account. Phone service checks verified billing and mapped channel state.
+- The client dashboard degrades safely against the pre-migration schema. New billing, widget, quota and handover functions become operational only after the new SQL migration is applied.
+- Updated regression commands use the local `tsx` loader so they run in restricted environments without the CLI's forbidden IPC socket.
 
-## Account fixes
+## Verification
 
-- Password recovery and invitation callbacks do not claim stale signup demo metadata. Explicit password-setup destinations survive; ordinary signup confirmation still claims and opens its saved demo.
-- The account page displays the database-assigned Customer ID.
-- The existing support-request form and tenant-scoped request history/status are available in the dashboard. Refresh uses the router so the saved confirmation remains visible.
+- All 12 regression suites pass, including billing event validation and the Postgres-compatible SQL integration test.
+- The SQL integration test applies the existing V1.2 account, lead and Paddle migrations plus `supabase/client_billing.sql` in isolated PGlite, then verifies intent binding, duplicate delivery, stale lifecycle ordering, refund handling, usage caps, tenant RLS, private provider fields, partial lead merge and preservation of client-entered sales outcomes.
+- TypeScript check, full lint (zero errors; existing image/unused-variable warnings remain), and optimized Next.js build pass.
+- Browser-based staging support request and sandbox checkout were previously completed. No live payment was made.
 
-## Sandbox payment observations
+## Activation gates
 
-- Completed a real sandbox checkout with a documented Paddle test card and synthetic buyer details. No live payment was made.
-- Checkout contained setup and monthly items, quantity one each. A Dallas test ZIP produced a $2,500 subtotal, $165 tax, and $2,665 total. The monthly total shown including tax was $533.
-- Paddle's destination still targeted the older `paddle-sandbox-payment-page` branch. Updated this existing sandbox destination to the current staging host, retaining its existing security configuration and subscribed events.
-- Replayed `transaction.completed`; the current endpoint verified the signature, then returned storage unavailable. Vercel diagnostics: `insert-rejected`, HTTP 401, Postgres `42501`. The current database grants insertion to `service_role`, not anon or authenticated.
-- Repair adds an Authorization bearer header for legacy JWT service keys while retaining apikey-only authentication for opaque secret keys. Regression coverage includes both formats. Deployment and successful replay must be verified before marking event storage repaired.
-
-## Remaining release gates
-
-The sandbox webhook records events only. It does not map verified payment to an account, activate a subscription, or implement cancellation/refund/renewal access changes. Do not treat a successful checkout or notification as paid-account activation. Live merchant approval, payment lifecycle, usage enforcement, installation/phone handover, and full release-journey checks remain open. Production release still requires the user's explicit approval.
+- The new SQL migration is tested locally but has not been applied to either Supabase project. The current Preview shares the production Supabase database, so applying it there is a production database change.
+- Production checkout and live Paddle webhooks remain disabled; the merchant's live account, live prices, and production callback have not been verified or enabled.
+- Phone activation requires the account's existing inbound number to be mapped and launch checks to be completed. No phone number purchase or provider change was made.
+- No production deployment, production environment change, or customer-account edit is part of this branch work.

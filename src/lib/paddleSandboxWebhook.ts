@@ -8,6 +8,13 @@ export const PADDLE_SANDBOX_EVENT_TYPES = [
   "subscription.created",
   "subscription.updated",
   "subscription.canceled",
+  "transaction.payment_failed",
+  "subscription.activated",
+  "subscription.resumed",
+  "subscription.paused",
+  "subscription.past_due",
+  "adjustment.created",
+  "adjustment.updated",
 ] as const;
 
 export type PaddleSandboxEventType = (typeof PADDLE_SANDBOX_EVENT_TYPES)[number];
@@ -280,9 +287,10 @@ export async function handlePaddleSandboxWebhook(input: {
   nowMs?: number;
   /** Pass VERCEL_ENV from the route. "production" is always rejected. */
   vercelEnv?: string;
+  processNotification?: (record: PaddleSandboxNotification) => Promise<void>;
 }): Promise<HandlerResult> {
-  // Verifies and stores a Sandbox notification. Does not activate an account
-  // or attach the payment to a business.
+  // Sandbox notifications are accepted only outside production; the optional
+  // processor applies account changes after the verified event is stored.
   if (!isPaddleSandboxWebhookRuntime(input.vercelEnv)) {
     return { status: 403, body: { error: "Sandbox webhook is not available in production." } };
   }
@@ -317,13 +325,20 @@ export async function handlePaddleSandboxWebhook(input: {
   }
 
   try {
-    const outcome = await input.store.saveIfNew({
+    const record: PaddleSandboxNotification = {
       eventId: identity.eventId,
       notificationId: identity.notificationId,
       eventType,
       occurredAt: identity.occurredAt,
       payload: "data" in event ? (event.data ?? null) : "payload" in event ? (event.payload ?? null) : null,
-    });
+    };
+    const outcome = await input.store.saveIfNew(record);
+    // Retry application even on a stored event: storage may have succeeded
+    // before an earlier database application failed. The RPC is idempotent.
+    if (input.processNotification) {
+      try { await input.processNotification(record); }
+      catch { throw new PaddleStoreUnavailable("Billing update needs retry."); }
+    }
     return {
       status: 200,
       body: { ok: true, duplicate: outcome === "duplicate", eventType },

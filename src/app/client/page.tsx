@@ -8,13 +8,15 @@ import "./portal-theme.css";
 import ClientInviteForm from "./ClientInviteForm";
 import ClientSignOutButton from "./ClientSignOutButton";
 import ClientHandoverRequest from "./ClientHandoverRequest";
+import ClientCheckout from "./ClientCheckout";
+import ClientInstallation from "./ClientInstallation";
 import ClientLeadTable, { type ClientLead } from "./ClientLeadTable";
 import type { BusinessProfile } from "@/types/business";
 
 export const metadata = { title: "Your account | PulseTech Labs" };
 export const dynamic = "force-dynamic";
 
-type Account = { id: string; customer_id: string; business_name: string; handover_status: string; demo_id: string };
+type Account = { id: string; customer_id: string; business_name: string; handover_status: string; demo_id: string; billing_status: string; billing_environment: string | null; website_status: string; phone_status: string; inbound_phone: string | null; allowed_domain: string | null; launch_checked_at: string | null };
 
 const statusLabels: Record<string, string> = {
   invited: "Invitation sent", setup: "Setup in progress", testing: "Testing", approved: "Awaiting launch", live: "Live",
@@ -29,17 +31,29 @@ export default async function ClientPortalPage() {
 
   const { data: membership, error: membershipError } = await supabase.from("customer_memberships")
     .select("customer_account_id").eq("user_id", user.id).maybeSingle();
-  const { data: accountData, error: accountQueryError } = membership
-    ? await supabase.from("customer_accounts").select("id,customer_id,business_name,handover_status,demo_id").eq("id", membership.customer_account_id).maybeSingle()
-    : { data: null, error: null };
+  let billingSchemaReady = true;
+  let accountData: Account | null = null;
+  let accountQueryError: { message?: string } | null = null;
+  if (membership) {
+    const current = await supabase.from("customer_accounts").select("id,customer_id,business_name,handover_status,demo_id,billing_status,billing_environment,website_status,phone_status,inbound_phone,allowed_domain,launch_checked_at").eq("id", membership.customer_account_id).maybeSingle();
+    if (!current.error) accountData = current.data as Account | null;
+    else {
+      billingSchemaReady = false;
+      const legacy = await supabase.from("customer_accounts").select("id,customer_id,business_name,handover_status,demo_id").eq("id", membership.customer_account_id).maybeSingle();
+      accountQueryError = legacy.error;
+      accountData = legacy.data ? { ...legacy.data, billing_status: "unpaid", billing_environment: null, website_status: "pending", phone_status: "pending", inbound_phone: null, allowed_domain: null, launch_checked_at: null } as Account : null;
+    }
+  }
   const accountError = membershipError || accountQueryError;
   const account = accountData as Account | null;
   const [savedProfile, leadResult] = account ? await Promise.all([
     loadSharedProfile(account.demo_id),
     account.handover_status === "live"
-      ? supabase.from("customer_leads").select("id,customer_name,customer_phone,customer_email,service_address,primary_need,preferred_timing,urgency,sales_outcome,sale_amount_usd,first_captured_at").eq("customer_account_id", account.id).order("first_captured_at", { ascending: false }).limit(50)
+      ? loadClientLeads(supabase, account.id)
       : Promise.resolve({ data: [] as ClientLead[], error: null }),
   ]) : [null, { data: [] as ClientLead[], error: null }];
+  const weeklyResult = account?.handover_status === "live" ? await supabase.rpc("get_client_weekly_report") : null;
+  const usageResult = account ? await supabase.rpc("get_client_monthly_usage") : null;
   const profile = savedProfile?.profile as BusinessProfile | undefined;
   const leads = (leadResult.data || []) as ClientLead[];
   const requestResult = account ? await supabase.from("handover_requests")
@@ -51,13 +65,19 @@ export default async function ClientPortalPage() {
       <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Customer ID</p>
       <p className="mt-1 text-lg font-bold text-slate-950">{account.customer_id}</p>
       <p className="mt-1 text-sm text-slate-600">{account.business_name} · {user.email}</p>
+      <p className="mt-2 text-sm text-slate-700">Billing: {account.billing_status.replaceAll("_", " ")}{account.billing_environment === "sandbox" ? " (sandbox test)" : ""}</p>
     </section>}
     {accountError ? <MessagePanel title="We’re finishing your account setup">Your client account database setup needs attention. Please contact PulseTech and we’ll help.</MessagePanel> : !account ? <section className="pt-portal-card rounded-[22px] border p-7">
       <h1 className="text-2xl font-semibold text-slate-950">No client account is connected</h1>
       <p className="mt-2 text-slate-600">This sign-in email is not linked to a PulseTech client account yet.</p>
       {admin && <div className="mt-7 border-t border-slate-200 pt-6"><h2 className="text-lg font-semibold">Invite a client</h2><p className="mt-1 text-sm text-slate-600">Connect an existing saved business profile to a client login.</p><ClientInviteForm /></div>}
-    </section> : account.handover_status === "live" ? <LiveDashboard account={account} profile={profile} leads={leads} leadTableReady={!leadResult.error} /> : <PreLaunchDashboard account={account} profile={profile} />}
+    </section> : account.handover_status === "live" ? <LiveDashboard account={account} profile={profile} leads={leads} leadTableReady={!leadResult.error} weekly={weeklyResult?.error ? null : (weeklyResult?.data?.[0] as { new_enquiries: number; converted_leads: number } | undefined) || null} /> : <PreLaunchDashboard account={account} profile={profile} />}
     <PlanPricingSection />
+    {account && billingSchemaReady && <UsageSummary usage={usageResult?.error ? null : (usageResult?.data?.[0] as { website_chat_conversations: number; inbound_voice_minutes: number } | undefined) || null} />}
+    {account && <ClientInstallation demoId={account.demo_id} domain={account.allowed_domain} phone={account.phone_status === "live" && account.billing_status === "paid" && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live") ? account.inbound_phone : null} baseUrl={(process.env.PULSETECH_PUBLIC_BASE_URL || "").replace(/\/$/, "")} enabled={billingSchemaReady && account.billing_status === "paid" && account.website_status === "live" && !!account.launch_checked_at && !!account.allowed_domain && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live")} />}
+    {account && <a href="/api/client/export" className="inline-block font-semibold text-blue-700 underline">Download your lead data</a>}
+    {admin && <Link href="/admin" className="ml-5 inline-block font-semibold text-blue-700 underline">PulseTech operations</Link>}
+    {account?.billing_status === "unpaid" && process.env.VERCEL_ENV !== "production" && <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-xl font-semibold">Start your setup</h2>{billingSchemaReady ? <ClientCheckout token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || ""} setupPriceId={process.env.NEXT_PUBLIC_PADDLE_SETUP_PRICE_ID || ""} monthlyPriceId={process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID || ""} /> : <p className="mt-3 text-sm text-slate-600">Secure online checkout is being enabled. Contact PulseTech for current payment instructions.</p>}</section>}
     {account && <section id="requests" className="pt-portal-card rounded-[26px] border p-6 sm:p-8">
       <h2 className="text-xl font-semibold text-slate-950">Your support requests</h2>
       <p className="mt-2 text-sm text-slate-600">Save a setup or support request and review its status here. For business instructions, use Peter.</p>
@@ -71,6 +91,15 @@ export default async function ClientPortalPage() {
     </section>}
     {admin && account && <section className="pt-portal-card rounded-[22px] border p-6"><h2 className="text-lg font-semibold">Invite another client</h2><ClientInviteForm /></section>}
   </PortalShell>;
+}
+
+async function loadClientLeads(supabase: Awaited<ReturnType<typeof createClient>>, accountId: string) {
+  const query = supabase.from("customer_leads").select("id,source,customer_name,customer_phone,customer_email,service_address,primary_need,preferred_timing,urgency,sales_outcome,sale_amount_usd,first_captured_at").eq("customer_account_id", accountId).order("first_captured_at", { ascending: false }).limit(50);
+  const current = await query;
+  if (!current.error) return current;
+  const legacy = await supabase.from("customer_leads").select("id,customer_name,customer_phone,customer_email,service_address,primary_need,preferred_timing,urgency,sales_outcome,sale_amount_usd,first_captured_at").eq("customer_account_id", accountId).order("first_captured_at", { ascending: false }).limit(50);
+  if (legacy.error) return current;
+  return { ...legacy, data: legacy.data.map((lead) => ({ ...lead, source: "website" as const })) };
 }
 
 function PreLaunchDashboard({ account, profile }: { account: Account; profile?: BusinessProfile }) {
@@ -90,24 +119,17 @@ function PreLaunchDashboard({ account, profile }: { account: Account; profile?: 
       <h2 className="mb-5 text-xl font-extrabold text-slate-950">Setup progress</h2>
       <ol className="grid gap-4 md:grid-cols-4">
         <ProgressStep number="1" title="Business details" state={profile ? "Saved from your demo" : "Being prepared"} active />
-        <ProgressStep number="2" title="Payment" state="PulseTech confirms payment before launch checks" active={false} />
+        <ProgressStep number="2" title="Payment" state={account.billing_status === "paid" ? account.billing_environment === "sandbox" ? "Sandbox payment verified" : "Payment verified" : "Payment confirmation pending"} active={account.billing_status === "paid"} />
         <ProgressStep number="3" title="PulseTech launch checks" state={account.handover_status === "testing" ? "In progress" : "Handled by PulseTech"} active={account.handover_status === "testing"} />
         <ProgressStep number="4" title="Install and go live" state={account.handover_status === "approved" ? "Ready to arrange" : "Instructions sent after checks"} />
       </ol>
     </section>
-    <div className="grid gap-5 md:grid-cols-2">
-      <BusinessCard profile={profile} demoUrl={demoUrl} />
-      <section id="installation" className="pt-portal-card rounded-[26px] border p-6">
-        <h2 className="text-lg font-semibold text-slate-950">Website installation</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">Installation is coordinated with PulseTech. We’ll provide and verify the website-specific install steps with you.</p>
-        <a href="mailto:contact@pulsetechlabs.com?subject=Website%20installation" className="pt-portal-secondary mt-5 inline-flex rounded-full border px-4 py-2.5 text-sm font-bold">Email about installation</a>
-      </section>
-    </div>
+    <BusinessCard profile={profile} demoUrl={demoUrl} />
     <SupportContact />
   </>;
 }
 
-function LiveDashboard({ account, profile, leads, leadTableReady }: { account: Account; profile?: BusinessProfile; leads: ClientLead[]; leadTableReady: boolean }) {
+function LiveDashboard({ account, profile, leads, leadTableReady, weekly }: { account: Account; profile?: BusinessProfile; leads: ClientLead[]; leadTableReady: boolean; weekly: { new_enquiries: number; converted_leads: number } | null }) {
   const alerts = [profile?.leadNotificationEmail, profile?.leadNotificationPhone].filter(Boolean);
   return <>
     <section id="overview" className="pt-portal-hero relative overflow-hidden rounded-[30px] px-6 py-8 text-white sm:px-9 sm:py-10">
@@ -117,8 +139,8 @@ function LiveDashboard({ account, profile, leads, leadTableReady }: { account: A
     </section>
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryCard label="Leads captured" value={leadTableReady ? String(leads.length) : "—"} note={leadTableReady ? "Recent enquiries saved in your account." : "Lead list setup is pending."} />
-      <SummaryCard label="Website chat" value="Live" note="Included in your AI Sales Employee service." green />
-      <SummaryCard label="Inbound phone" value="Live" note="Inbound calls only." green />
+      <SummaryCard label="Website chat" value={account.billing_status === "paid" ? account.website_status : "Suspended"} note="Status confirmed by PulseTech." green={account.billing_status === "paid" && account.website_status === "live"} />
+      <SummaryCard label="Inbound phone" value={account.billing_status === "paid" ? account.phone_status : "Suspended"} note={account.inbound_phone || "Number assignment pending."} green={account.billing_status === "paid" && account.phone_status === "live"} />
       <SummaryCard label="Lead alerts" value={alerts.length ? "Recipients saved" : "Check setup"} note={alerts.join(" · ") || "Confirm recipients with PulseTech."} green={alerts.length > 0} />
     </section>
     <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
@@ -130,7 +152,7 @@ function LiveDashboard({ account, profile, leads, leadTableReady }: { account: A
         <section id="assistant" className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-lg font-extrabold text-[#071d36]">Business instructions</h2><p className="mt-2 text-sm leading-6 text-[#5d6c7d]">Update services, hours, pricing, policies, and other business instructions through Peter. Peter confirms updates in chat after saving.</p><Link href={`/demo/${encodeURIComponent(account.demo_id)}`} className="pt-portal-button mt-4 inline-flex rounded-full px-5 py-2.5 text-sm font-extrabold">Review with Peter</Link></section>
       </div>
     </div>
-    <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-lg font-extrabold text-[#071d36]">Weekly report</h2><p className="mt-2 text-sm text-[#5d6c7d]">Weekly analytics are not available in this portal yet. Your lead alerts remain available by email and SMS.</p></section>
+    <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-lg font-extrabold text-[#071d36]">Last 7 days</h2><div className="mt-4 grid gap-4 sm:grid-cols-2"><SummaryCard label="New enquiries" value={weekly ? String(weekly.new_enquiries) : "—"} note="Saved website and phone enquiries." /><SummaryCard label="Marked as converted" value={weekly ? String(weekly.converted_leads) : "—"} note="Update an enquiry’s outcome in your lead list." /></div></section>
     <SupportContact />
   </>;
 }
@@ -202,6 +224,10 @@ function StatusPill({ label, tone }: { label: string; tone: "blue" | "green" }) 
 
 function SummaryCard({ label, value, note, green = false }: { label: string; value: string; note: string; green?: boolean }) {
   return <section className="pt-portal-card rounded-[22px] border p-5"><p className="text-sm font-bold text-[#66778b]">{label}</p><p className={`mt-2 text-xl font-extrabold ${green ? "text-[#14804a]" : "text-[#071d36]"}`}>{value}</p><p className="mt-2 text-xs leading-5 text-[#75869a]">{note}</p></section>;
+}
+
+function UsageSummary({ usage }: { usage: { website_chat_conversations: number; inbound_voice_minutes: number } | null }) {
+  return <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-xl font-bold text-slate-950">Included usage this month</h2><p className="mt-1 text-sm text-slate-600">Usage resets at the start of each UTC month. We will ask before agreeing to any extra charge.</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><SummaryCard label="Website chat conversations" value={usage ? `${usage.website_chat_conversations} / 1,000` : "—"} note="Further new conversations pause at the included limit." /><SummaryCard label="Inbound voice minutes" value={usage ? `${usage.inbound_voice_minutes} / 250` : "—"} note="Further inbound calls pause at the included limit." /></div>{!usage && <p className="mt-3 text-sm text-amber-800">Usage summary is temporarily unavailable. Contact support if you need current totals.</p>}</section>;
 }
 
 function ProgressStep({ number, title, state, active = false }: { number: string; title: string; state: string; active?: boolean }) {

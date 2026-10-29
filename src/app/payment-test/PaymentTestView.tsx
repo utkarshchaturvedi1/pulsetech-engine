@@ -21,7 +21,7 @@ type PaddleJs = {
     eventCallback?: (event: PaddleEvent) => void;
   }) => void;
   Checkout: {
-    open: (options: { items: { priceId: string; quantity: number }[] }) => void;
+    open: (options: { items: { priceId: string; quantity: number }[]; customData?: Record<string, string>; settings?: { showAddDiscounts?: boolean; allowDiscountRemoval?: boolean } }) => void;
   };
 };
 

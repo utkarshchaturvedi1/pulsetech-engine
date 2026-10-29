@@ -6,9 +6,11 @@ import {
   logInboundVoiceResolution,
   resolveInboundVoice,
   resolveVoiceDemoBoundCall,
+  type InboundVoiceResolution,
 } from "../../../../lib/inboundVoice";
 import { isVoiceDemoPublicNumber } from "../../../../lib/voiceDemoNumbers";
 import { lookupVoiceDemoCallBinding } from "../../../../lib/voiceDemoSession";
+import { clientVoiceMinutesAvailable } from "../../../../lib/clientService";
 
 function extractCallSid(payload: Record<string, unknown>): string {
   const direct = payload.call_sid ?? payload.CallSid;
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
   const calledNumber = extractCalledNumberFromInitiationPayload(payload);
   const callSid = extractCallSid(payload);
 
-  let resolution;
+  let resolution: InboundVoiceResolution;
   if (isVoiceDemoPublicNumber(calledNumber)) {
     // Never map a shared public demo number to a fixed business.
     // Only a CallSid binding created after access-code validation may resolve.
@@ -54,6 +56,10 @@ export async function POST(request: NextRequest) {
   } else {
     // Private / paying-client numbers (including Texas Solar test DID) — unchanged.
     resolution = await resolveInboundVoice(calledNumber);
+  }
+
+  if (resolution.ok && !(await clientVoiceMinutesAvailable(resolution.demoId))) {
+    resolution = { ok: false, calledNumber: resolution.calledNumber, demoId: resolution.demoId, reason: "service_unavailable" };
   }
 
   logInboundVoiceResolution(resolution);

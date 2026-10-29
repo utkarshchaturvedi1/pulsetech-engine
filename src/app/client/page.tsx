@@ -120,8 +120,8 @@ function PreLaunchDashboard({ account, profile }: { account: Account; profile?: 
       <ol className="grid gap-4 md:grid-cols-4">
         <ProgressStep number="1" title="Business details" state={profile ? "Saved from your demo" : "Being prepared"} active />
         <ProgressStep number="2" title="Payment" state={account.billing_status === "paid" ? account.billing_environment === "sandbox" ? "Sandbox payment verified" : "Payment verified" : "Payment confirmation pending"} active={account.billing_status === "paid"} />
-        <ProgressStep number="3" title="PulseTech launch checks" state={account.handover_status === "testing" ? "In progress" : "Handled by PulseTech"} active={account.handover_status === "testing"} />
-        <ProgressStep number="4" title="Install and go live" state={account.handover_status === "approved" ? "Ready to arrange" : "Instructions sent after checks"} />
+        <ProgressStep number="3" title="PulseTech launch checks" state={account.handover_status === "testing" ? "In progress" : account.handover_status === "approved" || account.handover_status === "live" ? "Passed" : "Not started"} active={account.handover_status === "testing"} />
+        <ProgressStep number="4" title="Install and go live" state={account.handover_status === "live" ? "Live" : account.handover_status === "approved" ? "Ready to release" : "Available after checks"} />
       </ol>
     </section>
     <BusinessCard profile={profile} demoUrl={demoUrl} />

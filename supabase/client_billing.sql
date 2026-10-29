@@ -1,4 +1,4 @@
--- Additive V1.2 billing foundation. Apply to isolated Preview first.
+-- Additive V1.2 billing foundation; validated in isolated PGlite before application.
 begin;
 alter table public.customer_accounts add column if not exists billing_status text not null default 'unpaid'
   check (billing_status in ('unpaid','paid','past_due','paused','canceled','refunded','disputed'));

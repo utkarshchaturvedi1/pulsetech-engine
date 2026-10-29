@@ -6,7 +6,7 @@
 - Staging alias: `https://staging.pulsetechlabs.com`.
 - The Vercel Preview project currently uses Supabase project `wzjpcesxfsuykefcijju` (PulseTech V1.2), shown as the `main PRODUCTION` database in Supabase.
 - The separate project `odyjjpnpstvevqalqsew` is isolated staging and is not wired to the current Preview. It is not a substitute for the active Preview database.
-- Do not apply the new migration to the `main PRODUCTION` database or promote/deploy to production without explicit approval for those exact actions.
+- The additive billing migration was applied to `wzjpcesxfsuykefcijju` on 29 October 2026 after the user approved the production database change. It was validated in isolated PGlite first. No customer rows were changed.
 
 ## Completed in the development branch
 
@@ -28,7 +28,7 @@
 
 ## Activation gates
 
-- The new SQL migration is tested locally but has not been applied to either Supabase project. The current Preview shares the production Supabase database, so applying it there is a production database change.
+- The SQL migration is applied and verified on the connected Supabase project. The current Preview shares that production database; this means the production schema is ready for the V1.2 server routes.
 - Production checkout and live Paddle webhooks remain disabled; the merchant's live account, live prices, and production callback have not been verified or enabled.
 - Phone activation requires the account's existing inbound number to be mapped and launch checks to be completed. No phone number purchase or provider change was made.
-- No production deployment, production environment change, or customer-account edit is part of this branch work.
+- No production application deployment, production environment change, or customer-account edit is part of this branch work. The running application remains on the staging Preview alias.

@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { safeClientRedirect } from "@/lib/clientAccess";
 import { claimDemoForUser } from "@/lib/clientDemoClaim";
-import { resolveCallbackDemoId } from "@/lib/authCallbackDestination";
+import { resolveCallbackClaimId, resolveCallbackDestination } from "@/lib/authCallbackDestination";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
@@ -18,26 +17,22 @@ export async function GET(request: NextRequest) {
         : await supabase.auth.verifyOtp({ token_hash: tokenHash!, type: otpType! });
       const { error } = result;
       if (!error) {
-        const next = safeClientRedirect(searchParams.get("next") || "/reset-password");
-        const nextUrl = new URL(next, origin);
-        const demoMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(nextUrl.pathname);
-        const requestedDemoId = demoMatch?.[1]
-          ? decodeURIComponent(demoMatch[1])
-          : nextUrl.pathname === "/demo" ? nextUrl.searchParams.get("id") : null;
+        const requestedNext = searchParams.get("next");
         const user = result.data.user ?? (await supabase.auth.getUser()).data.user;
         // Supabase's PKCE confirmation callback commonly returns a `code` without
         // a `type` query parameter. The signup demo ID is stored in user metadata,
         // so use it whenever there is no explicit destination demo. Requiring
         // `type=signup` here silently dropped the demo after email confirmation.
-        const demoId = resolveCallbackDemoId(searchParams.get("next"), user?.user_metadata?.pending_demo_id);
+        // Recovery and invitation links must not re-claim a previous signup demo.
+        // A stale or unavailable demo must never prevent password setup.
+        const demoId = resolveCallbackClaimId(requestedNext, user?.user_metadata?.pending_demo_id, otpType);
         if (demoId) {
           const claimResult = user ? await claimDemoForUser(demoId, user) : "conflict";
           if (claimResult !== "claimed" && claimResult !== "already-linked") {
             return NextResponse.redirect(new URL("/login?error=account", origin));
           }
-          if (!requestedDemoId) return NextResponse.redirect(new URL(`/demo?id=${encodeURIComponent(demoId)}`, origin));
         }
-        return NextResponse.redirect(new URL(next, origin));
+        return NextResponse.redirect(new URL(resolveCallbackDestination(requestedNext, demoId), origin));
       }
     } catch {
       // Missing auth configuration or an unavailable provider must not crash the callback.

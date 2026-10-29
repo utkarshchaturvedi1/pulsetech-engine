@@ -81,6 +81,11 @@ export const supabasePaddleNotificationStore: PaddleNotificationStore = {
         method: "POST",
         headers: {
           apikey: config.key,
+          // Legacy service_role keys are JWTs: PostgREST selects their role
+          // from Authorization. New sb_secret keys authenticate via apikey.
+          ...(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(config.key)
+            ? { Authorization: `Bearer ${config.key}` }
+            : {}),
           "Content-Type": "application/json",
           Prefer: "return=minimal",
         },

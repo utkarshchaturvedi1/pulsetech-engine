@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function ClientHandoverRequest() {
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -22,7 +24,7 @@ export default function ClientHandoverRequest() {
       if (!response.ok) throw new Error(result.error || "Could not send request.");
       form.reset();
       setMessage("Your handover request is saved to this client account.");
-      window.location.reload();
+      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not send request. Please try again.");
     } finally {

@@ -656,6 +656,41 @@ async function testStorageFailureCategories() {
   console.log("PASS — storage failure categories");
 }
 
+async function testSupabaseServiceKeyFormats() {
+  const previousUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const previousKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const originalFetch = globalThis.fetch;
+  // Synthetic, unsigned fixture: never a usable credential.
+  const legacyKey = `${Buffer.from('{"alg":"HS256"}').toString("base64url")}.${Buffer.from('{"role":"service_role"}').toString("base64url")}.testsignature`;
+  const record = {
+    eventId: paddleId("evt", "keyformats"), notificationId: paddleId("ntf", "keyformats"),
+    eventType: "transaction.completed" as const, occurredAt: new Date().toISOString(), payload: {},
+  };
+  try {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    for (const key of [legacyKey, "sb_secret_synthetic_test_key"]) {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = key;
+      globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+        const headers = new Headers(init?.headers);
+        assert(headers.get("apikey") === key, "both key formats authenticate on apikey");
+        const expectedBearer = key === legacyKey ? `Bearer ${key}` : null;
+        assert(headers.get("authorization") === expectedBearer, "legacy service role uses Bearer; opaque secrets must not be treated as JWTs");
+        // Reproduce the live PostgREST role-selection failure if the legacy
+        // JWT does not reach Authorization. No public-table policy is added.
+        return new Response(null, { status: headers.get("authorization") === expectedBearer ? 201 : 401 });
+      }) as typeof fetch;
+      assert(await supabasePaddleNotificationStore.saveIfNew(record) === "stored", "authenticated service can store the event");
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previousUrl;
+    if (previousKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = previousKey;
+  }
+  console.log("PASS — legacy JWT and opaque Supabase service keys");
+}
+
 async function main() {
   await testValidSignatureStoresEvent();
   await testInvalidSignatureDoesNotStore();
@@ -669,6 +704,7 @@ async function main() {
   await testLiveSimulationNotificationIdStoresInSupabase();
   await testStorageFailureCategories();
   await testWebhookSecretIsTrimmedBeforeVerification();
+  await testSupabaseServiceKeyFormats();
   console.log("All Paddle Sandbox webhook tests passed.");
 }
 

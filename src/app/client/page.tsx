@@ -7,6 +7,7 @@ import { loadSharedProfile } from "@/lib/sharedProfileStore";
 import "./portal-theme.css";
 import ClientInviteForm from "./ClientInviteForm";
 import ClientSignOutButton from "./ClientSignOutButton";
+import ClientHandoverRequest from "./ClientHandoverRequest";
 import ClientLeadTable, { type ClientLead } from "./ClientLeadTable";
 import type { BusinessProfile } from "@/types/business";
 
@@ -41,14 +42,33 @@ export default async function ClientPortalPage() {
   ]) : [null, { data: [] as ClientLead[], error: null }];
   const profile = savedProfile?.profile as BusinessProfile | undefined;
   const leads = (leadResult.data || []) as ClientLead[];
+  const requestResult = account ? await supabase.from("handover_requests")
+    .select("id,subject,details,status,created_at").eq("customer_account_id", account.id)
+    .order("created_at", { ascending: false }).limit(20) : null;
 
   return <PortalShell email={user.email || ""} showLeads={account?.handover_status === "live"}>
+    {account && <section className="pt-portal-card rounded-[22px] border p-5" aria-label="Account details">
+      <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Customer ID</p>
+      <p className="mt-1 text-lg font-bold text-slate-950">{account.customer_id}</p>
+      <p className="mt-1 text-sm text-slate-600">{account.business_name} · {user.email}</p>
+    </section>}
     {accountError ? <MessagePanel title="We’re finishing your account setup">Your client account database setup needs attention. Please contact PulseTech and we’ll help.</MessagePanel> : !account ? <section className="pt-portal-card rounded-[22px] border p-7">
       <h1 className="text-2xl font-semibold text-slate-950">No client account is connected</h1>
       <p className="mt-2 text-slate-600">This sign-in email is not linked to a PulseTech client account yet.</p>
       {admin && <div className="mt-7 border-t border-slate-200 pt-6"><h2 className="text-lg font-semibold">Invite a client</h2><p className="mt-1 text-sm text-slate-600">Connect an existing saved business profile to a client login.</p><ClientInviteForm /></div>}
     </section> : account.handover_status === "live" ? <LiveDashboard account={account} profile={profile} leads={leads} leadTableReady={!leadResult.error} /> : <PreLaunchDashboard account={account} profile={profile} />}
     <PlanPricingSection />
+    {account && <section id="requests" className="pt-portal-card rounded-[26px] border p-6 sm:p-8">
+      <h2 className="text-xl font-semibold text-slate-950">Your support requests</h2>
+      <p className="mt-2 text-sm text-slate-600">Save a setup or support request and review its status here. For business instructions, use Peter.</p>
+      <ClientHandoverRequest />
+      {requestResult?.error ? <p role="status" className="mt-5 text-sm text-amber-900">Request history is temporarily unavailable. Please try again or contact support.</p>
+        : requestResult?.data?.length ? <ul className="mt-6 space-y-4">{requestResult.data.map((request) => <li key={request.id} className="rounded-xl border border-slate-200 p-4">
+          <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold text-slate-950">{request.subject}</h3><span className="text-sm text-blue-700">{({ received: "Received", in_progress: "In progress", resolved: "Resolved" } as Record<string, string>)[request.status] || "Status unavailable"}</span></div>
+          <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-600">{request.details}</p>
+          <p className="mt-2 text-xs text-slate-500">{new Date(request.created_at).toISOString().replace("T", " ").slice(0, 16)} UTC</p>
+        </li>)}</ul> : <p className="mt-5 text-sm text-slate-500">No saved requests yet.</p>}
+    </section>}
     {admin && account && <section className="pt-portal-card rounded-[22px] border p-6"><h2 className="text-lg font-semibold">Invite another client</h2><ClientInviteForm /></section>}
   </PortalShell>;
 }

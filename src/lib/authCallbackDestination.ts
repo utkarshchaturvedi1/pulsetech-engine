@@ -15,3 +15,15 @@ export function resolveCallbackDemoId(nextPath: string | null, pendingDemoId: un
   const sanitized = sanitizeDemoId(candidate);
   return /^[a-z0-9_-]{2,120}$/i.test(sanitized) ? sanitized : null;
 }
+
+/** An explicit recovery/invitation destination must survive old signup metadata. */
+export function resolveCallbackDestination(nextPath: string | null, demoId: string | null): string {
+  if (nextPath) return safeClientRedirect(nextPath);
+  return demoId ? `/demo?id=${encodeURIComponent(demoId)}` : "/reset-password";
+}
+
+export function resolveCallbackClaimId(nextPath: string | null, pendingDemoId: unknown, type: string | null): string | null {
+  const destination = new URL(safeClientRedirect(nextPath), "https://pulsetech.invalid");
+  if (destination.pathname === "/reset-password" || type === "recovery" || type === "invite") return null;
+  return resolveCallbackDemoId(nextPath, pendingDemoId);
+}

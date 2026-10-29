@@ -199,7 +199,7 @@ function PlanPricingSection() {
       </article>
     </div>
     <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-slate-700"><strong>Monthly usage included:</strong> up to 1,000 website chat conversations and 250 inbound voice minutes per billing month. Additional usage or charges require your written agreement first.</p>
-    <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-slate-700">Future add-ons such as calendar management are not included unless we agree on scope and price first. You will approve any additional charge before it is added.</p>
+    
     <p className="mt-5 text-sm text-slate-600">Questions about billing or cancellation? <a className="font-semibold text-blue-700 underline" href="mailto:contact@pulsetechlabs.com?subject=PulseTech%20billing">Contact PulseTech support</a>.</p>
   </section>;
 }

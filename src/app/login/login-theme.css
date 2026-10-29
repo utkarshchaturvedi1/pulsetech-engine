@@ -1,0 +1,19 @@
+.pt-login {
+  background:
+    radial-gradient(circle at 86% 12%, rgba(119, 86, 255, .10), transparent 22rem),
+    radial-gradient(circle at 9% 74%, rgba(36, 107, 254, .08), transparent 24rem),
+    #f5f5f7;
+  color: #111217;
+  font-family: var(--font-landing-sans), "Plus Jakarta Sans", sans-serif;
+}
+
+.pt-login-card {
+  background: rgba(255, 255, 255, .95);
+  border-color: rgba(17, 18, 23, .09);
+  box-shadow: 0 26px 76px rgba(17, 18, 23, .09);
+}
+
+.pt-login input { min-height: 48px; }
+.pt-login input:focus-visible { outline: 3px solid rgba(36, 107, 254, .2); }
+.pt-login-submit { background: linear-gradient(110deg, #246bfe, #4b57ee); box-shadow: 0 9px 25px rgba(36, 107, 254, .22); }
+.pt-login-submit:hover { background: linear-gradient(110deg, #185de9, #4248d7); }

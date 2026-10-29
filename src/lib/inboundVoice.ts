@@ -12,12 +12,14 @@ import {
 } from "./schedulingPolicy";
 import { isVoiceDemoPublicNumber } from "./voiceDemoNumbers";
 import { lookupVoiceDemoCallBinding } from "./voiceDemoSession";
+import { clientService, phoneServiceEnabled } from "./clientService";
 
 export type InboundVoiceFallbackReason =
   | "missing_called_number"
   | "unknown_number"
   | "profile_not_found"
-  | "invalid_profile";
+  | "invalid_profile"
+  | "service_unavailable";
 
 export type InboundVoiceResolution =
   | {
@@ -370,6 +372,21 @@ export async function resolveInboundVoice(
       demoId,
       reason: "invalid_profile",
     };
+  }
+
+  // Number-map entries for existing non-client demos remain unchanged. Once a
+  // demo belongs to a client account, enforce its verified paid phone channel.
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const account = await clientService(demoId);
+      if (account && !phoneServiceEnabled(account)) {
+        return { ok: false, calledNumber, demoId, reason: "service_unavailable" };
+      }
+    } catch {
+      return { ok: false, calledNumber, demoId, reason: "service_unavailable" };
+    }
+  } else if (process.env.VERCEL_ENV === "production") {
+    return { ok: false, calledNumber, demoId, reason: "service_unavailable" };
   }
 
   return { ok: true, calledNumber, demoId, demo };

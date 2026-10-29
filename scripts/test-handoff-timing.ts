@@ -153,7 +153,7 @@ async function main() {
   // -------- TEST 1 — FALSE YES --------
   const standingWater = "Yes, there is standing water and it is urgent.";
   assert(!detectCustomerAgreement(standingWater), "TEST1: agreement false");
-  let s1 = applyTurn(
+  const s1 = applyTurn(
     qualifiedBase({ urgency: "NONE" }),
     standingWater,
     "Is there standing water, an active leak, or sewage backup?"
@@ -176,7 +176,7 @@ async function main() {
   // -------- TEST 2 — ACCESS INFORMATION --------
   const pet = "Yes, I have a dog.";
   assert(!detectCustomerAgreement(pet), "TEST2: not agreement");
-  let s2 = applyTurn(qualifiedBase(), pet, "Any access notes?");
+  const s2 = applyTurn(qualifiedBase(), pet, "Any access notes?");
   assert(s2.customerAgreed === false, "TEST2: not agreed");
   assert(!isClosureHandoffTrigger(s2), "TEST2: not closure trigger");
   assert(!shouldAttemptLeadHandoff(s2, "closure", pet), "TEST2: no email");
@@ -185,7 +185,7 @@ async function main() {
   // -------- TEST 3 — GENUINE CLOSURE (dry-run SMTP) --------
   const closeMsg = "Yes, let's do it.";
   assert(detectCustomerAgreement(closeMsg), "TEST3: agreement true");
-  let s3 = applyTurn(
+  const s3 = applyTurn(
     qualifiedBase({ preferredTiming: "tomorrow morning" }),
     closeMsg,
     "Would you like to move forward?"

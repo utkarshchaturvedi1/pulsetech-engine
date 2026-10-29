@@ -126,6 +126,8 @@ export default function PulseTechEngineChat({
     setShowProgress(false);
     setProgress(100);
     if (business && shouldCollectLeadAlertSetup(business)) {
+      // This effect completes the no-analysis invitation setup state machine.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPhase("collecting_email");
     } else {
       setPhase("ready");

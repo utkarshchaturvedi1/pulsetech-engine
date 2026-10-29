@@ -11,6 +11,7 @@ import {
   ProfileUpdateConflict,
 } from "../../../lib/sharedProfileStore";
 import { applyOwnerFeedbackToProfile } from "../../../lib/updateBusinessProfile";
+import { authorizeProfileAccess } from "../../../lib/authorizeProfileAccess";
 
 function isBusinessProfile(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -53,6 +54,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const access = await authorizeProfileAccess(demoId, "write");
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
     const stored = await loadSharedProfile(demoId);
     const base = stored?.profile;
     if (!base) {

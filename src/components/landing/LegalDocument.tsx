@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import SiteFooter from "./SiteFooter";
 import "./landing.css";
@@ -29,11 +31,11 @@ export default function LegalDocument({
         <div className="pt-content">
           <header className="pt-header sticky top-0 z-40">
             <div className="pt-header-inner">
-              <a href="/" className="shrink-0 py-1" aria-label="PulseTech Labs">
-                <img src={PULSETECH_LOGO} alt="PulseTech Labs" className="pt-logo" />
-              </a>
+              <Link href="/" className="shrink-0 py-1" aria-label="PulseTech Labs">
+                <Image src={PULSETECH_LOGO} alt="PulseTech Labs" className="pt-logo" width={180} height={38} />
+              </Link>
               <nav className="pt-legal-header-nav" aria-label="Support">
-                <a href="/">Home</a>
+                <Link href="/">Home</Link>
                 <a href={CONTACT_MAILTO}>Contact &amp; Support</a>
               </nav>
             </div>

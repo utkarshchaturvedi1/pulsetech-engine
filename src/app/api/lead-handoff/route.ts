@@ -15,6 +15,7 @@ import {
   normalizeSalesState,
   SalesState,
 } from "../../../lib/salesState";
+import { persistLiveClientLead } from "../../../lib/persistClientLead";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") {
@@ -108,6 +109,14 @@ export async function POST(request: NextRequest) {
     );
     salesState = applyLeadDeliveryResult(salesState, handoff);
     scheduleLeadAlertDelivery(after, handoff.delivery);
+
+    // Persist regardless of whether the alert was delivered. The customer lead
+    // record and email/SMS delivery are independent outcomes.
+    try {
+      await persistLiveClientLead(body.demoId, salesState);
+    } catch (error) {
+      console.error("[lead-handoff] portal lead persistence failed", error);
+    }
 
     return NextResponse.json({
       salesState,

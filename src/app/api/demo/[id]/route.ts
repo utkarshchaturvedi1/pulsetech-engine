@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { BusinessProfile } from "../../../../types/business";
 import { loadSharedProfile, commitSharedProfile, ProfileUpdateConflict } from "../../../../lib/sharedProfileStore";
 import { sanitizeDemoId } from "../../../../lib/demoRepository";
+import { authorizeProfileAccess } from "../../../../lib/authorizeProfileAccess";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") return false;
@@ -18,6 +19,8 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    const access = await authorizeProfileAccess(sanitizeDemoId(id), "read");
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
     const demo = await loadSharedProfile(id);
 
     if (!demo) {
@@ -57,6 +60,8 @@ export async function PUT(
         { status: 400 }
       );
     }
+    const access = await authorizeProfileAccess(demoId, "write");
+    if (!access.allowed) return NextResponse.json({ error: access.error }, { status: access.status });
     const stored = await loadSharedProfile(demoId);
     // This endpoint saves onboarding alert recipients. Owner instruction edits
     // go through /api/update-profile; a stale onboarding tab cannot revive an

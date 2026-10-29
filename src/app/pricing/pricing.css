@@ -1,0 +1,77 @@
+.pt-pricing-page {
+  --pt-ink: #111217;
+  --pt-muted: #626675;
+  --pt-blue: #246bfe;
+  --pt-green: #c9ff55;
+  min-height: 100vh;
+  color: var(--pt-ink);
+  background:
+    radial-gradient(circle at 80% 8%, rgba(119, 86, 255, .1), transparent 22rem),
+    radial-gradient(circle at 10% 28%, rgba(36, 107, 254, .08), transparent 24rem),
+    #f5f5f7;
+  font-family: var(--font-pricing-sans), Inter, system-ui, sans-serif;
+}
+
+.pt-pricing-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid rgba(17, 18, 23, .08);
+  background: rgba(245, 245, 247, .88);
+  backdrop-filter: blur(18px);
+}
+
+.pt-pricing-nav {
+  width: min(1180px, calc(100% - 36px));
+  min-height: 76px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.pt-pricing-nav img { width: 168px; height: auto; }
+.pt-pricing-links { display: flex; align-items: center; gap: 22px; }
+.pt-pricing-links a { color: #4f5360; font-size: 13px; font-weight: 700; text-decoration: none; }
+.pt-pricing-links a:hover { color: var(--pt-blue); }
+
+.pt-pricing-main { width: min(1040px, calc(100% - 36px)); margin: 0 auto; padding: 72px 0 90px; }
+.pt-pricing-intro { max-width: 760px; margin: 0 auto 42px; text-align: center; }
+.pt-pricing-kicker { margin: 0 0 16px; color: #5f48e8; font-size: 11px; font-weight: 900; letter-spacing: .18em; }
+.pt-pricing-intro h1 { margin: 0; font-size: clamp(42px, 7vw, 68px); font-weight: 800; letter-spacing: -.055em; line-height: .98; }
+.pt-pricing-intro > p:last-child { max-width: 650px; margin: 20px auto 0; color: var(--pt-muted); font-size: 16px; line-height: 1.7; }
+
+.pt-pricing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
+.pt-price-card { border: 1px solid rgba(17, 18, 23, .08); border-radius: 28px; padding: clamp(24px, 4vw, 38px); box-shadow: 0 24px 65px rgba(32, 36, 55, .08); }
+.pt-setup-card { background: rgba(255, 255, 255, .95); }
+.pt-monthly-card { background: #111217; color: #fff; box-shadow: 0 28px 75px rgba(22, 25, 44, .19); }
+.pt-price-label { margin: 0; color: #5c6270; font-size: 13px; font-weight: 800; }
+.pt-monthly-card .pt-price-label { color: #c9ff55; }
+.pt-price-amount { margin: 15px 0 0; color: inherit; font-size: clamp(48px, 6vw, 66px); font-weight: 800; letter-spacing: -.065em; line-height: 1; }
+.pt-price-amount > span { margin-right: 3px; color: var(--pt-blue); font-size: .58em; vertical-align: top; }
+.pt-monthly-card .pt-price-amount > span { color: #c9ff55; }
+.pt-price-amount small { margin-left: 6px; color: #8e929e; font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.pt-price-caption { min-height: 52px; margin: 14px 0 20px; color: #656a78; font-size: 14px; line-height: 1.6; }
+.pt-monthly-card .pt-price-caption { color: #b2b5bf; }
+.pt-price-card ul { display: grid; gap: 13px; margin: 0; padding: 0; list-style: none; }
+.pt-price-card li { position: relative; padding-left: 26px; color: #424653; font-size: 13px; line-height: 1.55; }
+.pt-price-card li::before { position: absolute; left: 0; top: 0; color: #246bfe; content: "✓"; font-weight: 900; }
+.pt-monthly-card li { color: #e3e4e9; }
+.pt-monthly-card li::before { color: #c9ff55; }
+.pt-coming-soon { margin: 22px 0 0; border-top: 1px solid rgba(255,255,255,.14); padding-top: 17px; color: #b2b5bf; font-size: 12px; }
+
+.pt-pricing-note { max-width: 780px; margin: 26px auto 0; padding: 28px; border: 1px solid rgba(36,107,254,.12); border-radius: 24px; background: linear-gradient(130deg, rgba(255,255,255,.96), rgba(237,242,255,.9)); text-align: center; }
+.pt-pricing-note h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.03em; }
+.pt-pricing-note p { max-width: 620px; margin: 10px auto 18px; color: #626675; font-size: 14px; line-height: 1.65; }
+.pt-pricing-note a { display: inline-flex; align-items: center; gap: 9px; border-radius: 999px; background: #111217; padding: 13px 20px; color: #fff; font-size: 13px; font-weight: 800; text-decoration: none; }
+.pt-pricing-note a:hover { background: #246bfe; }
+
+@media (max-width: 700px) {
+  .pt-pricing-main { padding-top: 50px; }
+  .pt-pricing-grid { grid-template-columns: 1fr; }
+  .pt-pricing-nav img { width: 145px; }
+  .pt-pricing-links { gap: 14px; }
+  .pt-pricing-links a { font-size: 12px; }
+  .pt-price-caption { min-height: auto; }
+}

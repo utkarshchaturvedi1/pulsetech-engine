@@ -181,10 +181,10 @@ export default function LandingPage() {
 
         <section className="pt-final-cta">
           <div className="pt-final-orb" aria-hidden="true" />
-          <p className="pt-eyebrow">YOUR NEXT INQUIRY COULD ARRIVE ANY MOMENT</p>
-          <h2>Ready to see yours in action?</h2>
-          <p>Experience your AI Sales Employee with your own business.</p>
-          <button className="pt-button" onClick={focusLiveChat}>Experience Your AI Sales Employee</button>
+          <p className="pt-eyebrow">PULSETECH ACCOUNT</p>
+          <h2>Welcome back.</h2>
+          <p>Log in to open your dashboard, manage your assistant, and follow up on leads.</p>
+          <Link className="pt-button" href="/login">Log in</Link>
         </section>
       </main>
       <SiteFooter />

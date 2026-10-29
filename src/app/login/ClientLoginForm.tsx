@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type ClientLoginFormProps = {
@@ -138,7 +139,9 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
       </>}
       <button disabled={busy} className="pt-login-submit w-full rounded-full bg-blue-700 px-4 py-3 font-bold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60" type="submit">{busy ? "Please wait…" : resetMode ? "Send reset link" : signupMode ? "Create free account" : "Log in"}</button>
       {resetMode && <button type="button" onClick={() => { setResetMode(false); setMessage(""); }} className="w-full text-sm font-medium text-blue-700 hover:underline">Back to log in</button>}
-      {!resetMode && <button type="button" onClick={() => { setSignupMode(!signupMode); setPassword(""); setMessage(""); }} className="w-full text-sm font-semibold text-blue-700 hover:underline">{signupMode ? "Already have an account? Log in" : "Create a free account"}</button>}
+      {!resetMode && (signupMode
+        ? <button type="button" onClick={() => { setSignupMode(false); setPassword(""); setMessage(""); }} className="w-full text-sm font-semibold text-blue-700 hover:underline">Already have an account? Log in</button>
+        : <Link href="/signup" className="block w-full text-center text-sm font-semibold text-blue-700 hover:underline">Create a free account</Link>)}
       {message && <p aria-live="polite" className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">{message}</p>}
     </form>
   );

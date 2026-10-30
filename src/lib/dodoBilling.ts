@@ -134,7 +134,40 @@ export function dodoApiEnvironment() {
   return process.env.VERCEL_ENV === "production" ? "live_mode" : "test_mode";
 }
 
+export type DodoCheckoutConfig = {
+  environment: "live" | "sandbox";
+  apiKey: string;
+  webhookKey: string;
+  setupProductId: string;
+  monthlyProductId: string;
+};
+
+/** Same Dodo checkout/webhook flow in both environments, with strictly separate credentials. */
+export function dodoCheckoutConfig(): DodoCheckoutConfig | null {
+  const production = process.env.VERCEL_ENV === "production";
+  const previewTest = process.env.VERCEL_ENV === "preview" && process.env.DODO_TEST_ENABLED === "true";
+  if (!production && !previewTest) return null;
+  if (production && process.env.DODO_LIVE_ENABLED !== "true") return null;
+
+  const config: DodoCheckoutConfig = production ? {
+    environment: "live",
+    apiKey: process.env.DODO_PAYMENTS_API_KEY?.trim() || "",
+    webhookKey: process.env.DODO_PAYMENTS_WEBHOOK_KEY?.trim() || "",
+    setupProductId: process.env.DODO_SETUP_PRODUCT_ID?.trim() || "",
+    monthlyProductId: process.env.DODO_MONTHLY_PRODUCT_ID?.trim() || "",
+  } : {
+    environment: "sandbox",
+    apiKey: process.env.DODO_TEST_API_KEY?.trim() || "",
+    webhookKey: process.env.DODO_TEST_WEBHOOK_KEY?.trim() || "",
+    setupProductId: process.env.DODO_TEST_SETUP_PRODUCT_ID?.trim() || "",
+    monthlyProductId: process.env.DODO_TEST_MONTHLY_PRODUCT_ID?.trim() || "",
+  };
+
+  return config.apiKey && config.webhookKey && config.setupProductId && config.monthlyProductId
+    ? config
+    : null;
+}
+
 export function dodoCheckoutEnabled() {
-  return process.env.VERCEL_ENV === "production" && process.env.DODO_LIVE_ENABLED === "true" &&
-    Boolean(process.env.DODO_PAYMENTS_API_KEY && process.env.DODO_SETUP_PRODUCT_ID && process.env.DODO_MONTHLY_PRODUCT_ID && process.env.DODO_PAYMENTS_WEBHOOK_KEY);
+  return dodoCheckoutConfig() !== null;
 }

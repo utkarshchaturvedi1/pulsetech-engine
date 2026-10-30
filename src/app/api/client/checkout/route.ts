@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { billingAdmin, billingTokenHash, newBillingToken } from "@/lib/clientBilling";
 import { configuredCheckoutProviders, type CheckoutProvider } from "@/lib/billingProviders";
+import { dodoCheckoutConfig } from "@/lib/dodoBilling";
 
 export async function POST(request: Request) {
   if (request.headers.get("origin") !== new URL(request.url).origin) return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
@@ -33,6 +34,10 @@ export async function POST(request: Request) {
 
     const token = newBillingToken();
     const environment = process.env.VERCEL_ENV === "production" ? "live" : "sandbox";
+    const dodoConfig = provider === "dodo" ? dodoCheckoutConfig() : null;
+    if (provider === "dodo" && !dodoConfig) {
+      return NextResponse.json({ error: "Dodo checkout is not configured for this environment." }, { status: 503 });
+    }
     const { data: intent, error: intentError } = await admin.from("checkout_intents").insert({
       customer_account_id: membership.customer_account_id,
       token_hash: billingTokenHash(token), environment, provider,
@@ -43,12 +48,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ provider, customData: { pulsetech_checkout_id: intent.id, pulsetech_checkout_token: token } }, { headers: { "Cache-Control": "no-store" } });
     }
 
-    const apiKey = process.env.DODO_PAYMENTS_API_KEY?.trim();
-    const setupProductId = process.env.DODO_SETUP_PRODUCT_ID?.trim();
-    const monthlyProductId = process.env.DODO_MONTHLY_PRODUCT_ID?.trim();
+    const apiKey = dodoConfig?.apiKey;
+    const setupProductId = dodoConfig?.setupProductId;
+    const monthlyProductId = dodoConfig?.monthlyProductId;
     const origin = process.env.PULSETECH_PUBLIC_BASE_URL?.trim().replace(/\/$/, "") || new URL(request.url).origin;
     if (!apiKey || !setupProductId || !monthlyProductId) throw new Error("Dodo checkout is missing secure configuration.");
-    const base = environment === "live" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
+    const base = dodoConfig?.environment === "live" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
     const response = await fetch(`${base}/checkouts`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },

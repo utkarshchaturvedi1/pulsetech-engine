@@ -24,6 +24,17 @@ Add these Production environment variables in Vercel:
 
 In the Dodo Live dashboard, create a webhook endpoint for `https://www.pulsetechlabs.com/api/dodo/webhook`. Subscribe to `payment.succeeded`, subscription active/renewed/on-hold/past-due/paused/unpaused/cancelled/expired/failed, `refund.succeeded`, and `dispute.opened`. Put that endpoint's signing secret in `DODO_PAYMENTS_WEBHOOK_KEY` as a Vercel Production Secret. Do not use a Test-mode API key or webhook secret in Production.
 
+## Safe Dodo Test Mode on Preview
+
+The same checkout and webhook handlers run on Preview in Dodo Test Mode when all of these are configured for the Vercel Preview environment only:
+
+- `DODO_TEST_ENABLED=true`
+- `DODO_TEST_API_KEY` (Dodo Test Mode API key)
+- `DODO_TEST_WEBHOOK_KEY` (signing secret from the Test Mode webhook endpoint)
+- `DODO_TEST_SETUP_PRODUCT_ID` and `DODO_TEST_MONTHLY_PRODUCT_ID` (Test Mode product IDs)
+
+Create the test webhook endpoint at `https://staging.pulsetechlabs.com/api/dodo/webhook` and subscribe it to the same event types listed above. Production continues to read only the live `DODO_*` variables. Preview reads only `DODO_TEST_*` variables and stores test billing events with the `sandbox` environment. Never copy live credentials or product IDs into Preview.
+
 ## Paddle fallback
 
 Paddle is kept as a second provider. It is exposed in Production only after the domain is approved and the following Production values are configured:

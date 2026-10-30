@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { billingAdmin } from "@/lib/clientBilling";
-import { dodoBillingCommand, verifyDodoSignature } from "@/lib/dodoBilling";
+import { dodoBillingCommand, dodoCheckoutConfig, verifyDodoSignature } from "@/lib/dodoBilling";
 
 export async function POST(request: Request) {
-  if (process.env.VERCEL_ENV !== "production") return NextResponse.json({ error: "Live Dodo events are disabled outside Production." }, { status: 403 });
+  const config = dodoCheckoutConfig();
+  if (!config) return NextResponse.json({ error: "Dodo events are not configured for this environment." }, { status: 403 });
   const rawBody = await request.text();
   const webhookId = request.headers.get("webhook-id");
   const timestamp = request.headers.get("webhook-timestamp");
   const signature = request.headers.get("webhook-signature");
-  const secret = process.env.DODO_PAYMENTS_WEBHOOK_KEY?.trim() || "";
-  if (!verifyDodoSignature({ rawBody, webhookId, timestamp, signature, secret })) {
+  if (!verifyDodoSignature({ rawBody, webhookId, timestamp, signature, secret: config.webhookKey })) {
     return NextResponse.json({ error: "Invalid webhook signature." }, { status: 401 });
   }
   let event: unknown;
@@ -17,15 +17,15 @@ export async function POST(request: Request) {
   catch { return NextResponse.json({ error: "Invalid webhook payload." }, { status: 400 }); }
   const command = dodoBillingCommand({
     webhookId: webhookId!, event,
-    setupProductId: process.env.DODO_SETUP_PRODUCT_ID || "",
-    monthlyProductId: process.env.DODO_MONTHLY_PRODUCT_ID || "",
+    setupProductId: config.setupProductId,
+    monthlyProductId: config.monthlyProductId,
   });
   if (!command) return NextResponse.json({ received: true, applied: false });
   const completeCommand = {
     ...command,
-    environment: "live",
-    setupProductId: process.env.DODO_SETUP_PRODUCT_ID,
-    monthlyProductId: process.env.DODO_MONTHLY_PRODUCT_ID,
+    environment: config.environment,
+    setupProductId: config.setupProductId,
+    monthlyProductId: config.monthlyProductId,
   };
   try {
     const { error } = await billingAdmin().rpc("apply_dodo_billing_event", { command: completeCommand });

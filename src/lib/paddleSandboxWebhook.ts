@@ -122,6 +122,31 @@ export const supabasePaddleNotificationStore: PaddleNotificationStore = {
   },
 };
 
+/** Production Paddle notifications are stored separately from sandbox deliveries. */
+export const supabasePaddleLiveNotificationStore: PaddleNotificationStore = {
+  async saveIfNew(record) {
+    const config = supabaseConfig();
+    if (!config) throw new PaddleStoreUnavailable("Supabase is not configured.");
+    let response: Response;
+    try {
+      response = await fetch(config.url + "/rest/v1/paddle_live_notifications", {
+        method: "POST",
+        headers: {
+          apikey: config.key,
+          ...(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(config.key) ? { Authorization: `Bearer ${config.key}` } : {}),
+          "Content-Type": "application/json", Prefer: "return=minimal",
+        },
+        body: JSON.stringify({ event_id: record.eventId, notification_id: record.notificationId, event_type: record.eventType, occurred_at: record.occurredAt, payload: record.payload }),
+      });
+    } catch {
+      throw new PaddleStoreUnavailable("Could not store the Paddle notification.");
+    }
+    if (response.status === 409) return "duplicate";
+    if (response.ok) return "stored";
+    throw new PaddleStoreUnavailable("Could not store the Paddle notification.");
+  },
+};
+
 export function paddleSandboxWebhookSecret(): string {
   return process.env.PADDLE_SANDBOX_WEBHOOK_SECRET?.trim() || "";
 }
@@ -136,8 +161,8 @@ export function isPaddleSandboxWebhookRuntime(vercelEnv: string | undefined): bo
 }
 
 /** A configured destination secret is required. A prefix does not prove the environment. */
-export function isConfiguredWebhookSecret(secret: string): boolean {
-  return secret.length > 0 && !secret.startsWith("live_");
+export function isConfiguredWebhookSecret(secret: string, allowLive = false): boolean {
+  return secret.length > 0 && (allowLive || !secret.startsWith("live_"));
 }
 
 /**
@@ -287,15 +312,17 @@ export async function handlePaddleSandboxWebhook(input: {
   nowMs?: number;
   /** Pass VERCEL_ENV from the route. "production" is always rejected. */
   vercelEnv?: string;
+  /** Used only by the separately configured live Paddle endpoint. */
+  allowLive?: boolean;
   processNotification?: (record: PaddleSandboxNotification) => Promise<void>;
 }): Promise<HandlerResult> {
   // Sandbox notifications are accepted only outside production; the optional
   // processor applies account changes after the verified event is stored.
-  if (!isPaddleSandboxWebhookRuntime(input.vercelEnv)) {
+  if (!input.allowLive && !isPaddleSandboxWebhookRuntime(input.vercelEnv)) {
     return { status: 403, body: { error: "Sandbox webhook is not available in production." } };
   }
-  if (!isConfiguredWebhookSecret(input.secret)) {
-    return { status: 503, body: { error: "Sandbox webhook is not configured." } };
+  if (!isConfiguredWebhookSecret(input.secret, input.allowLive)) {
+    return { status: 503, body: { error: input.allowLive ? "Live webhook is not configured." : "Sandbox webhook is not configured." } };
   }
   if (!verifyPaddleSandboxSignature(input.rawBody, input.signatureHeader, input.secret, input.nowMs)) {
     return { status: 401, body: { error: "Invalid signature" } };

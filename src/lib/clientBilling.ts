@@ -77,9 +77,13 @@ export function billingCommand(record: PaddleSandboxNotification, setupPriceId: 
   return null;
 }
 
-export async function applySandboxBilling(record: PaddleSandboxNotification) {
+export async function applyPaddleBilling(record: PaddleSandboxNotification, environment: "sandbox" | "live") {
   const command = billingCommand(record, process.env.NEXT_PUBLIC_PADDLE_SETUP_PRICE_ID || "", process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID || "");
   if (!command) return;
-  const { data, error } = await billingAdmin().rpc("apply_client_billing_event", { command });
+  const { data, error } = await billingAdmin().rpc("apply_client_billing_event", { command: { ...command, environment } });
   if (error || data === "deferred") throw new Error("Billing application needs retry.");
+}
+
+export async function applySandboxBilling(record: PaddleSandboxNotification) {
+  return applyPaddleBilling(record, "sandbox");
 }

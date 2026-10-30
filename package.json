@@ -17,6 +17,7 @@
     "test:auth-callback": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-auth-callback.ts",
     "test:profile-access": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-profile-access.ts",
     "test:paddle-sandbox-webhook": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-paddle-sandbox-webhook.ts",
+    "test:dodo-billing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-dodo-billing.ts",
     "test:client-billing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-billing.ts",
     "test:client-billing-sql": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-billing-sql.ts"
   },

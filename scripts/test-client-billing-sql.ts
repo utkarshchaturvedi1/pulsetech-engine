@@ -14,6 +14,7 @@ await sql("supabase/client_accounts.sql");
 await sql("supabase/customer_leads.sql");
 await sql("supabase/paddle_sandbox_notifications.sql");
 await sql("supabase/client_billing.sql");
+await sql("supabase/multi_provider_billing.sql");
 
 const accounts = await db.query<{ id: string }>(`insert into public.customer_accounts(business_name,owner_email,demo_id) values
 ('Alpha','a@example.test','alpha-test'),('Beta','b@example.test','beta-test') returning id`);
@@ -42,6 +43,27 @@ assert.equal((await db.query<{billing_status:string}>("select billing_status fro
 const adjustment = {...command,kind:"adjustment",eventId:"evt_"+"m".repeat(26),entityId:"adj_"+"n".repeat(26),intentId:null,tokenHash:null,status:"refunded",initial:false};
 assert.equal(await apply(adjustment),"applied");
 assert.equal((await db.query<{billing_status:string}>("select billing_status from public.customer_accounts where id=$1",[a.id])).rows[0].billing_status,"refunded");
+
+const dodoIntent = "40000000-0000-4000-8000-000000000001", dodoTokenHash = "b".repeat(64);
+await db.query("insert into public.checkout_intents(id,customer_account_id,token_hash,environment,provider) values($1,$2,$3,'live','dodo')", [dodoIntent,b.id,dodoTokenHash]);
+const dodoCommand = {
+  provider:"dodo",environment:"live",kind:"payment",eventId:"msg_payment_001",occurredAt:now,
+  entityId:"pay_payment_001",paymentId:"pay_payment_001",customerId:"cus_dodo_001",subscriptionId:"sub_dodo_001",
+  intentId:dodoIntent,tokenHash:dodoTokenHash,initial:true,status:"paid",periodStart:now,
+  periodEnd:new Date(Date.now()+30*86400000).toISOString(),amount:250000,currency:"USD",
+  setupProductId:"pdt_setup",monthlyProductId:"pdt_monthly",
+  products:[{productId:"pdt_setup",quantity:1},{productId:"pdt_monthly",quantity:1}],
+};
+const applyDodo = async (value: unknown) => (await db.query<{ apply_dodo_billing_event: string }>("select public.apply_dodo_billing_event($1::jsonb)", [JSON.stringify(value)])).rows[0].apply_dodo_billing_event;
+assert.equal(await applyDodo(dodoCommand),"applied");
+assert.equal(await applyDodo(dodoCommand),"duplicate");
+assert.deepEqual((await db.query<{billing_status:string;billing_provider:string;dodo_subscription_id:string}>("select billing_status,billing_provider,dodo_subscription_id from public.customer_accounts where id=$1",[b.id])).rows[0],{billing_status:"paid",billing_provider:"dodo",dodo_subscription_id:"sub_dodo_001"});
+assert.equal(await applyDodo({...dodoCommand,eventId:"msg_bad_amount",entityId:"pay_bad_amount",paymentId:"pay_bad_amount",amount:1}),"ignored");
+const dodoRenewal={...dodoCommand,eventId:"msg_renewal_001",entityId:"pay_renewal_001",paymentId:"pay_renewal_001",intentId:null,tokenHash:null,initial:false,amount:50000,products:[{productId:"pdt_monthly",quantity:1}]};
+assert.equal(await applyDodo(dodoRenewal),"applied");
+const dodoRefund={...dodoCommand,kind:"adjustment",eventId:"msg_refund_001",entityId:"ref_001",paymentId:"pay_payment_001",intentId:null,tokenHash:null,initial:false,status:"refunded"};
+assert.equal(await applyDodo(dodoRefund),"applied");
+assert.equal((await db.query<{billing_status:string}>("select billing_status from public.customer_accounts where id=$1",[b.id])).rows[0].billing_status,"refunded");
 
 await db.query("update public.customer_accounts set billing_status='paid',billing_environment='live',handover_status='live' where id=$1",[a.id]);
 await db.query("update public.customer_accounts set website_status='live',phone_status='live',launch_checked_at=now() where id=$1",[a.id]);
@@ -75,7 +97,7 @@ await assert.rejects(db.query("select * from public.client_voice_calls"),/permis
 await assert.rejects(db.query("update public.customer_accounts set handover_status='live' where id=$1",[b.id]),/permission denied|row-level security/i);
 await db.exec("reset role");
 
-console.log("PASS billing SQL: migration, verified tenant binding, idempotency, lifecycle order, refund, lead merge and tenant RLS");
+console.log("PASS billing SQL: Paddle and Dodo migrations, provider-bound tenant binding, idempotency, renewals, refunds, lead merge and tenant RLS");
 await db.close();
 }
 main().catch(async (error) => { console.error(error); process.exitCode = 1; await db.close(); });

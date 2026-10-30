@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { resolveCallbackDemoId, resolveCallbackClaimId, resolveCallbackDestination } from "../src/lib/authCallbackDestination";
 
 // Signup confirmation emails use a PKCE `code` callback and may not include
-// `type=signup`; the saved demo must still be claimed and reopened.
+// `type=signup`; the saved demo must be claimed before the dashboard is shown.
 assert.equal(resolveCallbackDemoId(null, "dallasplumbing-26c9ac5c"), "dallasplumbing-26c9ac5c");
 assert.equal(resolveCallbackDemoId("/reset-password", "dallasplumbing-26c9ac5c"), "dallasplumbing-26c9ac5c");
 assert.equal(resolveCallbackDemoId("/demo?id=other-demo-123", "dallasplumbing-26c9ac5c"), "other-demo-123");
@@ -14,7 +14,7 @@ assert.equal(resolveCallbackDemoId(null, undefined), null);
 assert.equal(resolveCallbackDestination("/reset-password", "saved-demo"), "/reset-password");
 assert.equal(resolveCallbackDestination("/reset-password?next=%2Fclient", "saved-demo"), "/reset-password?next=%2Fclient");
 assert.equal(resolveCallbackDestination("/client", "saved-demo"), "/client");
-assert.equal(resolveCallbackDestination(null, "saved-demo"), "/demo?id=saved-demo");
+assert.equal(resolveCallbackDestination(null, "saved-demo"), "/client?onboarding=ready");
 assert.equal(resolveCallbackDestination(null, null), "/reset-password");
 assert.equal(resolveCallbackDestination("//attacker.example", "saved-demo"), "/client");
 for (const type of [null, "signup", "recovery", "invite"]) {

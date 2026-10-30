@@ -19,7 +19,7 @@ export function resolveCallbackDemoId(nextPath: string | null, pendingDemoId: un
 /** An explicit recovery/invitation destination must survive old signup metadata. */
 export function resolveCallbackDestination(nextPath: string | null, demoId: string | null): string {
   if (nextPath) return safeClientRedirect(nextPath);
-  return demoId ? `/demo?id=${encodeURIComponent(demoId)}` : "/reset-password";
+  return demoId ? "/client?onboarding=ready" : "/reset-password";
 }
 
 export function resolveCallbackClaimId(nextPath: string | null, pendingDemoId: unknown, type: string | null): string | null {

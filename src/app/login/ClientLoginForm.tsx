@@ -79,7 +79,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
             setMessage(claimResult.error || "We couldn’t connect your demo to your account. Please try again.");
             return;
           }
-          router.replace(destination);
+          router.replace("/client?onboarding=ready");
           router.refresh();
         } else {
           setMessage("If this is a new account, check your email to confirm it and return to your demo. If you already have an account, log in or use Forgot password.");

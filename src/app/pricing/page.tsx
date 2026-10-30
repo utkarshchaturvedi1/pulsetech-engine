@@ -43,6 +43,7 @@ export default function PricingPage() {
           </Link>
           <div className="pt-pricing-links">
             <Link href="/">Home</Link>
+            <Link href="/login?next=%2Fclient">Log in</Link>
             <a href="mailto:contact@pulsetechlabs.com?subject=PulseTech%20pricing">Contact</a>
           </div>
         </div>
@@ -91,14 +92,18 @@ export default function PricingPage() {
         </section>
 
         <section className="pt-pricing-note">
-          <h2>Start with a conversation</h2>
+          <h2>Start your setup</h2>
           <p>
-            We’ll confirm your business setup and provide an available secure payment option.
-            Subscription cancellation stops future renewals; see the policy links below for details.
+            Create your account, connect your business website, review the profile, and continue to secure checkout when you’re ready.
+            Your assistant activates after payment is securely confirmed and PulseTech completes the launch checks.
           </p>
-          <a href="mailto:contact@pulsetechlabs.com?subject=Start%20PulseTech%20setup">
-            Contact PulseTech Labs <span aria-hidden="true">↗</span>
-          </a>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link href="/signup" className="inline-flex items-center justify-center rounded-full bg-[#246bfe] px-6 py-3 font-bold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700">
+              Create your account <span className="ml-2" aria-hidden="true">↗</span>
+            </Link>
+            <Link href="/login?next=%2Fclient" className="font-semibold text-blue-700 hover:underline">Already have an account? Log in</Link>
+          </div>
+          <p className="mt-4 text-sm text-slate-600">Need help first? <a className="underline" href="mailto:contact@pulsetechlabs.com?subject=Start%20PulseTech%20setup">Contact PulseTech Labs</a></p>
         </section>
       </main>
       <SiteFooter />

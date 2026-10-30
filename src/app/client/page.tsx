@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isPulseTechAdmin } from "@/lib/clientAccess";
+import { configuredCheckoutProviders } from "@/lib/billingProviders";
 import { loadSharedProfile } from "@/lib/sharedProfileStore";
 import "./portal-theme.css";
 import ClientInviteForm from "./ClientInviteForm";
@@ -22,7 +23,8 @@ const statusLabels: Record<string, string> = {
   invited: "Invitation sent", setup: "Setup in progress", testing: "Testing", approved: "Awaiting launch", live: "Live",
 };
 
-export default async function ClientPortalPage() {
+export default async function ClientPortalPage({ searchParams }: { searchParams?: Promise<{ checkout?: string; onboarding?: string }> }) {
+  const query = searchParams ? await searchParams : {};
   const supabase = await createClient().catch(() => null);
   if (!supabase) return <PortalUnavailable />;
   const { data: { user } } = await supabase.auth.getUser();
@@ -61,6 +63,8 @@ export default async function ClientPortalPage() {
     .order("created_at", { ascending: false }).limit(20) : null;
 
   return <PortalShell email={user.email || ""} showLeads={account?.handover_status === "live"}>
+    {query.onboarding === "ready" && <section role="status" className="pt-portal-card rounded-[22px] border border-blue-200 bg-blue-50 p-5"><h1 className="text-lg font-bold text-slate-950">Your account is ready</h1><p className="mt-1 text-sm text-slate-700">Your business profile is connected. Review it, then start secure checkout when you’re ready.</p></section>}
+    {query.checkout === "return" && <section role="status" className="pt-portal-card rounded-[22px] border border-blue-200 bg-blue-50 p-5"><h2 className="text-lg font-bold text-slate-950">Checking your payment</h2><p className="mt-1 text-sm text-slate-700">We’re waiting for the payment provider’s secure confirmation. Refresh this page in a moment; your service activates only after the payment is verified.</p></section>}
     {account && <section className="pt-portal-card rounded-[22px] border p-5" aria-label="Account details">
       <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Customer ID</p>
       <p className="mt-1 text-lg font-bold text-slate-950">{account.customer_id}</p>
@@ -77,7 +81,7 @@ export default async function ClientPortalPage() {
     {account && <ClientInstallation demoId={account.demo_id} domain={account.allowed_domain} phone={account.phone_status === "live" && account.billing_status === "paid" && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live") ? account.inbound_phone : null} baseUrl={(process.env.PULSETECH_PUBLIC_BASE_URL || "").replace(/\/$/, "")} enabled={billingSchemaReady && account.billing_status === "paid" && account.website_status === "live" && !!account.launch_checked_at && !!account.allowed_domain && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live")} />}
     {account && <a href="/api/client/export" className="inline-block font-semibold text-blue-700 underline">Download your lead data</a>}
     {admin && <Link href="/admin" className="ml-5 inline-block font-semibold text-blue-700 underline">PulseTech operations</Link>}
-    {account?.billing_status === "unpaid" && process.env.VERCEL_ENV !== "production" && <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-xl font-semibold">Start your setup</h2>{billingSchemaReady ? <ClientCheckout token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || ""} setupPriceId={process.env.NEXT_PUBLIC_PADDLE_SETUP_PRICE_ID || ""} monthlyPriceId={process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID || ""} /> : <p className="mt-3 text-sm text-slate-600">Secure online checkout is being enabled. Contact PulseTech for current payment instructions.</p>}</section>}
+    {account?.billing_status === "unpaid" && <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-xl font-semibold">Start your setup</h2>{billingSchemaReady ? <ClientCheckout providers={configuredCheckoutProviders()} token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || ""} setupPriceId={process.env.NEXT_PUBLIC_PADDLE_SETUP_PRICE_ID || ""} monthlyPriceId={process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID || ""} /> : <p className="mt-3 text-sm text-slate-600">Secure online checkout is being enabled. Contact PulseTech for current payment instructions.</p>}</section>}
     {account && <section id="requests" className="pt-portal-card rounded-[26px] border p-6 sm:p-8">
       <h2 className="text-xl font-semibold text-slate-950">Your support requests</h2>
       <p className="mt-2 text-sm text-slate-600">Save a setup or support request and review its status here. For business instructions, use Peter.</p>
@@ -199,7 +203,6 @@ function PlanPricingSection() {
       </article>
     </div>
     <p className="mt-4 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-slate-700"><strong>Monthly usage included:</strong> up to 1,000 website chat conversations and 250 inbound voice minutes per billing month. Additional usage or charges require your written agreement first.</p>
-    
     <p className="mt-5 text-sm text-slate-600">Questions about billing or cancellation? <a className="font-semibold text-blue-700 underline" href="mailto:contact@pulsetechlabs.com?subject=PulseTech%20billing">Contact PulseTech support</a>.</p>
   </section>;
 }

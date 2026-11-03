@@ -26,6 +26,7 @@ function demoIdFromPath(value: string): string | null {
 
 export default function ClientLoginForm({ nextPath, initialMode = "login" }: ClientLoginFormProps) {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -60,7 +61,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
         const { data, error } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
-          options: { emailRedirectTo, data: { pending_demo_id: demoId } },
+          options: { emailRedirectTo, data: { pending_demo_id: demoId, full_name: name.trim() } },
         });
         if (error) {
           setMessage(error.message.toLowerCase().includes("already")
@@ -127,6 +128,10 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
               : "Use your email and password to open your PulseTech account."}
         </p>
       </div>
+      {signupMode && <div className="space-y-2">
+        <label className="block text-sm font-semibold text-slate-800" htmlFor="client-name">Your name</label>
+        <input id="client-name" type="text" autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="Your name" />
+      </div>}
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-slate-800" htmlFor="client-email">Email</label>
         <input id="client-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="you@business.com" />

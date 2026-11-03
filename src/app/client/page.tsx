@@ -2,17 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isPulseTechAdmin } from "@/lib/clientAccess";
 import { configuredCheckoutProviders } from "@/lib/billingProviders";
 import { loadSharedProfile } from "@/lib/sharedProfileStore";
 import "./portal-theme.css";
-import ClientInviteForm from "./ClientInviteForm";
 import ClientSignOutButton from "./ClientSignOutButton";
 import ClientHandoverRequest from "./ClientHandoverRequest";
 import ClientCheckout from "./ClientCheckout";
 import ClientInstallation from "./ClientInstallation";
 import ClientLeadTable, { type ClientLead } from "./ClientLeadTable";
 import type { BusinessProfile } from "@/types/business";
+import { claimDemoForUser } from "@/lib/clientDemoClaim";
+import { sanitizeDemoId } from "@/lib/demoRepository";
 
 export const metadata = { title: "Your account | PulseTech Labs" };
 export const dynamic = "force-dynamic";
@@ -29,10 +29,19 @@ export default async function ClientPortalPage({ searchParams }: { searchParams?
   if (!supabase) return <PortalUnavailable />;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const admin = isPulseTechAdmin(user.email, process.env.PULSETECH_ADMIN_EMAILS);
-
   const { data: membership, error: membershipError } = await supabase.from("customer_memberships")
     .select("customer_account_id").eq("user_id", user.id).maybeSingle();
+  const pendingDemoId = sanitizeDemoId(String(user.user_metadata?.pending_demo_id || ""));
+  if (!membership && !membershipError && pendingDemoId) {
+    let claimed = false;
+    try {
+      const claimResult = await claimDemoForUser(pendingDemoId, user);
+      claimed = claimResult === "claimed" || claimResult === "already-linked";
+    } catch {
+      claimed = false;
+    }
+    if (claimed) redirect("/client?onboarding=ready");
+  }
   let billingSchemaReady = true;
   let accountData: Account | null = null;
   let accountQueryError: { message?: string } | null = null;
@@ -79,13 +88,16 @@ export default async function ClientPortalPage({ searchParams }: { searchParams?
     {accountError ? <MessagePanel title="We’re finishing your account setup">Your client account database setup needs attention. Please contact PulseTech and we’ll help.</MessagePanel> : !account ? <section className="pt-portal-card rounded-[22px] border p-7">
       <h1 className="text-2xl font-semibold text-slate-950">No client account is connected</h1>
       <p className="mt-2 text-slate-600">This sign-in email is not linked to a PulseTech client account yet.</p>
-      {admin && <div className="mt-7 border-t border-slate-200 pt-6"><h2 className="text-lg font-semibold">Invite a client</h2><p className="mt-1 text-sm text-slate-600">Connect an existing saved business profile to a client login.</p><ClientInviteForm /></div>}
+      <div className="mt-7 border-t border-slate-200 pt-6">
+        <h2 className="text-lg font-semibold">Connect your business assistant</h2>
+        <p className="mt-1 max-w-2xl text-sm text-slate-600">Create a business profile from your website. We’ll connect its chat and phone demo to this login so you can review it from your dashboard.</p>
+        <Link href="/signup" className="pt-portal-button mt-5 inline-flex rounded-full px-5 py-3 text-sm font-extrabold">Connect my business</Link>
+      </div>
     </section> : account.handover_status === "live" ? <LiveDashboard account={account} profile={profile} leads={leads} leadTableReady={!leadResult.error} weekly={weeklyResult?.error ? null : (weeklyResult?.data?.[0] as { new_enquiries: number; converted_leads: number } | undefined) || null} /> : <PreLaunchDashboard account={account} profile={profile} />}
     <PlanPricingSection />
     {account && billingSchemaReady && <UsageSummary usage={usageResult?.error ? null : (usageResult?.data?.[0] as { website_chat_conversations: number; inbound_voice_minutes: number } | undefined) || null} />}
     {account && <ClientInstallation demoId={account.demo_id} domain={account.allowed_domain} phone={account.phone_status === "live" && account.billing_status === "paid" && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live") ? account.inbound_phone : null} baseUrl={(process.env.PULSETECH_PUBLIC_BASE_URL || "").replace(/\/$/, "")} enabled={billingSchemaReady && account.billing_status === "paid" && account.website_status === "live" && !!account.launch_checked_at && !!account.allowed_domain && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live")} />}
     {account && <a href="/api/client/export" className="inline-block font-semibold text-blue-700 underline">Download your lead data</a>}
-    {admin && <Link href="/admin" className="ml-5 inline-block font-semibold text-blue-700 underline">PulseTech operations</Link>}
     {account?.billing_status === "unpaid" && <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-xl font-semibold">Start your setup</h2>{billingSchemaReady ? <ClientCheckout providers={configuredCheckoutProviders()} token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || ""} setupPriceId={process.env.NEXT_PUBLIC_PADDLE_SETUP_PRICE_ID || ""} monthlyPriceId={process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID || ""} /> : <p className="mt-3 text-sm text-slate-600">Secure online checkout is being enabled. Contact PulseTech for current payment instructions.</p>}</section>}
     {account && <section id="requests" className="pt-portal-card rounded-[26px] border p-6 sm:p-8">
       <h2 className="text-xl font-semibold text-slate-950">Your support requests</h2>
@@ -98,7 +110,6 @@ export default async function ClientPortalPage({ searchParams }: { searchParams?
           <p className="mt-2 text-xs text-slate-500">{new Date(request.created_at).toISOString().replace("T", " ").slice(0, 16)} UTC</p>
         </li>)}</ul> : <p className="mt-5 text-sm text-slate-500">No saved requests yet.</p>}
     </section>}
-    {admin && account && <section className="pt-portal-card rounded-[22px] border p-6"><h2 className="text-lg font-semibold">Invite another client</h2><ClientInviteForm /></section>}
   </PortalShell>;
 }
 
@@ -192,6 +203,7 @@ function PlanPricingSection() {
         <p className="mt-3 text-4xl font-extrabold tracking-tight text-slate-950">$2,000</p>
         <p className="mt-1 text-sm text-slate-600">Charged once.</p>
         <p className="mt-4 text-sm leading-6 text-slate-700">Configuration of an AI Sales Employee around your business, services, policies, operating details, and instructions.</p>
+        <Image src="/images/pulsetech-business-setup-diagram.png" alt="Your business services, policies, operating details, and owner instructions shape its AI Sales Employee for website chat and inbound calls." width={1774} height={887} className="mx-auto mt-5 h-auto w-full max-w-[520px]" />
       </article>
       <article className="rounded-[22px] border-2 border-blue-600 bg-white p-6">
         <p className="text-sm font-bold uppercase tracking-wide text-blue-700">Monthly service</p>

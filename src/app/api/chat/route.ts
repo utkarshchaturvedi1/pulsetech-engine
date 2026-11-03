@@ -7,6 +7,7 @@ import {
 } from "../../../lib/salesChat";
 import { scheduleLeadAlertDelivery } from "../../../lib/leadHandoff";
 import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
+import { normalizeCustomerPhotoPaths, signCustomerPhotoLinks } from "../../../lib/customerChatPhotos";
 import {
   businessIdentityKey,
   createInitialSalesState,
@@ -126,11 +127,25 @@ export async function POST(request: NextRequest) {
       previousState = createInitialSalesState({ conversationId, businessKey });
     }
 
+    const demoId = typeof body.demoId === "string" ? body.demoId : "";
+    const photoPaths = demoId
+      ? normalizeCustomerPhotoPaths(body.customerPhotoPaths, demoId, conversationId)
+      : [];
+    previousState.customerPhotoPaths = photoPaths;
+    let photoLinks: string[] = [];
+    if (photoPaths.length) {
+      try {
+        photoLinks = await signCustomerPhotoLinks(demoId, conversationId, photoPaths);
+      } catch (error) {
+        console.error("[chat] customer photo links unavailable", error);
+      }
+    }
+
     const {
       reply,
       salesState: nextState,
       leadDelivery,
-    } = await generateSalesReply(business, messages, previousState);
+    } = await generateSalesReply(business, messages, previousState, photoLinks);
 
     const salesState: SalesState = {
       ...nextState,

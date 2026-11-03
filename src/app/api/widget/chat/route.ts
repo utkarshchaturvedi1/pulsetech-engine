@@ -2,7 +2,8 @@ import { after, NextResponse } from "next/server";
 import { clientService, reserveClientChatConversation, serviceEnabled } from "@/lib/clientService";
 import { loadSharedProfile } from "@/lib/sharedProfileStore";
 import { generateSalesReply, type SalesChatMessage } from "@/lib/salesChat";
-import { businessIdentityKey, createInitialSalesState, isSalesState, isValidConversationId } from "@/lib/salesState";
+import { businessIdentityKey, createInitialSalesState, isSalesState, isValidConversationId, normalizeSalesState } from "@/lib/salesState";
+import { normalizeCustomerPhotoPaths, signCustomerPhotoLinks } from "@/lib/customerChatPhotos";
 import { updateSalesStateFromTurn, resolveDeterministicPreContactReply } from "@/lib/salesController";
 import { buildPostContactNextStepReply } from "@/lib/salesConversation";
 import { scheduleLeadAlertDelivery } from "@/lib/leadHandoff";
@@ -19,11 +20,14 @@ export async function POST(request: Request) {
     const demo = await loadSharedProfile(body.demoId);
     if (!demo) throw new Error("Profile unavailable.");
     const profile=demo.profile, businessKey=businessIdentityKey(profile);
-    let state=isSalesState(body.salesState) ? body.salesState : createInitialSalesState({ conversationId: body.conversationId, businessKey });
+    let state=isSalesState(body.salesState) ? normalizeSalesState(body.salesState) : createInitialSalesState({ conversationId: body.conversationId, businessKey });
     if (state.businessKey!==businessKey || state.conversationId!==body.conversationId) return NextResponse.json({ error: "Please reopen the chat." }, { status: 400 });
+    state.customerPhotoPaths=normalizeCustomerPhotoPaths(body.customerPhotoPaths, body.demoId, body.conversationId);
+    let photoLinks: string[]=[];
+    if(state.customerPhotoPaths.length){try{photoLinks=await signCustomerPhotoLinks(body.demoId,body.conversationId,state.customerPhotoPaths);}catch(error){console.error("[widget-chat] customer photo links unavailable",error);}}
     let reply: string;
     try {
-      const result=await generateSalesReply(profile,body.messages,state);
+      const result=await generateSalesReply(profile,body.messages,state,photoLinks);
       reply=result.reply; state=result.salesState; scheduleLeadAlertDelivery(after,result.leadDelivery);
     } catch {
       state=updateSalesStateFromTurn(state,body.messages,profile);

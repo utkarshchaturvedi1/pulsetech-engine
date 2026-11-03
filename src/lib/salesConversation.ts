@@ -158,9 +158,12 @@ export function buildEmpatheticNameAsk(
         brief && !/\band\b/i.test(brief) && brief.split(/\s+/).length <= 8
           ? brief
           : null;
+      const reassurance = business && isFieldServiceProfile(business)
+        ? " Don't worry—you've come to the right place."
+        : " We can help.";
       ack = safeBrief
-        ? `I'm sorry you're dealing with ${safeBrief}. We can help.`
-        : "I'm sorry you're dealing with that. We can help.";
+        ? `I'm sorry you're dealing with ${safeBrief}.${reassurance}`
+        : `I'm sorry you're dealing with that.${reassurance}`;
       break;
     }
     case "ASPIRATIONAL":

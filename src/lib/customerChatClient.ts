@@ -37,6 +37,7 @@ export function createCustomerChatSession(
     },
   ];
   let salesState: SalesState | null = null;
+  let customerPhotoPaths: string[] = [];
   let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
   let inactivityGeneration = 0;
   let sessionActive = true;
@@ -100,7 +101,7 @@ export function createCustomerChatSession(
           demoId,
           conversationId,
           business: boundBusiness,
-          salesState,
+          salesState: { ...salesState, customerPhotoPaths },
           reason: "inactivity",
         }),
       });
@@ -169,8 +170,9 @@ export function createCustomerChatSession(
     ];
 
     const outboundState = salesState
-      ? stampConversation(salesState)
+      ? stampConversation({ ...salesState, customerPhotoPaths })
       : createInitialSalesState({ conversationId, businessKey });
+    outboundState.customerPhotoPaths = [...customerPhotoPaths];
 
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -230,6 +232,13 @@ export function createCustomerChatSession(
     destroy,
     updateBusiness,
     getSalesState: () => salesState,
+    addPhotoPath(path: string) {
+      if (customerPhotoPaths.length >= 3 || customerPhotoPaths.includes(path)) return false;
+      customerPhotoPaths = [...customerPhotoPaths, path];
+      if (salesState) salesState = { ...salesState, customerPhotoPaths: [...customerPhotoPaths] };
+      return true;
+    },
+    getPhotoPaths: () => [...customerPhotoPaths],
     getBoundBusiness: () => boundBusiness,
     isActive: () => sessionActive,
     clearInactivityTimer,

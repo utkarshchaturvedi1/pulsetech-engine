@@ -11,9 +11,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ demo
     const origin = new URL(request.url).origin;
     const domain = account.allowed_domain;
     if (!/^[a-z0-9.-]+$/.test(domain)) return new Response("Unavailable", { status: 403 });
+    const storageOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin : "";
     return new Response(widgetHtml(account.business_name, demoId, nonce), { headers: {
       "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "strict-origin-when-cross-origin",
-      "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors ${origin} https://${domain} https://www.${domain}; base-uri 'none'; form-action 'none'`,
+      "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self' ${storageOrigin}; frame-ancestors ${origin} https://${domain} https://www.${domain}; base-uri 'none'; form-action 'none'`,
       "X-Content-Type-Options": "nosniff",
     } });
   } catch { return new Response("Service temporarily unavailable.", { status: 503 }); }

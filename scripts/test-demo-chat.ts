@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "fs";
 import path from "path";
 import DemoWorkspace from "../src/components/DemoWorkspace";
+import ChatInput from "../src/components/Chat/ChatInput";
 import { DEMO_CHAT_LAYOUT, HOME_CHAT_LAYOUT, PULSETECH_CANVAS_GRADIENT } from "../src/lib/demoChatLayout";
 import { buildLeadNotificationEmail, buildWebsiteLeadSms, evaluateHandoffReadiness, formatPrimaryNeedForAlert, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
 import {
@@ -46,6 +47,8 @@ import {
 } from "../src/lib/leadAlertRecipients";
 import { maybeSendLeadHandoff } from "../src/lib/leadHandoff";
 import { generateSalesReply } from "../src/lib/salesChat";
+import { normalizeCustomerPhotoPaths, validCustomerPhotoIdentity } from "../src/lib/customerChatPhotos";
+import { widgetHtml } from "../src/lib/widgetHtml";
 import {
   commitSharedProfile,
   loadSharedProfile,
@@ -93,6 +96,36 @@ function assert(condition: boolean, message: string) {
 
 function readSrc(rel: string) {
   return readFileSync(path.join(process.cwd(), rel), "utf8");
+}
+
+function testCustomerChatPhotoPathValidation() {
+  const demoId = "demo_photo_test";
+  const conversationId = "12345678-abcd-4321-9876-123456789abc";
+  assert(validCustomerPhotoIdentity(demoId, conversationId), "valid photo identity is accepted");
+  assert(!validCustomerPhotoIdentity("demo/../other", conversationId), "path traversal identity is rejected");
+  const paths = normalizeCustomerPhotoPaths([
+    `${demoId}/${conversationId}/photo-1.jpg`,
+    `${demoId}/${conversationId}/photo-2.webp`,
+    `${demoId}/${conversationId}/photo-4.png`,
+    `other/${conversationId}/photo-3.png`,
+    `${demoId}/${conversationId}/photo-1.jpg`,
+  ], demoId, conversationId);
+  assert(paths.length === 2, "only two unique in-scope photos are retained");
+  assert(paths[0].endsWith("photo-1.jpg") && paths[1].endsWith("photo-2.webp"), "supported photo slots are retained in order");
+  assert(normalizeCustomerPhotoPaths([`${demoId}/${conversationId}/photo-1.jpg`], "demo/.*", conversationId).length === 0, "unsafe ids cannot influence path matching");
+  console.log("PASS — customer chat photo path validation and isolation");
+}
+
+function testCustomerChatPhotoUi() {
+  const input = renderToStaticMarkup(createElement(ChatInput, {
+    onSend: () => undefined,
+    onPhotoUpload: async () => "demo_photo_test/conversation/photo-1.jpg",
+  }));
+  assert(input.includes("Add photos (0/3)"), "standard chat shows optional photo control");
+  assert(input.includes("Max image size: 5 MB per image."), "standard chat shows size note below composer");
+  const widget = widgetHtml("Example Services", "demo_photo_test", "test-nonce");
+  assert(widget.includes("Max image size: 5 MB per image."), "embedded chat shows size note in footer");
+  console.log("PASS — photo upload controls and 5 MB note render in both chat versions");
 }
 
 const business: BusinessProfile = {
@@ -1900,7 +1933,7 @@ function testHighIntentLeadCaptureOrder() {
     );
 
     const nameAsk = validateSalesReply(
-      buildEmpatheticNameAsk(request),
+      buildEmpatheticNameAsk(request, business),
       started,
       business,
       request
@@ -2100,7 +2133,7 @@ async function testDeterministicPreContactChatReplies() {
       { role: "user", content: request },
     ]);
     assert(
-      first.reply === buildEmpatheticNameAsk(request),
+      first.reply === buildEmpatheticNameAsk(request, business),
       `final chat reply must be the empathetic name question, got: ${first.reply}`
     );
     assert(
@@ -2328,7 +2361,7 @@ async function testPostContactSalesConversation() {
     { role: "user", content: "The drain is clogged and I need it fixed." },
   ]);
   assert(
-    early.reply === buildEmpatheticNameAsk("The drain is clogged and I need it fixed."),
+    early.reply === buildEmpatheticNameAsk("The drain is clogged and I need it fixed.", business),
     `early capture must stay deterministic, got: ${early.reply}`
   );
 
@@ -2433,7 +2466,7 @@ async function testProfileAwareSalesConversationQuality() {
       opening: "My kitchen sink is clogged and water is backing up.",
       fieldService: true,
       tone: "PROBLEM",
-      nameAck: /i'm sorry you're dealing with/i,
+      nameAck: /don't worry—you've come to the right place/i,
       forbidSorry: false,
       profile: {
         ...business,
@@ -2449,7 +2482,7 @@ async function testProfileAwareSalesConversationQuality() {
       opening: "Our unit has no heat and no cooling.",
       fieldService: true,
       tone: "PROBLEM",
-      nameAck: /i'm sorry you're dealing with/i,
+      nameAck: /don't worry—you've come to the right place/i,
       forbidSorry: false,
       profile: {
         ...business,
@@ -2465,7 +2498,7 @@ async function testProfileAwareSalesConversationQuality() {
       opening: "An outlet has no power and I need it checked.",
       fieldService: true,
       tone: "PROBLEM",
-      nameAck: /i'm sorry you're dealing with/i,
+      nameAck: /don't worry—you've come to the right place/i,
       forbidSorry: false,
       profile: {
         ...business,
@@ -2481,7 +2514,7 @@ async function testProfileAwareSalesConversationQuality() {
       opening: "There is a leak in the roof.",
       fieldService: true,
       tone: "PROBLEM",
-      nameAck: /i'm sorry you're dealing with/i,
+      nameAck: /don't worry—you've come to the right place/i,
       forbidSorry: false,
       profile: {
         ...business,
@@ -3764,6 +3797,8 @@ function testChatAvatarIdentityVisibility() {
 }
 
 async function main() {
+  testCustomerChatPhotoPathValidation();
+  testCustomerChatPhotoUi();
   testLayoutConstraints();
   testTexasSolarLogo();
   testVisitPreferenceNoDuplicateAddress();

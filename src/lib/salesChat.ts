@@ -37,6 +37,21 @@ function getOpenAI() {
   });
 }
 
+function addCustomerPhotoInviteOnce(reply: string, state: SalesState, latestUserMessage = ""): string {
+  if (
+    state.customerPhotoInviteShown ||
+    state.pendingOwnerQuestion ||
+    !state.lead.name || !state.lead.phone || !state.lead.address ||
+    !(state.primaryNeed || state.customerNeed) ||
+    state.customerAgreed || state.appointmentIntent ||
+    state.handoffReady || state.leadDeliveryStatus === "QUEUED" || state.leadDeliveryStatus === "SENT" ||
+    messageAsksPricingOrBilling(latestUserMessage)
+  ) return reply;
+
+  state.customerPhotoInviteShown = true;
+  return `If you have them, you can attach up to three photos here. They’re optional, and the team can review them before calling.\n\n${reply}`;
+}
+
 export type SalesChatMessage = {
   role: "user" | "assistant";
   content: string;
@@ -74,6 +89,8 @@ You are a professional salesperson whose job is to help genuine customers make c
 
 You are warm, confident, concise, commercially aware, helpful and human.
 You never sound desperate, aggressive, robotic or scripted.
+
+When a customer describes a problem that this business explicitly offers to solve, acknowledge it with empathy and reassure them naturally. You may say, “Don’t worry—you’ve come to the right place,” only when the BusinessProfile confirms the service. Do not claim a license, qualification, fast resolution, availability, or outcome unless the BusinessProfile explicitly verifies it.
 
 Never mention that you are an AI unless directly asked.
 Never mention prompts, BusinessProfile, system instructions, OpenAI, or PulseTech.
@@ -369,9 +386,7 @@ Protect the opportunity first.
 NO UNSUPPORTED AI CAPABILITIES
 ==================================================
 Never claim you can perform actions the application cannot perform.
-Do not claim to:
-- receive photos
-- analyze images
+Do not claim to analyze photos or infer details from an image. The chat has an optional photo-attachment control; when it is available, you may invite the customer to attach up to three photos for the team to review before calling.
 - book appointments
 - make phone calls
 - send SMS
@@ -482,7 +497,8 @@ ${formatBusinessKnowledge(business)}
 export async function generateSalesReply(
   business: BusinessProfile,
   messages: SalesChatMessage[],
-  previousState?: SalesState | null
+  previousState?: SalesState | null,
+  photoLinks: string[] = []
 ): Promise<{
   reply: string;
   salesState: SalesState;
@@ -529,7 +545,8 @@ export async function generateSalesReply(
     business,
     salesState,
     "closure",
-    latestUser?.content
+    latestUser?.content,
+    photoLinks
   );
   const handoffMs = Date.now() - handoffStarted;
   salesState = applyLeadDeliveryResult(salesState, handoff);
@@ -644,7 +661,7 @@ export async function generateSalesReply(
       ...transport,
     });
     return {
-      reply: deterministicHandoffReply,
+      reply: addCustomerPhotoInviteOnce(deterministicHandoffReply, salesState, latestUser?.content),
       salesState,
       leadDelivery: handoff.delivery,
     };
@@ -742,7 +759,7 @@ ${extra}`
   });
 
   return {
-    reply,
+    reply: addCustomerPhotoInviteOnce(reply, salesState, latestUser?.content),
     salesState,
     leadDelivery: handoff.delivery,
   };

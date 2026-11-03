@@ -1619,8 +1619,8 @@ function objectiveInstruction(
   switch (state.currentObjective) {
     case "COLLECT_NAME":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's first name only.
-Respond with about one short sentence + exactly ONE question.
-Before asking for the name, briefly acknowledge the customer's stated problem with genuine empathy. Use their stated need naturally when possible. Do not invent facts.
+Respond with a brief, reassuring opening + exactly ONE question.
+Before asking for the name, acknowledge the customer's stated problem with genuine empathy. When BusinessProfile confirms this business handles the stated need, reassure them with the wording “Don’t worry—you’ve come to the right place.” Use their stated need naturally when possible. Do not add a license, qualification, fast-resolution, availability, or outcome claim unless BusinessProfile explicitly verifies it.
 Do not reply with a cold form such as "We can help with that. What's your first name?"
 ${
   isAuthoritativePersonName(state.lead.name)

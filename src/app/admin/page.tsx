@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { billingAdmin } from "@/lib/clientBilling";
 import { isPulseTechAdmin } from "@/lib/clientAccess";
 import AdminActions from "./AdminActions";
+import ClientInviteForm from "../client/ClientInviteForm";
 export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const session = await createClient(); const { data: { user } } = await session.auth.getUser();
@@ -18,6 +19,11 @@ export default async function AdminPage() {
   const billingSchemaReady = !currentAccounts.error;
   return <main className="mx-auto max-w-5xl space-y-6 p-6 text-slate-900"><Link href="/client" className="text-blue-700 underline">Client account</Link><h1 className="text-3xl font-bold">PulseTech operations</h1>
     <p>Internal checks release installation. Optional client testing does not delay launch.</p>
+    <section className="rounded-xl border bg-white p-5">
+      <h2 className="text-xl font-bold">Connect a client account</h2>
+      <p className="mt-2 text-sm text-slate-600">Send an account invitation for a saved business profile. This internal tool is available to PulseTech operations.</p>
+      <ClientInviteForm />
+    </section>
     {(accounts.error || requests.error) && <p role="alert">Some account data is unavailable. Verify the account migrations before making changes.</p>}
     {!billingSchemaReady && <p className="rounded bg-amber-50 p-4 text-amber-900">Billing and launch controls are disabled until the account billing migration has been applied.</p>}
     <h2 className="text-xl font-bold">Accounts</h2>{accounts.data?.map(account => <section key={account.id} className="rounded-xl border p-5"><h3 className="font-bold">{account.customer_id} · {account.business_name}</h3><p className="mt-2 text-sm">Billing: {"billing_status" in account ? account.billing_status : "unpaid"} ({("billing_environment" in account && account.billing_environment) || "unpaid"}) · Setup: {account.handover_status} · Website: {("website_status" in account && account.website_status) || "pending"} · Phone: {("phone_status" in account && account.phone_status) || "pending"}</p><Link href={`/demo/${encodeURIComponent(account.demo_id)}`} className="text-blue-700 underline">Open assistant checks</Link>{billingSchemaReady && <AdminActions accountId={account.id} />}</section>)}

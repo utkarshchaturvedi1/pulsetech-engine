@@ -57,7 +57,7 @@ function AccountButton() {
   }, []);
 
   return <Link className="pt-button pt-button-small" href={destination === "client" ? "/client" : "/login"}>
-    Login
+    {destination === "client" ? "Open Dashboard" : "Login"}
   </Link>;
 }
 

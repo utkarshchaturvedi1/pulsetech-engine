@@ -62,7 +62,12 @@ export default async function ClientPortalPage({ searchParams }: { searchParams?
     .select("id,subject,details,status,created_at").eq("customer_account_id", account.id)
     .order("created_at", { ascending: false }).limit(20) : null;
 
-  return <PortalShell email={user.email || ""} showLeads={account?.handover_status === "live"}>
+  const displayName = [user.user_metadata?.full_name, user.user_metadata?.name, user.user_metadata?.username]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+    ?.trim() || user.email?.split("@")[0] || "PulseTech user";
+  const businessWebsite = profile?.website || account?.allowed_domain || "";
+
+  return <PortalShell email={user.email || ""} userName={displayName} website={businessWebsite} showLeads={account?.handover_status === "live"}>
     {query.onboarding === "ready" && <section role="status" className="pt-portal-card rounded-[22px] border border-blue-200 bg-blue-50 p-5"><h1 className="text-lg font-bold text-slate-950">Your account is ready</h1><p className="mt-1 text-sm text-slate-700">Your business profile is connected. Review it, then start secure checkout when you’re ready.</p></section>}
     {query.checkout === "return" && <section role="status" className="pt-portal-card rounded-[22px] border border-blue-200 bg-blue-50 p-5"><h2 className="text-lg font-bold text-slate-950">Checking your payment</h2><p className="mt-1 text-sm text-slate-700">We’re waiting for the payment provider’s secure confirmation. Refresh this page in a moment; your service activates only after the payment is verified.</p></section>}
     {account && <section className="pt-portal-card rounded-[22px] border p-5" aria-label="Account details">
@@ -207,13 +212,19 @@ function PlanPricingSection() {
   </section>;
 }
 
-function PortalShell({ children, email, showLeads = false }: { children: React.ReactNode; email?: string; showLeads?: boolean }) {
+function PortalShell({ children, email, userName, website, showLeads = false }: { children: React.ReactNode; email?: string; userName: string; website: string; showLeads?: boolean }) {
   return <main className="pt-client-portal min-h-screen px-4 text-[#111217] sm:px-6">
     <header className="pt-portal-header sticky top-0 z-20 -mx-4 border-b px-4 backdrop-blur-xl sm:-mx-6 sm:px-6">
       <div className="mx-auto flex min-h-[72px] max-w-[1180px] flex-wrap items-center justify-between gap-4 py-3">
         <Link href="/client" aria-label="PulseTech account overview"><Image src="/branding/pulsetech-logo-color.svg" alt="PulseTech Labs" width={168} height={42} priority /></Link>
         <nav aria-label="Client account" className="pt-portal-nav order-3 flex w-full gap-5 overflow-x-auto text-sm font-bold sm:order-2 sm:w-auto sm:gap-7"><a href="#overview" className="py-2">Overview</a><a href="#assistant" className="py-2">Assistant</a>{showLeads && <a href="#leads" className="py-2">Leads</a>}{!showLeads && <a href="#installation" className="py-2">Setup</a>}<a href="#plan" className="py-2">Pricing</a><a href="#support" className="py-2">Support</a></nav>
-        <div className="order-2 flex items-center gap-3 sm:order-3">{email && <span className="hidden max-w-48 truncate text-sm text-slate-500 md:inline">{email}</span>}<ClientSignOutButton /></div>
+        <div className="order-2 flex items-center gap-3 sm:order-3">
+          <div className="max-w-[44vw] text-right sm:max-w-56">
+            <p className="truncate text-sm font-semibold text-slate-800">{userName}</p>
+            <p className="truncate text-xs text-slate-500">{website || email || "Business website not linked"}</p>
+          </div>
+          <ClientSignOutButton />
+        </div>
       </div>
     </header>
     <div className="pt-portal-content mx-auto max-w-[1180px] space-y-7 py-7 sm:py-9">{children}</div>

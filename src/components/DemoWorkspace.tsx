@@ -10,6 +10,7 @@ import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
 import { DEMO_CHAT_LAYOUT } from "../lib/demoChatLayout";
 import { hasConfiguredWebsiteChatLeadAlerts } from "../lib/leadAlertRecipients";
 import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
+import { createClient } from "@/lib/supabase/client";
 
 type DemoWorkspaceProps = {
   initialProfile: BusinessProfile;
@@ -71,6 +72,24 @@ export default function DemoWorkspace({
 }: DemoWorkspaceProps) {
   const [business, setBusiness] = useState<BusinessProfile>(initialProfile);
   const resolvedDemoId = demoId || demoIdFromWebsite(business.website || "demo");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    try {
+      const supabase = createClient();
+      void supabase.auth.getSession().then(({ data }) => {
+        if (active) { setIsAuthenticated(Boolean(data.session)); setAuthChecked(true); }
+      }).catch(() => { if (active) setAuthChecked(true); });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (active) { setIsAuthenticated(Boolean(session)); setAuthChecked(true); }
+      });
+      return () => { active = false; subscription.unsubscribe(); };
+    } catch {
+      setAuthChecked(true);
+    }
+  }, []);
 
   const handleProfileUpdate = useCallback(
     (profile: BusinessProfile) => {
@@ -127,11 +146,18 @@ export default function DemoWorkspace({
                 >
                   Skip to customer test ↓
                 </a>
-                <div className="pt-demo-account-actions">
-                  <Link href={`/login?mode=signup&next=${encodeURIComponent(`/demo?id=${resolvedDemoId}`)}`} className="pt-demo-account-link">
-                    Log in or create a free account to save changes and view your dashboard
-                  </Link>
-                  <Link href="/client" className="pt-demo-dashboard-link">Open dashboard</Link>
+                <div className="pt-demo-account-actions" aria-live="polite" aria-busy={!authChecked}>
+                  {authChecked && (isAuthenticated ? (
+                    <>
+                      <Link href="/client" className="pt-demo-dashboard-link">Open Dashboard</Link>
+                      <Link href="/client#payment" className="pt-demo-payment-link">Pay to use it for your business</Link>
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/login" className="pt-demo-login-link">Log in or create an account</Link>
+                      <Link href="/client" className="pt-demo-dashboard-link">Open Dashboard</Link>
+                    </>
+                  ))}
                 </div>
               </div>
             </div>

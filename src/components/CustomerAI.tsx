@@ -10,6 +10,15 @@ import {
 } from "../lib/customerChatClient";
 import { businessIdentityKey } from "../lib/salesState";
 
+function businessIconUrl(website: string): string | undefined {
+  try {
+    const normalized = /^https?:\\/\\//i.test(website) ? website : `https://${website}`;
+    return new URL("/favicon.ico", normalized).toString();
+  } catch {
+    return undefined;
+  }
+}
+
 type CustomerAIProps = {
   business: BusinessProfile;
   demoId?: string;
@@ -122,7 +131,7 @@ export default function CustomerAI({
     <ChatAgentShell
       name={business.agentName || business.businessName || "AI Sales Employee"}
       role="AI Sales Employee"
-      avatar={business.logo || undefined}
+      avatar={businessIconUrl(business.website)}
       fallbackLabel={business.businessName || business.agentName || "AI"}
       className={`min-h-0 min-w-0 w-full ${className}`.trim()}
     >

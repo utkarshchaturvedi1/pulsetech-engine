@@ -81,7 +81,8 @@ export async function POST(request: Request) {
     }
     if (typeof result.session_id === "string") await admin.from("checkout_intents").update({ provider_session_id: result.session_id }).eq("id", intent.id);
     return NextResponse.json({ provider, checkoutUrl }, { headers: { "Cache-Control": "no-store" } });
-  } catch {
+  } catch (error) {
+    console.error("client_checkout_failed", error instanceof Error ? error.message : "Unknown checkout error");
     return NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again." }, { status: 503 });
   }
 }

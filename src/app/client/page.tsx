@@ -97,18 +97,23 @@ export default async function ClientPortalPage({ searchParams }: { searchParams?
     <PlanPricingSection />
     {account && billingSchemaReady && <UsageSummary usage={usageResult?.error ? null : (usageResult?.data?.[0] as { website_chat_conversations: number; inbound_voice_minutes: number } | undefined) || null} />}
     {account && <ClientInstallation demoId={account.demo_id} domain={account.allowed_domain} phone={account.phone_status === "live" && account.billing_status === "paid" && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live") ? account.inbound_phone : null} baseUrl={(process.env.PULSETECH_PUBLIC_BASE_URL || "").replace(/\/$/, "")} enabled={billingSchemaReady && account.billing_status === "paid" && account.website_status === "live" && !!account.launch_checked_at && !!account.allowed_domain && (process.env.VERCEL_ENV !== "production" || account.billing_environment === "live")} />}
-    {account && <a href="/api/client/export" className="inline-block font-semibold text-blue-700 underline">Download your lead data</a>}
+    {account && <section className="pt-portal-card rounded-[22px] border p-5">
+      <h2 className="font-semibold text-slate-950">Export your leads</h2>
+      <p className="mt-1 text-sm leading-6 text-slate-600">Download a spreadsheet of customer enquiries saved by your assistant. Open it in Excel or Google Sheets, keep it as a backup, or import it into your CRM.</p>
+      <a href="/api/client/export" className="mt-3 inline-block font-semibold text-blue-700 underline">Download lead list (CSV)</a>
+      {account.handover_status !== "live" && <p className="mt-2 text-xs text-slate-500">The file will include leads after your assistant starts capturing enquiries.</p>}
+    </section>}
     {account?.billing_status === "unpaid" && <section className="pt-portal-card rounded-[26px] border p-6"><h2 className="text-xl font-semibold">Start your setup</h2>{billingSchemaReady ? <ClientCheckout providers={configuredCheckoutProviders()} token={process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN || ""} setupPriceId={process.env.NEXT_PUBLIC_PADDLE_SETUP_PRICE_ID || ""} monthlyPriceId={process.env.NEXT_PUBLIC_PADDLE_MONTHLY_PRICE_ID || ""} /> : <p className="mt-3 text-sm text-slate-600">Secure online checkout is being enabled. Contact PulseTech for current payment instructions.</p>}</section>}
     {account && <section id="requests" className="pt-portal-card rounded-[26px] border p-6 sm:p-8">
-      <h2 className="text-xl font-semibold text-slate-950">Your support requests</h2>
-      <p className="mt-2 text-sm text-slate-600">Save a setup or support request and review its status here. For business instructions, use Peter.</p>
+      <h2 className="text-xl font-semibold text-slate-950">Need help? Contact PulseTech</h2>
+      <p className="mt-2 text-sm text-slate-600">Use this form for questions about setup, payments, your account, or a technical issue. To change what your assistant knows about your services, hours, or prices, choose “Review with Peter” above.</p>
       <ClientHandoverRequest />
       {requestResult?.error ? <p role="status" className="mt-5 text-sm text-amber-900">Request history is temporarily unavailable. Please try again or contact support.</p>
         : requestResult?.data?.length ? <ul className="mt-6 space-y-4">{requestResult.data.map((request) => <li key={request.id} className="rounded-xl border border-slate-200 p-4">
           <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold text-slate-950">{request.subject}</h3><span className="text-sm text-blue-700">{({ received: "Received", in_progress: "In progress", resolved: "Resolved" } as Record<string, string>)[request.status] || "Status unavailable"}</span></div>
           <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-600">{request.details}</p>
           <p className="mt-2 text-xs text-slate-500">{new Date(request.created_at).toISOString().replace("T", " ").slice(0, 16)} UTC</p>
-        </li>)}</ul> : <p className="mt-5 text-sm text-slate-500">No saved requests yet.</p>}
+        </li>)}</ul> : <p className="mt-5 text-sm text-slate-500">You haven’t sent a request yet.</p>}
     </section>}
   </PortalShell>;
 }
@@ -132,8 +137,8 @@ function PreLaunchDashboard({ account, profile }: { account: Account; profile?: 
       <p className="mt-3 text-[#c5d0e5]">Your account setup is being prepared with PulseTech. You can test the assistant if you wish; testing is optional.</p></div>
     </section>
     <section id="assistant" className="pt-portal-card grid gap-6 rounded-[26px] border p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
-      <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Optional</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Try your assistant</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Test the chat or phone experience whenever you like. PulseTech will complete the launch checks and send your installation instructions.</p></div>
-      <Link href={demoUrl} className="pt-portal-button inline-flex min-h-12 items-center justify-center rounded-full px-6 py-3 font-extrabold">Try the demo</Link>
+      <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Built for your business</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Your custom chat and voice assistants</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Review the chatbot and voice assistant configured for your business. PulseTech will install them on your website and phone after payment and final launch checks.</p></div>
+      <Link href={demoUrl} className="pt-portal-button inline-flex min-h-12 items-center justify-center rounded-full px-6 py-3 font-extrabold">Review your chat and voice assistants</Link>
     </section>
     <section className="pt-portal-card rounded-[26px] border p-5 sm:p-6" aria-label="Setup progress">
       <h2 className="mb-5 text-xl font-extrabold text-slate-950">Setup progress</h2>

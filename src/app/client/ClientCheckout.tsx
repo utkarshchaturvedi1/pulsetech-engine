@@ -58,7 +58,7 @@ export default function ClientCheckout({ providers, token, setupPriceId, monthly
     </fieldset>}
     <p className="text-sm text-slate-600">One-time setup: $2,000. Then $500/month. Your subscription continues monthly until canceled.</p>
     <p className="mt-2 text-xs leading-5 text-slate-500">Your account is activated only after the provider confirms payment. Returning from checkout alone does not mark payment as complete.</p>
-    <button type="button" disabled={busy || (provider === "paddle" && !paddleReady)} onClick={checkout} className="pt-portal-button mt-4 rounded-full px-6 py-3 font-bold disabled:opacity-50">{busy ? "Opening secure checkout…" : "Continue to secure checkout"}</button>
+    <button type="button" disabled={busy || (provider === "paddle" && !paddleReady)} onClick={checkout} className="pt-portal-button mt-4 rounded-full px-6 py-3 font-bold disabled:opacity-50">{busy ? "Opening secure checkout…" : "Continue to secure payment"}</button>
     {message && <p role="status" className="mt-3 text-sm text-slate-700">{message}</p>}
   </div>;
 }

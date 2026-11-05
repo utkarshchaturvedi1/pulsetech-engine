@@ -23,7 +23,7 @@ export default function ClientHandoverRequest() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not send request.");
       form.reset();
-      setMessage("Your handover request is saved to this client account.");
+      setMessage("Your support request has been sent to PulseTech.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not send request. Please try again.");
@@ -34,12 +34,12 @@ export default function ClientHandoverRequest() {
 
   return <form onSubmit={submit} className="mt-5 space-y-4">
     <label className="block text-sm font-medium text-slate-700">What do you need?
-      <input name="subject" required minLength={3} maxLength={120} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="For example, update our business hours" />
+      <input name="subject" required minLength={3} maxLength={120} className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="For example, a question about setup" />
     </label>
     <label className="block text-sm font-medium text-slate-700">Details
-      <textarea name="details" required minLength={10} maxLength={4000} rows={4} className="mt-2 w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="Tell us what you’d like changed or checked." />
+      <textarea name="details" required minLength={10} maxLength={4000} rows={4} className="mt-2 w-full resize-y rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="Describe your question or issue and how we can help." />
     </label>
-    <button disabled={busy} className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60">{busy ? "Sending…" : "Send handover request"}</button>
+    <button disabled={busy} className="rounded-xl bg-blue-700 px-5 py-3 font-semibold text-white hover:bg-blue-800 disabled:opacity-60">{busy ? "Sending…" : "Send support request"}</button>
     {message && <p aria-live="polite" className="text-sm leading-6 text-blue-900">{message}</p>}
   </form>;
 }

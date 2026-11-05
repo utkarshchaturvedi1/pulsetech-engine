@@ -150,7 +150,7 @@ export default function DemoWorkspace({
                   {authChecked && (isAuthenticated ? (
                     <>
                       <Link href="/client" className="pt-demo-dashboard-link">Open Dashboard</Link>
-                      <Link href="/client#payment" className="pt-demo-payment-link">Pay to use it for your business</Link>
+                      <Link href="/client#payment" className="pt-demo-payment-link">Continue to secure payment</Link>
                     </>
                   ) : (
                     <>

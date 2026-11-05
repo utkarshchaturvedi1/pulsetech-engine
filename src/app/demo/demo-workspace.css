@@ -654,22 +654,36 @@ body:has(.pt-demo) {
   justify-content: center;
   min-height: 3.1rem;
   padding: 0.65rem 0.8rem;
-  border: 1px solid #247df0;
+  border: 1px solid transparent;
   border-radius: 0.75rem;
-  background: #fff;
-  color: #16345f;
+  color: #023047;
   font-size: 0.86rem;
   font-weight: 800;
   line-height: 1.2;
   text-align: center;
   text-decoration: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  box-shadow: 0 7px 18px rgba(2, 48, 71, 0.16);
+  transition: filter 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 .pt-demo-account-actions a:hover,
 .pt-demo-account-actions a:focus-visible {
-  border-color: #145bd3;
-  box-shadow: 0 5px 16px rgba(17, 73, 153, 0.14);
-  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 10px 22px rgba(2, 48, 71, 0.22);
+  transform: translateY(-2px);
+}
+.pt-demo-account-actions a:focus-visible {
+  outline: 3px solid #023047;
+  outline-offset: 3px;
+}
+.pt-demo-login-link,
+.pt-demo-payment-link {
+  background: linear-gradient(110deg, #168fe9, #5557f5 60%, #7954ef);
+  color: #fff !important;
+}
+.pt-demo-dashboard-link {
+  border-color: #a5d938 !important;
+  background: linear-gradient(110deg, #caff4b, #b8f542);
+  color: #023047 !important;
 }
 @media (max-width: 640px) {
   .pt-demo-account-actions { grid-template-columns: 1fr; gap: 0.45rem; }

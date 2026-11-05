@@ -137,7 +137,7 @@ function PreLaunchDashboard({ account, profile }: { account: Account; profile?: 
       <p className="mt-3 text-[#c5d0e5]">Your account setup is being prepared with PulseTech. You can test the assistant if you wish; testing is optional.</p></div>
     </section>
     <section id="assistant" className="pt-portal-card grid gap-6 rounded-[26px] border p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
-      <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Built for your business</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Your custom chat and voice assistants</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Review the chatbot and voice assistant configured for your business. PulseTech will install them on your website and phone after payment and final launch checks.</p></div>
+      <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Built for your business</p><h2 className="mt-2 text-2xl font-semibold text-slate-950">Your Custom Chat And Voice Assistant is ready</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Review the chatbot and voice assistant configured for your business. PulseTech will install them on your website and phone after payment and final launch checks.</p></div>
       <Link href={demoUrl} className="pt-portal-button inline-flex min-h-12 items-center justify-center rounded-full px-6 py-3 font-extrabold">Review your chat and voice assistants</Link>
     </section>
     <section className="pt-portal-card rounded-[26px] border p-5 sm:p-6" aria-label="Setup progress">

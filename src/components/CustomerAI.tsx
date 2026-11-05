@@ -12,7 +12,7 @@ import { businessIdentityKey } from "../lib/salesState";
 
 function businessIconUrl(website: string): string | undefined {
   try {
-    const normalized = /^https?:\\/\\//i.test(website) ? website : `https://${website}`;
+    const normalized = website.startsWith("http://") || website.startsWith("https://") ? website : `https://${website}`;
     return new URL("/favicon.ico", normalized).toString();
   } catch {
     return undefined;

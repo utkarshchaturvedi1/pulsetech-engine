@@ -64,6 +64,14 @@ function customerAskedSubstantiveQuestion(text: string): boolean {
   return text.includes("?") || /\b(how much|what(?:'s| is)|how do|how can|can you|does it|do you|is it|will it|which|when)\b/i.test(text);
 }
 
+function customerHasAlreadyBeenReassured(messages: SalesEmployeeMessage[]): boolean {
+  return messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      /\b(right place|don't worry|do not worry|here to help get this sorted)\b/i.test(message.content)
+  );
+}
+
 function businessFacts(business: BusinessProfile): string {
   const faqs = business.faqs.map(({ question, answer }) => `Q: ${question}\nA: ${answer}`);
   return [
@@ -94,7 +102,7 @@ function conciseFallback(state: SalesState, business: BusinessProfile, lastAssis
   return `${reassurance}Could you tell me a little more about what you need?`;
 }
 
-function promptForTurn(state: SalesState, business: BusinessProfile, photoInvitation: boolean): string {
+function promptForTurn(state: SalesState, business: BusinessProfile, photoInvitation: boolean, reassuranceAlreadyGiven: boolean): string {
   const missingContact = nextMissingContactField(state);
   const ownerQuestions = missingOwnerQuestions(state);
   const captured = [
@@ -106,7 +114,7 @@ function promptForTurn(state: SalesState, business: BusinessProfile, photoInvita
   return `You are the AI sales employee for the assigned business. Speak as a real, helpful member of that company.
 
 Your priorities:
-1. If the business offers the requested service, reassure the customer early. When it fits naturally, say: “Don’t worry—you’ve come to the right place. You don’t need to look elsewhere; we’re here to help get this sorted as soon as possible.” Match the emotion: calm empathy for a problem, positive confidence for a new project. If the business does not offer the service, say so plainly and do not pretend it does.
+1. If the business offers the requested service, reassure the customer in your first substantive reply. Use “Don’t worry—you’ve come to the right place” for a problem and a positive, confident variation for a new project. Give this reassurance once per conversation; do not repeat it after it has already been given. ${reassuranceAlreadyGiven ? "This customer has already received reassurance; skip it now." : "Include brief reassurance now when the business supports the request."} If the business does not offer the service, say so plainly and do not pretend it does.
 2. Helpfully answer what the customer actually asked. Do not ignore a question just to collect information. Keep replies warm, human, concise, and usually no more than two short sentences before one useful question.
 3. For a genuine service request, collect the customer's name, phone number, and service address, one at a time and in that order. Ask only for the next missing field. If the customer asks another question instead of answering, answer it first; do not repeat the same request in the same reply if the previous assistant message already asked for that field. Never ask for a field already captured or one the customer declined to provide. Do not pressure or argue.
 4. Ask any still-unanswered owner-required question only after the three contact fields are captured, one question at a time. Do not ask optional discovery questions.
@@ -119,7 +127,7 @@ Truth and safety:
 - Never provide any business phone number, even if one appears in the business facts.
 - Do not expose internal delivery configuration, email, or SMS status.
 - Do not repeat a question the customer has already answered. Understand corrections and compound answers from the conversation.
-- If the customer declines contact details, respect that and continue answering without asking again.
+- When the customer answers your last question, acknowledge briefly and move to the next step. Do not repeat the previous explanation unless they ask about it again.\n- If the customer declines contact details, respect that and continue answering without asking again.
 - Do not use long lists, scripted sales language, or generic replies that ignore the customer's actual words.
 
 Current contact and request state:
@@ -176,7 +184,12 @@ export async function generateSalesEmployeeReply(
   } else if (canClose && !answerBeforeClosing && state.leadDeliveryStatus === "FAILED") {
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve noted your details, but I can’t confirm the team received your request just now. Please try again shortly.`;
   } else {
-    const instructions = promptForTurn(state, business, photoInvitation);
+    const instructions = promptForTurn(
+      state,
+      business,
+      photoInvitation,
+      customerHasAlreadyBeenReassured(messages)
+    );
     if (testModel) {
       reply = (await testModel(instructions, messages)).trim();
     } else {

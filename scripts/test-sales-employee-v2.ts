@@ -65,6 +65,7 @@ async function main() {
   state = answeredQuestion.salesState;
   assert(/shingles|flashing|leak/i.test(answeredQuestion.reply), "customer question is answered before contact capture");
   assert(!/what name should i use/i.test(answeredQuestion.reply), "the same contact question is not repeated immediately");
+  assert(latestInstructions.includes("already received reassurance"), "later turns do not repeat the opening reassurance");
 
   messages = [...messages, { role: "assistant", content: answeredQuestion.reply }, { role: "user", content: "Maya" }];
   modelReply = "Thanks, Maya.";

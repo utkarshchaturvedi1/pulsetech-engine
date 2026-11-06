@@ -1979,9 +1979,36 @@ function testHighIntentLeadCaptureOrder() {
   );
   assert(
     buildTurnControlBlock(capabilityState, business).includes(
-      "Answer their question first, then ask only for their first name"
+      "corrected/clarified what they need"
     ),
-    "the answer-first turn must still continue name capture naturally"
+    "the assistant should be guided to acknowledge corrections before asking for a name"
+  );
+
+  const clarification =
+    "No, I am clarifying the situation. I bought the house and need pest treatment before renovation.";
+  const clarificationState = updateSalesStateFromTurn(
+    createInitialSalesState({
+      conversationId: "conv_need_clarification_before_name",
+      businessKey: business.website,
+    }),
+    [
+      { role: "user", content: "I need a service at my property before renovation. Can you help?" },
+      { role: "assistant", content: "We can help with that. What's your first name?" },
+      { role: "user", content: clarification },
+    ],
+    business
+  );
+  assert(
+    clarificationState.currentObjective === "ANSWER",
+    `a customer clarification must be acknowledged before name capture, got ${clarificationState.currentObjective}`
+  );
+  assert(
+    resolveDeterministicPreContactReply(
+      clarificationState,
+      business,
+      clarification
+    ) === null,
+    "a clarification must not be intercepted by the repeated deterministic name ask"
   );
 
   let afterNamePhone = updateSalesStateFromTurn(

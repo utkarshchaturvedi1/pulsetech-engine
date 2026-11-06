@@ -71,6 +71,8 @@ export type SalesState = {
   siteVisitFeeMentioned: boolean;
   /** True when the latest customer turn asked about price/fee/payment. */
   customerAskedAboutFee: boolean;
+  /** True once the optional customer photo invitation has been shown. */
+  customerPhotoInviteShown: boolean;
   /** Owner-provided visit fee amount like "$79", or null if none. */
   siteVisitFeeLabel: string | null;
   requiredOwnerQuestions: string[];
@@ -142,6 +144,7 @@ export function createInitialSalesState(
     leadDeliveryStatus: "NOT_SENT",
     siteVisitFeeMentioned: false,
     customerAskedAboutFee: false,
+    customerPhotoInviteShown: false,
     siteVisitFeeLabel: null,
     requiredOwnerQuestions: [],
     ownerQuestionAnswers: {},
@@ -194,6 +197,7 @@ export function normalizeSalesState(value: SalesState): SalesState {
     leadDeliveryStatus: value.leadDeliveryStatus ?? "NOT_SENT",
     siteVisitFeeMentioned: value.siteVisitFeeMentioned ?? false,
     customerAskedAboutFee: value.customerAskedAboutFee ?? false,
+    customerPhotoInviteShown: value.customerPhotoInviteShown ?? false,
     siteVisitFeeLabel: value.siteVisitFeeLabel ?? null,
     requiredOwnerQuestions: [...(value.requiredOwnerQuestions || [])],
     ownerQuestionAnswers: { ...(value.ownerQuestionAnswers || {}) },

@@ -35,7 +35,7 @@ const business: BusinessProfile = {
   leadQuestions: [],
   systemPrompt: "",
   leadNotificationEmail: "alerts@summit.test",
-  leadNotificationPhone: "+15125550198",
+  leadNotificationPhone: "+15125551298",
 };
 
 async function main() {

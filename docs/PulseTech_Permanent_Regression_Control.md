@@ -105,6 +105,7 @@ ANSWER FIRST: if the customer asks a direct question, answer it; do not refuse s
 ### D. Alert delivery
 
 - Per-business recipients only; no PulseTech fallback for personalised demos.
+- Reserved sample recipients (including `@example.com` and North American `555-0100`–`555-0199` numbers) never count as configured. Peter must ask the owner for real lead-alert email and SMS destinations, and lead delivery must reject those placeholders.
 - Email and SMS must work independently.
 - `after()` must preserve non-blocking delivery.
 - Duplicate/replay must result in one email task and one SMS task only.

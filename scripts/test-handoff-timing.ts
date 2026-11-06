@@ -62,7 +62,7 @@ const business: BusinessProfile = {
   leadQuestions: [],
   systemPrompt: "Long owner prompt that must NOT appear in the email dump.",
   leadNotificationEmail: "owner@summit.test",
-  leadNotificationPhone: "+15125550142",
+  leadNotificationPhone: "+15125551242",
 };
 
 const businessB: BusinessProfile = {
@@ -70,7 +70,7 @@ const businessB: BusinessProfile = {
   website: "https://autreys-plumbing.test",
   businessName: "Autrey's Plumbing LLC",
   leadNotificationEmail: "owner@autrey.test",
-  leadNotificationPhone: "+12145550189",
+  leadNotificationPhone: "+12145551289",
 };
 
 function assert(condition: boolean, message: string) {
@@ -489,7 +489,7 @@ async function main() {
       businessName: "Summit Pest Control",
       services: ["Pest control", "Hornet nest removal"],
       leadNotificationEmail: "owner@pest-hornet.test",
-      leadNotificationPhone: "+12145550189",
+      leadNotificationPhone: "+12145551289",
     };
 
     let deliveries = 0;
@@ -586,7 +586,7 @@ async function main() {
       "TEST11: per-business email recipient"
     );
     assert(
-      lastDelivery!.smsTo === "+12145550189",
+      lastDelivery!.smsTo === "+12145551289",
       "TEST11: per-business SMS recipient"
     );
     assert(/hornet/i.test(lastDelivery!.text), "TEST11: email includes need");
@@ -640,7 +640,7 @@ async function main() {
           businessName: "Northstar Climate",
           services: ["Heating repair", "Cooling maintenance"],
           leadNotificationEmail: "owner@northstar-hvac.test",
-          leadNotificationPhone: "+15125550101",
+          leadNotificationPhone: "+15125551201",
         },
         need: "The indoor unit will not start and the house is getting too warm.",
         name: "Avery Chen",
@@ -655,7 +655,7 @@ async function main() {
           businessName: "Greenline Yards",
           services: ["Lawn care", "Seasonal cleanup"],
           leadNotificationEmail: "owner@greenline-yards.test",
-          leadNotificationPhone: "+15125550102",
+          leadNotificationPhone: "+15125551202",
         },
         need: "The front yard needs a seasonal cleanup and the hedge line is overgrown.",
         name: "Morgan Patel",
@@ -670,7 +670,7 @@ async function main() {
           businessName: "Brightline Electric",
           services: ["Outlet repair", "Panel inspection"],
           leadNotificationEmail: "owner@brightline-electric.test",
-          leadNotificationPhone: "+15125550103",
+          leadNotificationPhone: "+15125551203",
         },
         need: "Two kitchen outlets have no power after a breaker reset.",
         name: "Riley Brooks",

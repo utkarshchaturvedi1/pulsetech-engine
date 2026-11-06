@@ -9,6 +9,8 @@ import { BusinessProfile } from "../types/business";
 import {
   formatLeadAlertsConfigured,
   isValidLeadAlertEmail,
+  isPlaceholderLeadAlertEmail,
+  isPlaceholderLeadAlertSms,
   LEAD_ALERT_EMAIL_PROMPT,
   LEAD_ALERT_SMS_PROMPT,
   normalizeLeadAlertSms,
@@ -53,8 +55,14 @@ I've analyzed your website and built it around your business, your services, and
 Now put it to work. Test it like a real customer, challenge it, and see how it handles the conversation. Find something missing? Tell me. I'll fix it instantly.`;
 
 function leadAlertSetupState(profile: BusinessProfile | null): ChatPhase {
-  if (!isValidLeadAlertEmail(profile?.leadNotificationEmail)) return "collecting_email";
-  if (!normalizeLeadAlertSms(profile?.leadNotificationPhone)) return "collecting_sms";
+  if (
+    !isValidLeadAlertEmail(profile?.leadNotificationEmail) ||
+    isPlaceholderLeadAlertEmail(profile?.leadNotificationEmail)
+  ) return "collecting_email";
+  if (
+    !normalizeLeadAlertSms(profile?.leadNotificationPhone) ||
+    isPlaceholderLeadAlertSms(profile?.leadNotificationPhone)
+  ) return "collecting_sms";
   return "ready";
 }
 
@@ -69,8 +77,12 @@ function extractLeadAlertDetails(text: string): { email: string | null; sms: str
 }
 
 function leadAlertOpeningMessage(profile: BusinessProfile | null): string {
-  const email = profile?.leadNotificationEmail?.trim() || "";
-  const sms = normalizeLeadAlertSms(profile?.leadNotificationPhone);
+  const email = isPlaceholderLeadAlertEmail(profile?.leadNotificationEmail)
+    ? ""
+    : profile?.leadNotificationEmail?.trim() || "";
+  const sms = isPlaceholderLeadAlertSms(profile?.leadNotificationPhone)
+    ? null
+    : normalizeLeadAlertSms(profile?.leadNotificationPhone);
   if (isValidLeadAlertEmail(email) && sms) {
     return `I have your lead alert details saved. New leads will be sent to:\nEmail: ${email}\nPhone: ${sms}\n\n${INVITE_READY_MESSAGE}`;
   }

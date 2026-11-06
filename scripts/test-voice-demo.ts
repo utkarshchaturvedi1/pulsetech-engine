@@ -376,7 +376,7 @@ function voiceBusiness(): BusinessProfile {
     leadQuestions: [],
     systemPrompt: "",
     leadNotificationEmail: "alerts@kiser-hvac.test",
-    leadNotificationPhone: "+12145550189",
+    leadNotificationPhone: "+12145551289",
   };
 }
 
@@ -471,13 +471,13 @@ async function testVoiceLeadHandoffFromPostCall() {
   assert(queued.length === 1, "exactly one after() delivery task");
   assert(deliveries === 0, "webhook must not wait for SMTP/SMS");
   assert(result.emailTo === "alerts@kiser-hvac.test", "business-specific email");
-  assert(result.smsTo === "+12145550189", "business-specific SMS");
+  assert(result.smsTo === "+12145551289", "business-specific SMS");
   assert(result.salesState?.urgency === "IMMEDIATE", "urgent wording sets IMMEDIATE");
 
   await queued[0]();
   assert(deliveries === 1, "exactly one email+SMS delivery");
   assert(captured.current?.emailTo === "alerts@kiser-hvac.test", "email recipient");
-  assert(captured.current?.smsTo === "+12145550189", "sms recipient");
+  assert(captured.current?.smsTo === "+12145551289", "sms recipient");
   assert(/URGENT/i.test(captured.current?.subject || ""), "urgent email subject");
 
   const replay = await processVoiceLeadHandoff({

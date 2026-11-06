@@ -22,6 +22,12 @@ export function isValidLeadAlertEmail(value: string | null | undefined): boolean
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/** Reserved example addresses and fictional NANP numbers must never count as configured recipients. */
+export function isPlaceholderLeadAlertEmail(value: string | null | undefined): boolean {
+  const email = value?.trim().toLowerCase() || "";
+  return email === "alerts-test@example.com" || email.endsWith("@example.com");
+}
+
 /** E.164, or a US number that can be safely normalized to +1XXXXXXXXXX. */
 export function normalizeLeadAlertSms(
   value: string | null | undefined
@@ -41,6 +47,14 @@ export function normalizeLeadAlertSms(
   const e164 = "+" + digits;
   if (!/^\+[1-9]\d{7,14}$/.test(e164)) return null;
   return e164;
+}
+
+export function isPlaceholderLeadAlertSms(value: string | null | undefined): boolean {
+  const normalized = normalizeLeadAlertSms(value);
+  if (!normalized) return false;
+  const digits = normalized.slice(1);
+  // NANP 555-0100 through 555-0199 is reserved for fictional use.
+  return digits.length === 11 && digits[0] === "1" && digits.slice(4, 7) === "555" && digits.slice(7, 9) === "01";
 }
 
 export function isShowcaseLeadAlertProfile(profile: BusinessProfile): boolean {
@@ -81,7 +95,12 @@ export function resolveWebsiteChatLeadAlert(
     ? fixtureSms(profile)
     : normalizeLeadAlertSms(profile.leadNotificationPhone) || "";
 
-  if (!isValidLeadAlertEmail(email) || !sms) {
+  if (
+    !isValidLeadAlertEmail(email) ||
+    isPlaceholderLeadAlertEmail(email) ||
+    !sms ||
+    isPlaceholderLeadAlertSms(sms)
+  ) {
     return { ok: false, error: LEAD_ALERT_SETUP_NEEDED_ERROR };
   }
 
@@ -94,7 +113,9 @@ export function shouldCollectLeadAlertSetup(profile: BusinessProfile): boolean {
   // substitute for asking where this business wants real leads delivered.
   return (
     !isValidLeadAlertEmail(profile.leadNotificationEmail) ||
-    !normalizeLeadAlertSms(profile.leadNotificationPhone)
+    isPlaceholderLeadAlertEmail(profile.leadNotificationEmail) ||
+    !normalizeLeadAlertSms(profile.leadNotificationPhone) ||
+    isPlaceholderLeadAlertSms(profile.leadNotificationPhone)
   );
 }
 
@@ -103,6 +124,8 @@ export function hasConfiguredWebsiteChatLeadAlerts(
 ): boolean {
   return (
     isValidLeadAlertEmail(profile.leadNotificationEmail) &&
+    !isPlaceholderLeadAlertEmail(profile.leadNotificationEmail) &&
+    !isPlaceholderLeadAlertSms(profile.leadNotificationPhone) &&
     Boolean(normalizeLeadAlertSms(profile.leadNotificationPhone))
   );
 }

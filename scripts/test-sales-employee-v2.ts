@@ -1,0 +1,108 @@
+import { config } from "dotenv";
+config({ path: ".env.local" });
+process.env.LEAD_HANDOFF_DRY_RUN = "true";
+
+import {
+  generateSalesEmployeeReply,
+  setSalesEmployeeTestModel,
+  type SalesEmployeeMessage,
+} from "../src/lib/salesEmployeeV2";
+import {
+  businessIdentityKey,
+  createInitialSalesState,
+  type SalesState,
+} from "../src/lib/salesState";
+import type { BusinessProfile } from "../src/types/business";
+
+function assert(condition: boolean, message: string): void {
+  if (!condition) throw new Error(message);
+}
+
+const business: BusinessProfile = {
+  website: "https://summit-roofing.test",
+  businessName: "Summit Roofing",
+  tagline: "Roofing help for Dallas homeowners",
+  logo: "",
+  primaryColor: "",
+  secondaryColor: "",
+  phone: "+1 (512) 555-0142",
+  email: "hello@summit.test",
+  address: "",
+  services: ["Roof repair", "Roof replacement"],
+  serviceAreas: ["Dallas"],
+  faqs: [],
+  leadQuestions: [],
+  systemPrompt: "",
+  leadNotificationEmail: "alerts@summit.test",
+  leadNotificationPhone: "+15125550198",
+};
+
+async function main() {
+  let modelReply = "";
+  let latestInstructions = "";
+  setSalesEmployeeTestModel(async (instructions) => {
+    latestInstructions = instructions;
+    return modelReply;
+  });
+
+  const conversationId = "sales-employee-v2-test-0001";
+  const businessKey = businessIdentityKey(business);
+  let state: SalesState = createInitialSalesState({ conversationId, businessKey });
+  let messages: SalesEmployeeMessage[] = [
+    { role: "user", content: "My roof is leaking. Can your team help?" },
+  ];
+
+  modelReply = "Don’t worry—you’ve come to the right place. We handle roof repairs and will help get this sorted as soon as possible. What name should I use?";
+  const first = await generateSalesEmployeeReply(business, messages, state);
+  state = first.salesState;
+  assert(/right place/i.test(first.reply), "service request receives reassurance");
+  assert(/name/i.test(first.reply), "first missing contact field is requested");
+
+  messages = [...messages, { role: "assistant", content: first.reply }, { role: "user", content: "What does roof repair usually include?" }];
+  modelReply = "It can include repairing damaged shingles, flashing, or leak points; the exact work depends on what the roofer finds.";
+  const answeredQuestion = await generateSalesEmployeeReply(business, messages, state);
+  state = answeredQuestion.salesState;
+  assert(/shingles|flashing|leak/i.test(answeredQuestion.reply), "customer question is answered before contact capture");
+  assert(!/what name should i use/i.test(answeredQuestion.reply), "the same contact question is not repeated immediately");
+
+  messages = [...messages, { role: "assistant", content: answeredQuestion.reply }, { role: "user", content: "Maya" }];
+  modelReply = "Thanks, Maya.";
+  const afterName = await generateSalesEmployeeReply(business, messages, state);
+  state = afterName.salesState;
+  assert(state.lead.name === "Maya", "name is captured");
+  assert(/phone number/i.test(afterName.reply), "phone is the next field requested");
+
+  messages = [...messages, { role: "assistant", content: afterName.reply }, { role: "user", content: "+1 555 010 0123" }];
+  modelReply = "Thank you.";
+  const afterPhone = await generateSalesEmployeeReply(business, messages, state);
+  state = afterPhone.salesState;
+  assert(state.lead.phone === "+1 555 010 0123", "phone is captured");
+  assert(/service address/i.test(afterPhone.reply), "address is the next field requested");
+
+  messages = [...messages, { role: "assistant", content: afterPhone.reply }, { role: "user", content: "123 Main St, Dallas TX 75201" }];
+  modelReply = "Thank you.";
+  const completed = await generateSalesEmployeeReply(business, messages, state);
+  assert(!!completed.salesState.lead.address?.includes("123 Main St"), "service address is captured");
+  assert(completed.salesState.leadDeliveryStatus === "SENT", "complete lead enters the handoff path in dry-run mode");
+  assert(/contact you as soon as possible/i.test(completed.reply), "customer receives a concise follow-up close");
+  assert(!completed.reply.includes(business.phone), "business phone number is never disclosed");
+
+  const photoState = createInitialSalesState({ conversationId: "sales-employee-v2-photo", businessKey });
+  const photoResult = await generateSalesEmployeeReply(
+    business,
+    [{ role: "user", content: "Can I speak to a person about the roof leak?" }],
+    photoState
+  );
+  assert(/up to three photos/i.test(photoResult.reply), "human follow-up offers up to three optional photos");
+  assert(/5 MB/i.test(photoResult.reply), "photo invitation states the 5 MB limit");
+
+  assert(latestInstructions.includes("Never provide any business phone number"), "model instructions prohibit phone disclosure");
+  setSalesEmployeeTestModel(null);
+  console.log("PASS — new sales employee flow: reassure, answer-first, collect three contact fields, photo invitation, and dry-run handoff");
+}
+
+main().catch((error) => {
+  setSalesEmployeeTestModel(null);
+  console.error(error);
+  process.exitCode = 1;
+});

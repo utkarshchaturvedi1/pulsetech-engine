@@ -1,10 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 
 import { BusinessProfile } from "../../../types/business";
-import {
-  generateSalesReply,
-  SalesChatMessage,
-} from "../../../lib/salesChat";
+import { type SalesEmployeeMessage, generateSalesEmployeeReply } from "../../../lib/salesEmployeeV2";
 import { scheduleLeadAlertDelivery } from "../../../lib/leadHandoff";
 import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
 import { normalizeCustomerPhotoPaths, signCustomerPhotoLinks } from "../../../lib/customerChatPhotos";
@@ -35,7 +32,7 @@ function isBusinessProfile(value: unknown): value is BusinessProfile {
   );
 }
 
-function isChatMessages(value: unknown): value is SalesChatMessage[] {
+function isChatMessages(value: unknown): value is SalesEmployeeMessage[] {
   if (!Array.isArray(value) || value.length === 0) {
     return false;
   }
@@ -145,7 +142,7 @@ export async function POST(request: NextRequest) {
       reply,
       salesState: nextState,
       leadDelivery,
-    } = await generateSalesReply(business, messages, previousState, photoLinks);
+    } = await generateSalesEmployeeReply(business, messages, previousState, photoLinks);
 
     const salesState: SalesState = {
       ...nextState,

@@ -11,6 +11,7 @@
     "test:owner-profile-update": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-owner-profile-update.ts",
     "test:owner-pricing-regression": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-owner-pricing-regression.ts",
     "test:demo-chat": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-demo-chat.ts",
+    "test:sales-employee-v2": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-sales-employee-v2.ts",
     "test:handoff-timing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-handoff-timing.ts",
     "test:voice-demo": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-voice-demo.ts",
     "test:client-account-regression": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-account-regression.ts",

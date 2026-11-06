@@ -7,6 +7,7 @@ import {
 } from "./leadHandoff";
 import { missingOwnerQuestions } from "./ownerQuestions";
 import { updateSalesStateFromTurn, type ChatTurnMessage } from "./salesController";
+import { buildAgreedPreferredTimeAsk, buildPostContactNextStepReply } from "./salesConversation";
 import { SalesState } from "./salesState";
 
 export type SalesEmployeeMessage = ChatTurnMessage;
@@ -62,6 +63,10 @@ function customerNeedsVisualReview(messages: SalesEmployeeMessage[]): boolean {
 
 function customerAskedSubstantiveQuestion(text: string): boolean {
   return text.includes("?") || /\b(how much|what(?:'s| is)|how do|how can|can you|does it|do you|is it|will it|which|when)\b/i.test(text);
+}
+
+function customerIsComparingProviders(text: string): boolean {
+  return /\b(?:i(?:'ll| will| am going to) (?:ask|check with|contact|talk to|compare)|(?:ask|check with|contact|talk to) (?:a few|few more|other|more|different) (?:service )?(?:providers|companies|contractors|installers|vendors)|compare (?:other )?(?:providers|companies|quotes|options)|shop around|get (?:other|more|a few) quotes)\b/i.test(text);
 }
 
 function removeRepeatedFieldQuestion(
@@ -131,7 +136,7 @@ Your priorities:
 3. For a genuine service request, collect the customer's name, phone number, and service address, one at a time and in that order. Ask only for the next missing field. If the customer asks another question instead of answering, answer it first; do not repeat the same request in the same reply if the previous assistant message already asked for that field. Never ask for a field already captured or one the customer declined to provide. Do not pressure or argue.
 4. Ask any still-unanswered owner-required question only after the three contact fields are captured, one question at a time. Do not ask optional discovery questions.
 5. If the customer asks to speak with a person, or the team would benefit from seeing the issue, invite them to attach up to three optional photos for the team to review before contacting them. Each photo may be up to 5 MB. Do not claim that you can inspect or diagnose the photos yourself. Mention this invitation at most once.
-6. Once the contact fields and any owner-required questions are complete, close briefly: say the team will contact them as soon as possible. If the customer also asked a question, answer it first and then close. Never give out a phone number or tell them to contact someone else. Do not claim a message was sent if the system says delivery failed.
+6. Once the contact fields and any owner-required questions are complete, explain the useful next step and ask whether they want to arrange it. Ask for a preferred day/time only after they agree. Submit a handoff only after explicit agreement and a preferred time are both captured. If they are comparing providers or not ready, acknowledge that without pressure and keep helping. Never claim the team will contact them until a handoff is actually queued or sent.
 
 Truth and safety:
 - Use only the verified business facts below for services, prices, areas, licenses, guarantees, availability, and capabilities. Never invent a license number, quote, booking, outcome, or speed guarantee. You may say the team will follow up as soon as possible, but do not promise the work itself will be completed by a specific time.
@@ -147,7 +152,9 @@ ${captured}
 Next missing contact field: ${missingContact || "none"}
 Owner-required questions still unanswered: ${ownerQuestions.length ? ownerQuestions.join("; ") : "none"}
 Contact alert status: ${state.leadDeliveryStatus}
-${state.leadDeliveryStatus === "FAILED" ? "The team alert could not be confirmed. Do not promise that the team will contact the customer; be transparent and polite." : ""}
+Agreement to arrange next step: ${state.customerAgreed ? "yes" : "not yet"}
+Preferred day/time: ${state.preferredTiming || "not provided"}
+${state.leadDeliveryStatus === "FAILED" ? "The handoff failed. Do not claim the team will contact the customer; give a brief, honest retry message without exposing internal status." : ""}
 ${photoInvitation ? "Photo invitation condition is met; naturally invite up to three optional photos (max 5 MB each) in this reply." : "Do not bring up photo uploads in this reply."}
 
 Business facts:
@@ -172,7 +179,16 @@ export async function generateSalesEmployeeReply(
     : null;
   if (fieldObjective) state.currentObjective = fieldObjective;
 
-  const canClose = !missingContact && !openOwnerQuestion && !!(state.primaryNeed || state.customerNeed);
+  const contactsAndOwnerQuestionsComplete = !missingContact && !openOwnerQuestion && !!(state.primaryNeed || state.customerNeed);
+  const comparingProviders = customerIsComparingProviders(latestUser);
+  if (comparingProviders && state.leadDeliveryStatus !== "SENT" && state.leadDeliveryStatus !== "QUEUED") {
+    state.customerAgreed = false;
+    state.appointmentIntent = false;
+    state.handoffReady = false;
+    state.currentObjective = "HANDLE_HESITATION";
+    state.salesStage = "OBJECTION";
+  }
+  const canClose = contactsAndOwnerQuestionsComplete && !comparingProviders && state.customerAgreed && !!state.preferredTiming;
   let handoff: LeadHandoffResult = { attempted: false, status: state.leadDeliveryStatus };
   if (canClose && state.leadDeliveryStatus !== "SENT" && state.leadDeliveryStatus !== "QUEUED") {
     state.customerAgreed = true;
@@ -191,10 +207,16 @@ export async function generateSalesEmployeeReply(
   let reply: string;
 
   const answerBeforeClosing = customerAskedSubstantiveQuestion(latestUser);
-  if (canClose && !answerBeforeClosing && (state.leadDeliveryStatus === "QUEUED" || state.leadDeliveryStatus === "SENT")) {
+  if (comparingProviders) {
+    reply = "That makes sense—it’s smart to compare providers for a project like this. There’s no pressure to decide now; I’m happy to answer any other questions while you compare.";
+  } else if (canClose && !answerBeforeClosing && (state.leadDeliveryStatus === "QUEUED" || state.leadDeliveryStatus === "SENT")) {
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve noted your request, and the team will contact you as soon as possible.`;
   } else if (canClose && !answerBeforeClosing && state.leadDeliveryStatus === "FAILED") {
-    reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve noted your details, but I can’t confirm the team received your request just now. Please try again shortly.`;
+    reply = "I’m sorry, I couldn’t send your request through just now. Please try again shortly.";
+  } else if (contactsAndOwnerQuestionsComplete && !answerBeforeClosing && !state.customerAgreed) {
+    reply = buildPostContactNextStepReply(state, business);
+  } else if (contactsAndOwnerQuestionsComplete && !answerBeforeClosing && state.customerAgreed && !state.preferredTiming) {
+    reply = buildAgreedPreferredTimeAsk(business);
   } else {
     const instructions = promptForTurn(
       state,

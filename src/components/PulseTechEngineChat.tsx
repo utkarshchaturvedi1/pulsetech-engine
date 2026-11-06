@@ -52,6 +52,27 @@ I've analyzed your website and built it around your business, your services, and
 
 Now put it to work. Test it like a real customer, challenge it, and see how it handles the conversation. Find something missing? Tell me. I'll fix it instantly.`;
 
+function leadAlertSetupState(profile: BusinessProfile | null): ChatPhase {
+  if (!isValidLeadAlertEmail(profile?.leadNotificationEmail)) return "collecting_email";
+  if (!normalizeLeadAlertSms(profile?.leadNotificationPhone)) return "collecting_sms";
+  return "ready";
+}
+
+function leadAlertOpeningMessage(profile: BusinessProfile | null): string {
+  const email = profile?.leadNotificationEmail?.trim() || "";
+  const sms = normalizeLeadAlertSms(profile?.leadNotificationPhone);
+  if (isValidLeadAlertEmail(email) && sms) {
+    return `I have your lead alert details saved. New leads will be sent to:\\nEmail: ${email}\\nPhone: ${sms}\\n\\n${INVITE_READY_MESSAGE}`;
+  }
+  if (isValidLeadAlertEmail(email)) {
+    return `I have your lead alert email saved as ${email}. ${LEAD_ALERT_SMS_PROMPT}`;
+  }
+  if (sms) {
+    return `I have your lead-alert SMS number saved as ${sms}. ${LEAD_ALERT_EMAIL_PROMPT}`;
+  }
+  return LEAD_ALERT_EMAIL_PROMPT;
+}
+
 function getProgressLabel(progress: number): string {
   if (progress < 20) return "Connecting to your website...";
   if (progress < 45) return "Reading your website...";
@@ -83,10 +104,9 @@ export default function PulseTechEngineChat({
 }: PulseTechEngineChatProps) {
   const [phase, setPhase] = useState<ChatPhase>(() => {
     if (!skipAnalysis) return "analyzing";
-    if (business && shouldCollectLeadAlertSetup(business)) {
-      return "collecting_email";
-    }
-    return "ready";
+    return business && shouldCollectLeadAlertSetup(business)
+      ? leadAlertSetupState(business)
+      : "ready";
   });
   const [assistantMessages, setAssistantMessages] = useState<string[]>([]);
   const [progress, setProgress] = useState(skipAnalysis ? 100 : 0);
@@ -103,12 +123,9 @@ export default function PulseTechEngineChat({
   const onUpdateRef = useRef(onProfileUpdate);
   const [openingMessage] = useState(() => {
     if (!skipAnalysis) return ANALYZING_MESSAGE;
-    if (business && shouldCollectLeadAlertSetup(business)) {
-      return LEAD_ALERT_EMAIL_PROMPT;
-    }
-    return INVITE_READY_MESSAGE;
+    return leadAlertOpeningMessage(business);
   });
-  const pendingEmailRef = useRef("");
+  const pendingEmailRef = useRef(business?.leadNotificationEmail?.trim() || "");
   const inviteSeededRef = useRef(false);
 
   useEffect(() => {
@@ -128,7 +145,7 @@ export default function PulseTechEngineChat({
     if (business && shouldCollectLeadAlertSetup(business)) {
       // This effect completes the no-analysis invitation setup state machine.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPhase("collecting_email");
+      setPhase(leadAlertSetupState(business));
     } else {
       setPhase("ready");
     }
@@ -308,6 +325,24 @@ You can reply "retry" to try analyzing again.`
         return LEAD_ALERT_EMAIL_PROMPT;
       }
       pendingEmailRef.current = text.trim().toLowerCase();
+      const current = businessRef.current;
+      const existingPhone = normalizeLeadAlertSms(current?.leadNotificationPhone);
+      if (current && existingPhone) {
+        try {
+          const saved = await persistProfile({
+            ...current,
+            leadNotificationEmail: pendingEmailRef.current,
+            leadNotificationPhone: existingPhone,
+          });
+          setPhase("ready");
+          return formatLeadAlertsConfigured(
+            saved.leadNotificationEmail || pendingEmailRef.current,
+            saved.leadNotificationPhone || existingPhone
+          );
+        } catch {
+          return "I couldn't save that email address. Please try again.";
+        }
+      }
       setPhase("collecting_sms");
       return LEAD_ALERT_SMS_PROMPT;
     }
@@ -322,16 +357,21 @@ You can reply "retry" to try analyzing again.`
         return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";
       }
       try {
+        const email = pendingEmailRef.current || current.leadNotificationEmail?.trim() || "";
+        if (!isValidLeadAlertEmail(email)) {
+          setPhase("collecting_email");
+          return LEAD_ALERT_EMAIL_PROMPT;
+        }
         const saved = await persistProfile({
           ...current,
-          leadNotificationEmail: pendingEmailRef.current,
+          leadNotificationEmail: email,
           leadNotificationPhone: sms,
         });
-        const email = saved.leadNotificationEmail || pendingEmailRef.current;
+        const savedEmail = saved.leadNotificationEmail || email;
         const phone = saved.leadNotificationPhone || sms;
         setPhase("ready");
         setAssistantMessages((prev) => [...prev, INVITE_READY_MESSAGE]);
-        return formatLeadAlertsConfigured(email, phone);
+        return formatLeadAlertsConfigured(savedEmail, phone);
       } catch {
         return "I couldn't save those lead-alert details. Please try the email and mobile number again.";
       }

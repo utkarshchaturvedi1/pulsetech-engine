@@ -984,14 +984,12 @@ function asksSubstantiveQuestionBeforeLeadCapture(text: string): boolean {
   const asksAQuestion =
     isSubstantiveSalesFollowUp(text) &&
     /\\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can you (?:explain|tell)|tell me|is there|are there)\\b/i.test(text);
+  const clarificationText = text.trim();
   const clarifiesOrCorrects =
-    text.trim().length >= 24 &&
-    /^(?:no|actually|i mean|not exactly|to clarify|let me clarify|that's not what i meant)\\b/i.test(text.trim()) ||
-    /\\b(?:i just|we just|before that|instead|rather than|to be clear)\\b/i.test(text);
-  return (
-    !visitorRequestsBusinessPhone(text) &&
-    (asksAQuestion || clarifiesOrCorrects)
-  );
+    clarificationText.length >= 24 &&
+    (/^(?:no|actually|i mean|not exactly|to clarify|let me clarify|that's not what i meant)\\b/i.test(clarificationText) ||
+      /\\b(?:i just|we just|before that|instead|rather than|to be clear)\\b/i.test(clarificationText));
+  return !visitorRequestsBusinessPhone(text) && (asksAQuestion || clarifiesOrCorrects);
 }
 
 function looksLikeLeadFieldOnlyReply(text: string): boolean {

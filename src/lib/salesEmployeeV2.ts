@@ -144,8 +144,6 @@ export async function generateSalesEmployeeReply(
 ): Promise<{ reply: string; salesState: SalesState; leadDelivery?: () => Promise<void> }> {
   const latestUser = [...messages].reverse().find((message) => message.role === "user")?.content || "";
   const state = updateSalesStateFromTurn(previousState, messages, business);
-  state.customerPhotoPaths = [...(state.customerPhotoPaths || [])];
-
   const openOwnerQuestion = missingOwnerQuestions(state)[0] || null;
   if (openOwnerQuestion) state.pendingOwnerQuestion = openOwnerQuestion;
   const missingContact = nextMissingContactField(state);

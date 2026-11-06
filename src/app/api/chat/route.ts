@@ -129,7 +129,6 @@ export async function POST(request: NextRequest) {
     const photoPaths = demoId
       ? normalizeCustomerPhotoPaths(body.customerPhotoPaths, demoId, conversationId)
       : [];
-    previousState.customerPhotoPaths = photoPaths;
     let photoLinks: string[] = [];
     if (photoPaths.length) {
       try {

@@ -204,6 +204,14 @@ Controller already **selects** `COLLECT_NAME` → phone → address on HIGH / RE
 
 **Coverage:** `scripts/test-demo-chat.ts` `testProfileAwareSalesConversationQuality` plus existing high-intent / post-contact / pre-queue tests. Representative plumbing, HVAC, electrical, roofing, and consultation-style profiles. Do not weaken earlier HVAC discovery, phone, or capture-order assertions.
 
+## Newly discovered failure (premature/robotic handoff after hesitation)
+
+**Live staging failure:** after a customer provided contact details and asked when a visit could happen, the bot treated the request as permission to submit without a preferred time. When the customer said they would compare other providers, the bot ignored that decision and showed a failed-delivery error instead of acknowledging it.
+
+**Permanent rules:** contact capture, a question about availability, or answering a qualification question is not explicit agreement to arrange service. Do not hand off until the customer has explicitly agreed to the proposed next step and a preferred day/time is captured (except the existing explicit combined arrange + time request after contact details). Comparing providers or delaying is a valid customer choice: clear stale appointment intent, do not hand off, do not show an alert-delivery error, and acknowledge without pressure. Delivery failure may only be reported after a real, consented handoff attempt; never imply delivery before it is queued or sent.
+
+**Coverage:** `scripts/test-sales-employee-v2.ts` asserts that contact details alone cause no handoff, explicit agreement without timing causes no handoff and asks for timing, agreement plus timing allows one dry-run handoff, and comparing providers cancels stale appointment intent and receives a natural, non-error response. Preserve all previous lead-handoff timing, truthful delivery, and customer conversation assertions.
+
 ---
 
 ## Required test commands

@@ -1214,8 +1214,8 @@ async function testPerBusinessLeadAlerts() {
 
     assert(shouldCollectLeadAlertSetup(smilePestProfile()) === true, "generated demo collects alerts");
     assert(
-      shouldCollectLeadAlertSetup(texasSolarProfessionalTestProfile) === false,
-      "Texas Solar showcase skips the collection chat"
+      shouldCollectLeadAlertSetup(texasSolarProfessionalTestProfile) === true,
+      "Peter collects the owner's lead alert recipients on showcase demos too"
     );
     assert(
       formatLeadAlertsConfigured("a@x.test", "+12145550189").includes("Lead alerts configured"),

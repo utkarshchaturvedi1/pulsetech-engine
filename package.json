@@ -19,7 +19,8 @@
     "test:paddle-sandbox-webhook": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-paddle-sandbox-webhook.ts",
     "test:dodo-billing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-dodo-billing.ts",
     "test:client-billing": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-billing.ts",
-    "test:client-billing-sql": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-billing-sql.ts"
+    "test:client-billing-sql": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-client-billing-sql.ts",
+    "test:sales-employee-v2": "node --import ./node_modules/tsx/dist/loader.mjs scripts/test-sales-employee-v2.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

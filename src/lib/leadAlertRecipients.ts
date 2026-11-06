@@ -89,13 +89,20 @@ export function resolveWebsiteChatLeadAlert(
 }
 
 export function shouldCollectLeadAlertSetup(profile: BusinessProfile): boolean {
-  if (isShowcaseLeadAlertProfile(profile)) return false;
-  return resolveWebsiteChatLeadAlert(profile).ok === false;
+  // Peter must confirm the business owner's own lead-alert destinations,
+  // including on showcase/test demos. A test fixture fallback is not a
+  // substitute for asking where this business wants real leads delivered.
+  return (
+    !isValidLeadAlertEmail(profile.leadNotificationEmail) ||
+    !normalizeLeadAlertSms(profile.leadNotificationPhone)
+  );
 }
 
 export function hasConfiguredWebsiteChatLeadAlerts(
   profile: BusinessProfile
 ): boolean {
-  if (isShowcaseLeadAlertProfile(profile)) return true;
-  return resolveWebsiteChatLeadAlert(profile).ok;
+  return (
+    isValidLeadAlertEmail(profile.leadNotificationEmail) &&
+    Boolean(normalizeLeadAlertSms(profile.leadNotificationPhone))
+  );
 }

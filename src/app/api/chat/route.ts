@@ -1,12 +1,10 @@
 import { after, NextRequest, NextResponse } from "next/server";
 
 import { BusinessProfile } from "../../../types/business";
-import {
-  generateSalesReply,
-  SalesChatMessage,
-} from "../../../lib/salesChat";
+import { buildSalesEmployeeFallback, type SalesEmployeeMessage, generateSalesEmployeeReply } from "../../../lib/salesEmployeeV2";
 import { scheduleLeadAlertDelivery } from "../../../lib/leadHandoff";
 import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
+import { normalizeCustomerPhotoPaths, signCustomerPhotoLinks } from "../../../lib/customerChatPhotos";
 import {
   businessIdentityKey,
   createInitialSalesState,
@@ -15,6 +13,7 @@ import {
   normalizeSalesState,
   SalesState,
 } from "../../../lib/salesState";
+import { updateSalesStateFromTurn } from "../../../lib/salesController";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") {
@@ -34,7 +33,7 @@ function isBusinessProfile(value: unknown): value is BusinessProfile {
   );
 }
 
-function isChatMessages(value: unknown): value is SalesChatMessage[] {
+function isChatMessages(value: unknown): value is SalesEmployeeMessage[] {
   if (!Array.isArray(value) || value.length === 0) {
     return false;
   }
@@ -126,11 +125,37 @@ export async function POST(request: NextRequest) {
       previousState = createInitialSalesState({ conversationId, businessKey });
     }
 
-    const {
-      reply,
-      salesState: nextState,
-      leadDelivery,
-    } = await generateSalesReply(business, messages, previousState);
+    const demoId = typeof body.demoId === "string" ? body.demoId : "";
+    const photoPaths = demoId
+      ? normalizeCustomerPhotoPaths(body.customerPhotoPaths, demoId, conversationId)
+      : [];
+    previousState.customerPhotoPaths = photoPaths;
+    let photoLinks: string[] = [];
+    if (photoPaths.length) {
+      try {
+        photoLinks = await signCustomerPhotoLinks(demoId, conversationId, photoPaths);
+      } catch (error) {
+        console.error("[chat] customer photo links unavailable", error);
+      }
+    }
+
+    let reply: string;
+    let nextState: SalesState;
+    let leadDelivery: (() => Promise<void>) | undefined;
+    try {
+      const result = await generateSalesEmployeeReply(business, messages, previousState, photoLinks);
+      reply = result.reply;
+      nextState = result.salesState;
+      leadDelivery = result.leadDelivery;
+    } catch (error) {
+      console.error("[chat] new sales employee reply failed; using concise fallback", error);
+      nextState = updateSalesStateFromTurn(previousState, messages, business);
+      reply = buildSalesEmployeeFallback(
+        nextState,
+        business,
+        [...messages].reverse().find((message) => message.role === "assistant")?.content || ""
+      );
+    }
 
     const salesState: SalesState = {
       ...nextState,

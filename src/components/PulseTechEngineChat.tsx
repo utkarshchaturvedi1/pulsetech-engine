@@ -58,6 +58,16 @@ function leadAlertSetupState(profile: BusinessProfile | null): ChatPhase {
   return "ready";
 }
 
+function extractLeadAlertDetails(text: string): { email: string | null; sms: string | null } {
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i)?.[0] || null;
+  const withoutEmail = email ? text.replace(email, " ") : text;
+  const phoneCandidate = withoutEmail.match(/\\+?\\s*\\d(?:[\\d\\s().-]*\\d)?/)?.[0] || null;
+  return {
+    email: email?.trim().toLowerCase() || null,
+    sms: phoneCandidate ? normalizeLeadAlertSms(phoneCandidate) : null,
+  };
+}
+
 function leadAlertOpeningMessage(profile: BusinessProfile | null): string {
   const email = profile?.leadNotificationEmail?.trim() || "";
   const sms = normalizeLeadAlertSms(profile?.leadNotificationPhone);
@@ -321,26 +331,27 @@ You can reply "retry" to try analyzing again.`
     }
 
     if (phase === "collecting_email") {
-      if (!isValidLeadAlertEmail(text)) {
+      const details = extractLeadAlertDetails(text);
+      if (!details.email) {
         return LEAD_ALERT_EMAIL_PROMPT;
       }
-      pendingEmailRef.current = text.trim().toLowerCase();
+      pendingEmailRef.current = details.email;
       const current = businessRef.current;
-      const existingPhone = normalizeLeadAlertSms(current?.leadNotificationPhone);
-      if (current && existingPhone) {
+      const sms = details.sms || normalizeLeadAlertSms(current?.leadNotificationPhone);
+      if (current && sms) {
         try {
           const saved = await persistProfile({
             ...current,
             leadNotificationEmail: pendingEmailRef.current,
-            leadNotificationPhone: existingPhone,
+            leadNotificationPhone: sms,
           });
           setPhase("ready");
           return formatLeadAlertsConfigured(
             saved.leadNotificationEmail || pendingEmailRef.current,
-            saved.leadNotificationPhone || existingPhone
+            saved.leadNotificationPhone || sms
           );
         } catch {
-          return "I couldn't save that email address. Please try again.";
+          return "I couldn't save those lead-alert details. Please try the email and mobile number again.";
         }
       }
       setPhase("collecting_sms");
@@ -348,7 +359,8 @@ You can reply "retry" to try analyzing again.`
     }
 
     if (phase === "collecting_sms") {
-      const sms = normalizeLeadAlertSms(text);
+      const details = extractLeadAlertDetails(text);
+      const sms = details.sms;
       if (!sms) {
         return LEAD_ALERT_SMS_PROMPT;
       }
@@ -357,7 +369,7 @@ You can reply "retry" to try analyzing again.`
         return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";
       }
       try {
-        const email = pendingEmailRef.current || current.leadNotificationEmail?.trim() || "";
+        const email = details.email || pendingEmailRef.current || current.leadNotificationEmail?.trim() || "";
         if (!isValidLeadAlertEmail(email)) {
           setPhase("collecting_email");
           return LEAD_ALERT_EMAIL_PROMPT;

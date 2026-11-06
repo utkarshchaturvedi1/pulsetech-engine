@@ -72,7 +72,7 @@ function leadAlertOpeningMessage(profile: BusinessProfile | null): string {
   const email = profile?.leadNotificationEmail?.trim() || "";
   const sms = normalizeLeadAlertSms(profile?.leadNotificationPhone);
   if (isValidLeadAlertEmail(email) && sms) {
-    return `I have your lead alert details saved. New leads will be sent to:\\nEmail: ${email}\\nPhone: ${sms}\\n\\n${INVITE_READY_MESSAGE}`;
+    return `I have your lead alert details saved. New leads will be sent to:\nEmail: ${email}\nPhone: ${sms}\n\n${INVITE_READY_MESSAGE}`;
   }
   if (isValidLeadAlertEmail(email)) {
     return `I have your lead alert email saved as ${email}. ${LEAD_ALERT_SMS_PROMPT}`;

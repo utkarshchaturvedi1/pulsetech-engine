@@ -1135,6 +1135,7 @@ async function testPerBusinessLeadAlerts() {
   assert(engine.includes("LEAD_ALERT_EMAIL_PROMPT"), "Peter asks for the alert email");
   assert(engine.includes("LEAD_ALERT_SMS_PROMPT"), "Peter asks for the alert SMS number");
   assert(engine.includes("formatLeadAlertsConfigured"), "Peter confirms saved recipients");
+  assert(!engine.includes("\\\\nEmail:"), "saved alert destinations render with real line breaks");
   assert(
     readSrc("src/app/api/demo/[id]/route.ts").includes("loadSharedProfile"),
     "GET /api/demo/[id] reloads the shared profile"

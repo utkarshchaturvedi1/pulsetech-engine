@@ -59,9 +59,9 @@ function leadAlertSetupState(profile: BusinessProfile | null): ChatPhase {
 }
 
 function extractLeadAlertDetails(text: string): { email: string | null; sms: string | null } {
-  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i)?.[0] || null;
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || null;
   const withoutEmail = email ? text.replace(email, " ") : text;
-  const phoneCandidate = withoutEmail.match(/\\+?\\s*\\d(?:[\\d\\s().-]*\\d)?/)?.[0] || null;
+  const phoneCandidate = withoutEmail.match(/\+?\s*\d(?:[\d\s().-]*\d)?/)?.[0] || null;
   return {
     email: email?.trim().toLowerCase() || null,
     sms: phoneCandidate ? normalizeLeadAlertSms(phoneCandidate) : null,

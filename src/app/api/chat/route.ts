@@ -1,7 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 
 import { BusinessProfile } from "../../../types/business";
-import { type SalesEmployeeMessage, generateSalesEmployeeReply } from "../../../lib/salesEmployeeV2";
+import { buildSalesEmployeeFallback, type SalesEmployeeMessage, generateSalesEmployeeReply } from "../../../lib/salesEmployeeV2";
 import { scheduleLeadAlertDelivery } from "../../../lib/leadHandoff";
 import { resolveCurrentChatProfile } from "../../../lib/sharedProfileStore";
 import { normalizeCustomerPhotoPaths, signCustomerPhotoLinks } from "../../../lib/customerChatPhotos";
@@ -13,6 +13,7 @@ import {
   normalizeSalesState,
   SalesState,
 } from "../../../lib/salesState";
+import { updateSalesStateFromTurn } from "../../../lib/salesController";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") {
@@ -138,11 +139,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const {
-      reply,
-      salesState: nextState,
-      leadDelivery,
-    } = await generateSalesEmployeeReply(business, messages, previousState, photoLinks);
+    let reply: string;
+    let nextState: SalesState;
+    let leadDelivery: (() => Promise<void>) | undefined;
+    try {
+      const result = await generateSalesEmployeeReply(business, messages, previousState, photoLinks);
+      reply = result.reply;
+      nextState = result.salesState;
+      leadDelivery = result.leadDelivery;
+    } catch (error) {
+      console.error("[chat] new sales employee reply failed; using concise fallback", error);
+      nextState = updateSalesStateFromTurn(previousState, messages, business);
+      reply = buildSalesEmployeeFallback(
+        nextState,
+        business,
+        [...messages].reverse().find((message) => message.role === "assistant")?.content || ""
+      );
+    }
 
     const salesState: SalesState = {
       ...nextState,

@@ -3,6 +3,7 @@ config({ path: ".env.local" });
 process.env.LEAD_HANDOFF_DRY_RUN = "true";
 
 import {
+  buildSalesEmployeeFallback,
   generateSalesEmployeeReply,
   setSalesEmployeeTestModel,
   type SalesEmployeeMessage,
@@ -95,6 +96,13 @@ async function main() {
   );
   assert(/up to three photos/i.test(photoResult.reply), "human follow-up offers up to three optional photos");
   assert(/5 MB/i.test(photoResult.reply), "photo invitation states the 5 MB limit");
+
+  const fallback = buildSalesEmployeeFallback(
+    createInitialSalesState({ conversationId: "sales-employee-v2-fallback", businessKey }),
+    business
+  );
+  assert(/name/i.test(fallback), "model outage still gives a useful, concise next step");
+  assert(!fallback.includes(business.phone), "model outage fallback never exposes the business phone");
 
   assert(latestInstructions.includes("Never provide any business phone number"), "model instructions prohibit phone disclosure");
   setSalesEmployeeTestModel(null);

@@ -432,7 +432,8 @@ export async function maybeSendLeadHandoff(
   business: BusinessProfile,
   state: SalesState,
   reason: LeadHandoffReason,
-  latestUserMessage?: string
+  latestUserMessage?: string,
+  photoLinks: string[] = []
 ): Promise<LeadHandoffResult> {
   Object.assign(state, synchronizeOwnerQuestions(state, business));
   state.handoffReady = evaluateHandoffReadiness(state, latestUserMessage).handoffReady;

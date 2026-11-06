@@ -659,9 +659,22 @@ export async function generateSalesReply(
     };
   }
 
+  const previousAssistantAskedForName =
+    /\b(?:what(?:'s| is) your (?:first )?name|may i (?:have|ask) your name|what should i call you)\b/i.test(
+      previousAssistant?.content || ""
+    );
+  const answerAfterNameRequest =
+    previousAssistantAskedForName &&
+    salesState.currentObjective === "ANSWER" &&
+    !salesState.lead.name;
+
   const baseInstructions = `${buildMasterSalesCommand(business)}
 
 ${buildTurnControlBlock(salesState, business)}
+
+${answerAfterNameRequest
+    ? `FOLLOW-UP: The previous assistant turn already asked the customer for their name. They have asked a substantive question instead of answering it. Answer that question and do not repeat or append the name request in this turn.`
+    : ""}
 
 ${priceTurn ? `PRICE SCOPE CHECK: The customer asks: ${latestUser?.content}.
 Active service need: ${salesState.primaryNeed || salesState.customerNeed}.

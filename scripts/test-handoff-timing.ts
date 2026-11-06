@@ -837,7 +837,7 @@ async function main() {
 
     flow = applyTurn(
       flow,
-      "My automatic garage door is not working. Can you help?",
+      "My automatic garage door is not working.",
       "👋 Hi! How can I help you today?"
     );
     assert(flow.currentObjective === "COLLECT_NAME", `TEST13: start with name, got ${flow.currentObjective}`);

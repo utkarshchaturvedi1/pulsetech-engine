@@ -21,9 +21,9 @@ export async function POST(request: Request) {
     const profile=demo.profile, businessKey=businessIdentityKey(profile);
     let state=isSalesState(body.salesState) ? normalizeSalesState(body.salesState) : createInitialSalesState({ conversationId: body.conversationId, businessKey });
     if (state.businessKey!==businessKey || state.conversationId!==body.conversationId) return NextResponse.json({ error: "Please reopen the chat." }, { status: 400 });
-    state.customerPhotoPaths=normalizeCustomerPhotoPaths(body.customerPhotoPaths, body.demoId, body.conversationId);
     let photoLinks: string[]=[];
-    if(state.customerPhotoPaths.length){try{photoLinks=await signCustomerPhotoLinks(body.demoId,body.conversationId,state.customerPhotoPaths);}catch(error){console.error("[widget-chat] customer photo links unavailable",error);}}
+    const photoPaths=normalizeCustomerPhotoPaths(body.customerPhotoPaths,body.demoId,body.conversationId);
+    if(photoPaths.length){try{photoLinks=await signCustomerPhotoLinks(body.demoId,body.conversationId,photoPaths);}catch(error){console.error("[widget-chat] customer photo links unavailable",error);}}
     let reply: string;
     try {
       const result=await generateSalesEmployeeReply(profile,body.messages,state,photoLinks);

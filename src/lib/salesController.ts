@@ -982,8 +982,10 @@ function detectSalesObjective(text: string): SalesObjective | null {
 
 function asksSubstantiveQuestionBeforeLeadCapture(text: string): boolean {
   const asksAQuestion =
+    !looksLikeLeadFieldOnlyReply(text) &&
     isSubstantiveSalesFollowUp(text) &&
-    /\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can you (?:explain|tell)|tell me|is there|are there)\b/i.test(text);
+    (/\?/.test(text) ||
+      /\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can (?:you|they|it)|tell me|is there|are there)\b/i.test(text));
   const clarificationText = text.trim();
   const clarifiesOrCorrects =
     clarificationText.length >= 24 &&
@@ -1063,7 +1065,7 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   const salesObjective = detectSalesObjective(latestUserText);
 
   if (
-    !salesObjective &&
+    (!salesObjective || salesObjective === "PRESENT_SOLUTION") &&
     asksSubstantiveQuestionBeforeLeadCapture(latestUserText) &&
     !looksLikeLeadFieldOnlyReply(latestUserText)
   ) {

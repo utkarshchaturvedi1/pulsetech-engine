@@ -92,9 +92,44 @@ async function main() {
   modelReply = "Thank you.";
   const completed = await generateSalesEmployeeReply(business, messages, state);
   assert(!!completed.salesState.lead.address?.includes("123 Main St"), "service address is captured");
-  assert(completed.salesState.leadDeliveryStatus === "SENT", "complete lead enters the handoff path in dry-run mode");
-  assert(/contact you as soon as possible/i.test(completed.reply), "customer receives a concise follow-up close");
+  assert(completed.salesState.leadDeliveryStatus === "NOT_SENT", "contact capture alone never submits a lead");
+  assert(/would you like to arrange/i.test(completed.reply), "after contact capture the bot asks permission to arrange the next step");
+  assert(!/team will contact|noted your request/i.test(completed.reply), "no delivery claim is made before agreement and timing");
   assert(!completed.reply.includes(business.phone), "business phone number is never disclosed");
+
+  messages = [...messages, { role: "assistant", content: completed.reply }, { role: "user", content: "Yes, please arrange the site visit." }];
+  const agreed = await generateSalesEmployeeReply(business, messages, completed.salesState);
+  assert(agreed.salesState.customerAgreed, "explicit agreement is captured");
+  assert(agreed.salesState.leadDeliveryStatus === "NOT_SENT", "agreement without preferred time does not submit a lead");
+  assert(/what day or time/i.test(agreed.reply), "preferred time is requested after agreement");
+
+  messages = [...messages, { role: "assistant", content: agreed.reply }, { role: "user", content: "Saturday morning works." }];
+  const readyForHandoff = await generateSalesEmployeeReply(business, messages, agreed.salesState);
+  assert(!!readyForHandoff.salesState.preferredTiming, "preferred time is captured after agreement");
+  assert(readyForHandoff.salesState.leadDeliveryStatus === "SENT", "only explicit agreement plus preferred time enters dry-run handoff");
+  assert(/contact you as soon as possible/i.test(readyForHandoff.reply), "successful handoff gets a truthful follow-up close");
+
+  const comparingState: SalesState = {
+    ...createInitialSalesState({ conversationId: "sales-employee-v2-comparing", businessKey }),
+    intent: "READY_TO_ACT",
+    salesStage: "OBJECTION",
+    currentObjective: "HANDLE_HESITATION",
+    primaryNeed: "New solar system with batteries",
+    customerNeed: "New solar system with batteries",
+    lead: { name: "UR", phone: "9898989898", email: null, address: "1500 Marilla St, Dallas TX 75201" },
+    leadStatus: "SECURED",
+    appointmentIntent: true,
+    customerAgreed: false,
+  };
+  const comparingMessages: SalesEmployeeMessage[] = [
+    { role: "assistant", content: "What day or time would you prefer for the consultation?" },
+    { role: "user", content: "Ok, in the meantime I will ask a few more service providers who install solar panels." },
+  ];
+  const comparing = await generateSalesEmployeeReply(business, comparingMessages, comparingState);
+  assert(comparing.salesState.leadDeliveryStatus === "NOT_SENT", "comparing providers cancels the pending handoff");
+  assert(comparing.salesState.appointmentIntent === false && !comparing.salesState.customerAgreed, "comparing providers clears stale appointment intent");
+  assert(/smart to compare providers/i.test(comparing.reply), "comparison is acknowledged naturally without pressure");
+  assert(!/couldn’t send|could not send|team received your request|please try again/i.test(comparing.reply), "comparison is not replaced by a failed-delivery error");
 
   const photoState = createInitialSalesState({ conversationId: "sales-employee-v2-photo", businessKey });
   const photoResult = await generateSalesEmployeeReply(
@@ -114,7 +149,7 @@ async function main() {
 
   assert(latestInstructions.includes("Never provide any business phone number"), "model instructions prohibit phone disclosure");
   setSalesEmployeeTestModel(null);
-  console.log("PASS — new sales employee flow: reassure, answer-first, collect three contact fields, photo invitation, and dry-run handoff");
+  console.log("PASS — new sales employee flow: reassure, answer-first, collect contact fields, explicit agreement + timing gate, comparison hesitation, photo invitation, and one dry-run handoff");
 }
 
 main().catch((error) => {

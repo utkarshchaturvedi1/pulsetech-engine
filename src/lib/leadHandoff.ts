@@ -139,7 +139,8 @@ function buildConversationSummary(state: SalesState): string {
 
 export function buildLeadNotificationEmail(
   business: BusinessProfile,
-  state: SalesState
+  state: SalesState,
+  photoLinks: string[] = []
 ): { subject: string; text: string } {
   const businessName = business.businessName || "Business";
   const urgent = state.urgency === "IMMEDIATE";
@@ -178,6 +179,11 @@ export function buildLeadNotificationEmail(
   const context = buildCustomerContextSection(state);
   if (context) {
     sections.push("", "CUSTOMER CONTEXT", context);
+  }
+
+  if (photoLinks.length) {
+    sections.push("", "CUSTOMER PHOTOS (private links; expire after 7 days)");
+    photoLinks.slice(0, 3).forEach((link, index) => sections.push(`Photo ${index + 1}: ${link}`));
   }
 
   const salesContext = buildSalesContext(state);
@@ -471,7 +477,7 @@ export async function maybeSendLeadHandoff(
     };
   }
 
-  const { subject, text } = buildLeadNotificationEmail(business, state);
+  const { subject, text } = buildLeadNotificationEmail(business, state, photoLinks);
   const smsBody = buildWebsiteLeadSms(business, state);
 
   // Automated tests / explicit dry-run: never touch real SMTP/SMS.

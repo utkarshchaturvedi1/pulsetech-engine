@@ -68,11 +68,11 @@ function removeRepeatedFieldQuestion(
   reply: string,
   field: "name" | "phone" | "address"
 ): string {
-  const parts = reply.split(/(?<=[.!?])\\s+|\\n+/u);
+  const parts = reply.split(/(?<=[.!?])\s+|\n+/u);
   return parts
     .filter((part) => !(part.trim().endsWith("?") && assistantAskedForField(part, field)))
     .join(" ")
-    .replace(/\\s+([,.!?])/g, "$1")
+    .replace(/\s+([,.!?])/g, "$1")
     .trim();
 }
 

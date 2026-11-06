@@ -10,6 +10,15 @@ import {
 } from "../lib/customerChatClient";
 import { businessIdentityKey } from "../lib/salesState";
 
+function businessIconUrl(website: string): string | undefined {
+  try {
+    const normalized = website.startsWith("http://") || website.startsWith("https://") ? website : `https://${website}`;
+    return new URL("/favicon.ico", normalized).toString();
+  } catch {
+    return undefined;
+  }
+}
+
 type CustomerAIProps = {
   business: BusinessProfile;
   demoId?: string;
@@ -83,11 +92,46 @@ export default function CustomerAI({
     }
   }
 
+  async function handlePhotoUpload(file: File, slot: number): Promise<string> {
+    if (!demoId || !sessionRef.current?.isActive()) {
+      throw new Error("Photo uploads are unavailable in this chat.");
+    }
+    const response = await fetch("/api/chat/photo-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        demoId,
+        conversationId: sessionRef.current.conversationId,
+        slot,
+        contentType: file.type,
+      }),
+    });
+    const upload = (await response.json()) as { error?: string; signedUrl?: string; anonKey?: string; path?: string };
+    if (!response.ok || !upload.signedUrl || !upload.anonKey || !upload.path) {
+      throw new Error(upload.error || "Could not prepare this photo for upload.");
+    }
+    const stored = await fetch(upload.signedUrl, {
+      method: "PUT",
+      headers: {
+        apikey: upload.anonKey,
+        Authorization: `Bearer ${upload.anonKey}`,
+        "Content-Type": file.type,
+        "x-upsert": "false",
+      },
+      body: file,
+    });
+    if (!stored.ok) throw new Error("Photo upload failed. Please try again.");
+    if (!sessionRef.current.addPhotoPath(upload.path)) {
+      throw new Error("You can attach up to three photos in a chat.");
+    }
+    return upload.path;
+  }
+
   return (
     <ChatAgentShell
       name={business.agentName || business.businessName || "AI Sales Employee"}
       role="AI Sales Employee"
-      avatar={business.logo || undefined}
+      avatar={businessIconUrl(business.website)}
       fallbackLabel={business.businessName || business.agentName || "AI"}
       className={`min-h-0 min-w-0 w-full ${className}`.trim()}
     >
@@ -101,6 +145,7 @@ export default function CustomerAI({
         }
         disabled={disabled}
         onUserMessage={handleCustomerMessage}
+        onPhotoUpload={handlePhotoUpload}
       />
     </ChatAgentShell>
   );

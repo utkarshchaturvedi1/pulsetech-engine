@@ -11,6 +11,7 @@ type ChatWindowProps = {
   disabled?: boolean;
   statusSlot?: React.ReactNode;
   onUserMessage?: (message: string) => Promise<string> | string;
+  onPhotoUpload?: (file: File, slot: number) => Promise<string>;
 };
 
 export default function ChatWindow({
@@ -20,6 +21,7 @@ export default function ChatWindow({
   disabled = false,
   statusSlot,
   onUserMessage,
+  onPhotoUpload,
 }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [typing, setTyping] = useState(false);
@@ -137,6 +139,7 @@ export default function ChatWindow({
           placeholder={placeholder}
           disabled={disabled}
           onSend={handleSend}
+          onPhotoUpload={onPhotoUpload}
         />
       </div>
     </div>

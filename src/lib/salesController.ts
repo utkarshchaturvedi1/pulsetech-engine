@@ -981,10 +981,16 @@ function detectSalesObjective(text: string): SalesObjective | null {
 }
 
 function asksSubstantiveQuestionBeforeLeadCapture(text: string): boolean {
-  return (
+  const asksAQuestion =
     isSubstantiveSalesFollowUp(text) &&
+    /\\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can you (?:explain|tell)|tell me|is there|are there)\\b/i.test(text);
+  const clarifiesOrCorrects =
+    text.trim().length >= 24 &&
+    /^(?:no|actually|i mean|not exactly|to clarify|let me clarify|that's not what i meant)\\b/i.test(text.trim()) ||
+    /\\b(?:i just|we just|before that|instead|rather than|to be clear)\\b/i.test(text);
+  return (
     !visitorRequestsBusinessPhone(text) &&
-    /\\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can you (?:explain|tell)|tell me|is there|are there)\\b/i.test(text)
+    (asksAQuestion || clarifiesOrCorrects)
   );
 }
 
@@ -1683,7 +1689,7 @@ Do not invent prices, availability, bookings, or unsupported business claims.
 Answer FIRST. After a useful answer, you may naturally advance the sale (including asking whether to arrange the next step) — but do not replace the answer with a generic consultation template.
 ${
   (state.intent === "HIGH" || state.intent === "READY_TO_ACT") && !state.lead.name
-    ? `The customer has shown clear intent, but their name is not captured yet. Answer their question first, then ask only for their first name in one natural question.`
+    ? `The customer has shown clear intent, but their name is not captured yet. If they asked a direct question or corrected/clarified what they need, respond to that first using the conversation context, then ask only for their first name in one natural question.`
     : ""
 }
 Do not force lead capture. Keep it concise — no huge brochure.`;

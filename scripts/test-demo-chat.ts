@@ -1880,7 +1880,7 @@ function testGenericPreferredTimeLeadCapture() {
 
 function testHighIntentLeadCaptureOrder() {
   const highIntentRequests = [
-    "Our unit has no heat and no cooling. Can you help?",
+    "Our unit has no heat and no cooling.",
     "The drain is clogged and I need it fixed.",
   ];
 
@@ -1897,10 +1897,18 @@ function testHighIntentLeadCaptureOrder() {
       started.intent === "HIGH" || started.intent === "READY_TO_ACT",
       `high-intent request must raise intent, got ${started.intent} for: ${request}`
     );
+    const asksForHelp = /\?/.test(request);
     assert(
-      started.currentObjective === "COLLECT_NAME",
-      `next question must be name, got ${started.currentObjective} for: ${request}`
+      started.currentObjective === (asksForHelp ? "ANSWER" : "COLLECT_NAME"),
+      `direct questions must be answered before name capture; statements collect name, got ${started.currentObjective} for: ${request}`
     );
+    if (asksForHelp) {
+      assert(
+        resolveDeterministicPreContactReply(started, business, request) === null,
+        "a direct customer question must reach the AI instead of the deterministic name prompt"
+      );
+      continue;
+    }
 
     const nameAsk = validateSalesReply(
       buildEmpatheticNameAsk(request),
@@ -3508,8 +3516,7 @@ function testStickyNeedResumesAfterBareAddress() {
       "We design and install outdoor living features including water features. We do not provide electrical or plumbing trade services beyond installation planning.",
     pricingRules: "",
   };
-  const opening =
-    "I want to install a fountain in front of my house.. Can you help?";
+  const opening = "I want to install a fountain in front of my house.";
 
   const needTurn = updateSalesStateFromTurn(
     null,

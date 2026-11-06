@@ -60,7 +60,9 @@ import {
   PRE_CONTACT_ASK_ADDRESS,
   PRE_CONTACT_ASK_FIRST_NAME,
   PRE_CONTACT_ASK_PHONE,
+  buildTurnControlBlock,
   recordSiteVisitFeeMention,
+  resolveDeterministicPreContactReply,
   resolvePostContactConversationReply,
   updateSalesStateFromTurn,
   validateSalesReply,
@@ -1985,6 +1987,35 @@ function testHighIntentLeadCaptureOrder() {
     );
     assert(!earlyTime.ok, "must not ask preferred time before name, phone, and address");
   }
+
+  const capabilityQuestion =
+    "I want to get one AI sales employee for my company. What all can it do?";
+  const capabilityState = updateSalesStateFromTurn(
+    createInitialSalesState({
+      conversationId: "conv_capability_answer_first",
+      businessKey: business.website,
+    }),
+    [{ role: "user", content: capabilityQuestion }],
+    business
+  );
+  assert(
+    capabilityState.currentObjective === "ANSWER",
+    `a direct question must be answered before lead capture, got ${capabilityState.currentObjective}`
+  );
+  assert(
+    resolveDeterministicPreContactReply(
+      capabilityState,
+      business,
+      capabilityQuestion
+    ) === null,
+    "direct questions must not be intercepted by the deterministic name ask"
+  );
+  assert(
+    buildTurnControlBlock(capabilityState, business).includes(
+      "Answer their question first, then ask only for their first name"
+    ),
+    "the answer-first turn must still continue name capture naturally"
+  );
 
   let afterNamePhone = updateSalesStateFromTurn(
     createInitialSalesState({

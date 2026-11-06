@@ -101,7 +101,8 @@ export function createCustomerChatSession(
           demoId,
           conversationId,
           business: boundBusiness,
-          salesState: { ...salesState, customerPhotoPaths },
+          salesState,
+          customerPhotoPaths,
           reason: "inactivity",
         }),
       });
@@ -170,9 +171,8 @@ export function createCustomerChatSession(
     ];
 
     const outboundState = salesState
-      ? stampConversation({ ...salesState, customerPhotoPaths })
+      ? stampConversation(salesState)
       : createInitialSalesState({ conversationId, businessKey });
-    outboundState.customerPhotoPaths = [...customerPhotoPaths];
 
     const response = await fetch("/api/chat", {
       method: "POST",
@@ -185,6 +185,7 @@ export function createCustomerChatSession(
         business: boundBusiness,
         messages: nextMessages,
         salesState: outboundState,
+        customerPhotoPaths,
       }),
     });
 
@@ -235,7 +236,6 @@ export function createCustomerChatSession(
     addPhotoPath(path: string) {
       if (customerPhotoPaths.length >= 3 || customerPhotoPaths.includes(path)) return false;
       customerPhotoPaths = [...customerPhotoPaths, path];
-      if (salesState) salesState = { ...salesState, customerPhotoPaths: [...customerPhotoPaths] };
       return true;
     },
     getPhotoPaths: () => [...customerPhotoPaths],

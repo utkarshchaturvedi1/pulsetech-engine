@@ -16,6 +16,7 @@ import {
   SalesState,
 } from "../../../lib/salesState";
 import { persistLiveClientLead } from "../../../lib/persistClientLead";
+import { normalizeCustomerPhotoPaths, signCustomerPhotoLinks } from "../../../lib/customerChatPhotos";
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") {
@@ -101,11 +102,26 @@ export async function POST(request: NextRequest) {
       businessKey: salesState.businessKey || businessKey,
     };
 
+    let photoLinks: string[] = [];
+    if (typeof body.demoId === "string") {
+      try {
+        const photoPaths = normalizeCustomerPhotoPaths(
+          body.customerPhotoPaths,
+          body.demoId,
+          conversationId
+        );
+        photoLinks = await signCustomerPhotoLinks(body.demoId, conversationId, photoPaths);
+      } catch (error) {
+        console.error("[lead-handoff] customer photo links unavailable", error);
+      }
+    }
+
     const handoff = await maybeSendLeadHandoff(
       business,
       salesState,
       reason,
-      latestUserMessage
+      latestUserMessage,
+      photoLinks
     );
     salesState = applyLeadDeliveryResult(salesState, handoff);
     scheduleLeadAlertDelivery(after, handoff.delivery);

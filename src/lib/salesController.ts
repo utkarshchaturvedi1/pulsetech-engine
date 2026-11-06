@@ -776,6 +776,9 @@ export function resolveDeterministicPreContactReply(
     state.leadStatus === "SECURING";
   if (!highIntent || isLeadContactComplete(state)) return null;
 
+  // Let the AI answer a substantive customer question before name capture.
+  if (asksSubstantiveQuestionBeforeLeadCapture(latestUserMessage || "")) return null;
+
   const missing = missingLeadFields(state);
   const field = missing[0];
   if (field !== "name" && field !== "phone" && field !== "address") {
@@ -977,6 +980,14 @@ function detectSalesObjective(text: string): SalesObjective | null {
   return null;
 }
 
+function asksSubstantiveQuestionBeforeLeadCapture(text: string): boolean {
+  return (
+    isSubstantiveSalesFollowUp(text) &&
+    !visitorRequestsBusinessPhone(text) &&
+    /\\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can you (?:explain|tell)|tell me|is there|are there)\\b/i.test(text)
+  );
+}
+
 function looksLikeLeadFieldOnlyReply(text: string): boolean {
   const t = text.trim();
   if (!t) return true;
@@ -1046,6 +1057,14 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   }
 
   const salesObjective = detectSalesObjective(latestUserText);
+
+  if (
+    !salesObjective &&
+    asksSubstantiveQuestionBeforeLeadCapture(latestUserText) &&
+    !looksLikeLeadFieldOnlyReply(latestUserText)
+  ) {
+    return "ANSWER";
+  }
 
   // Lead refusal / price-gated: preserve opportunity over form capture.
   if (state.leadCapturePaused && state.leadStatus !== "SECURED") {
@@ -1619,8 +1638,8 @@ function objectiveInstruction(
   switch (state.currentObjective) {
     case "COLLECT_NAME":
       return `YOUR ONLY OBJECTIVE: naturally collect the customer's first name only.
-Respond with about one short sentence + exactly ONE question.
-Before asking for the name, briefly acknowledge the customer's stated problem with genuine empathy. Use their stated need naturally when possible. Do not invent facts.
+Respond with a brief, reassuring opening + exactly ONE question.
+Before asking for the name, acknowledge the customer's stated problem with genuine empathy. When BusinessProfile confirms this business handles the stated need, reassure them with the wording “Don’t worry—you’ve come to the right place.” Use their stated need naturally when possible. Do not add a license, qualification, fast-resolution, availability, or outcome claim unless BusinessProfile explicitly verifies it.
 Do not reply with a cold form such as "We can help with that. What's your first name?"
 ${
   isAuthoritativePersonName(state.lead.name)
@@ -1662,6 +1681,11 @@ Match emotion to the situation: empathy for problems, enthusiasm for projects, e
 Do not diagnose dangerous or technical conditions as established fact.
 Do not invent prices, availability, bookings, or unsupported business claims.
 Answer FIRST. After a useful answer, you may naturally advance the sale (including asking whether to arrange the next step) — but do not replace the answer with a generic consultation template.
+${
+  (state.intent === "HIGH" || state.intent === "READY_TO_ACT") && !state.lead.name
+    ? `The customer has shown clear intent, but their name is not captured yet. Answer their question first, then ask only for their first name in one natural question.`
+    : ""
+}
 Do not force lead capture. Keep it concise — no huge brochure.`;
     case "PRESENT_SOLUTION":
       return `YOUR ONLY OBJECTIVE: connect THIS customer's established need to the single most relevant BusinessProfile-supported solution.

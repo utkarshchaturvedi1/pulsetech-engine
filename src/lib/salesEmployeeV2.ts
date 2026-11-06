@@ -64,6 +64,18 @@ function customerAskedSubstantiveQuestion(text: string): boolean {
   return text.includes("?") || /\b(how much|what(?:'s| is)|how do|how can|can you|does it|do you|is it|will it|which|when)\b/i.test(text);
 }
 
+function removeRepeatedFieldQuestion(
+  reply: string,
+  field: "name" | "phone" | "address"
+): string {
+  const parts = reply.split(/(?<=[.!?])\\s+|\\n+/u);
+  return parts
+    .filter((part) => !(part.trim().endsWith("?") && assistantAskedForField(part, field)))
+    .join(" ")
+    .replace(/\\s+([,.!?])/g, "$1")
+    .trim();
+}
+
 function customerHasAlreadyBeenReassured(messages: SalesEmployeeMessage[]): boolean {
   return messages.some(
     (message) =>
@@ -201,6 +213,10 @@ export async function generateSalesEmployeeReply(
       reply = response.output_text?.trim() || "";
     }
     if (!reply) throw new Error("Sales employee returned an empty reply.");
+
+    if (missingContact && assistantAskedForField(lastAssistant, missingContact)) {
+      reply = removeRepeatedFieldQuestion(reply, missingContact);
+    }
 
     if (missingContact && !state.leadCapturePaused && !assistantAskedForField(lastAssistant, missingContact)) {
       const asksForNextField = assistantAskedForField(reply, missingContact);

@@ -81,7 +81,14 @@ async function main() {
   assert(state.lead.phone === "+1 555 010 0123", "phone is captured");
   assert(/service address/i.test(afterPhone.reply), "address is the next field requested");
 
-  messages = [...messages, { role: "assistant", content: afterPhone.reply }, { role: "user", content: "123 Main St, Dallas TX 75201" }];
+  messages = [...messages, { role: "assistant", content: afterPhone.reply }, { role: "user", content: "How long does a typical roof repair take?" }];
+  modelReply = "Timing depends on the roof and the damage, but many straightforward repairs can be completed in a day. What’s the service address?";
+  const answerInstead = await generateSalesEmployeeReply(business, messages, state);
+  state = answerInstead.salesState;
+  assert(/depends on the roof/i.test(answerInstead.reply), "a new customer question is answered while collecting contact details");
+  assert(!/service address/i.test(answerInstead.reply), "the same address request is not repeated after the customer asks a different question");
+
+  messages = [...messages, { role: "assistant", content: answerInstead.reply }, { role: "user", content: "123 Main St, Dallas TX 75201" }];
   modelReply = "Thank you.";
   const completed = await generateSalesEmployeeReply(business, messages, state);
   assert(!!completed.salesState.lead.address?.includes("123 Main St"), "service address is captured");

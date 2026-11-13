@@ -67,15 +67,15 @@ async function main() {
   assert(!/what name should i use/i.test(answeredQuestion.reply), "the same contact question is not repeated immediately");
   assert(latestInstructions.includes("already received reassurance"), "later turns do not repeat the opening reassurance");
 
-  messages = [...messages, { role: "assistant", content: answeredQuestion.reply }, { role: "user", content: "Maya" }];
-  modelReply = "Thanks, Maya.";
+  messages = [...messages, { role: "assistant", content: answeredQuestion.reply }, { role: "user", content: "QA Test Lead" }];
+  modelReply = "Thanks, QA Test Lead.";
   const afterName = await generateSalesEmployeeReply(business, messages, state);
   state = afterName.salesState;
-  assert(state.lead.name === "Maya", "name is captured");
+  assert(state.lead.name === "QA Test Lead", "multi-word customer names are captured");
   assert(/phone number/i.test(afterName.reply), "phone is the next field requested");
 
   messages = [...messages, { role: "assistant", content: afterName.reply }, { role: "user", content: "+1 555 010 0123" }];
-  modelReply = "Thanks, Maya — I have your number. What’s the service address? What name should I use?";
+  modelReply = "Thanks, QA Test Lead — I have your number. What’s the service address? What name should I use?";
   const afterPhone = await generateSalesEmployeeReply(business, messages, state);
   state = afterPhone.salesState;
   assert(state.lead.phone === "+1 555 010 0123", "phone is captured");

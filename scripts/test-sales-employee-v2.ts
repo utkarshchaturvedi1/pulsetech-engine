@@ -109,6 +109,18 @@ async function main() {
   assert(longReply.reply.split(/\s+/).length <= 65, "long generated answers are shortened for chat");
   assert(/phone number/i.test(longReply.reply), "shortening preserves the next contact question");
 
+  const verboseOpeningState = createInitialSalesState({ conversationId: "sales-employee-v2-short-opening", businessKey });
+  modelReply = "Great—you’re in the right place for an off-grid solar and battery system. Yes, a properly sized solar array and battery bank can run air conditioning and electric heating, but exact performance depends on your home’s energy use, the type of heating, roof size and orientation, battery capacity, inverter output, hours of use, seasonal sunlight, and whether you need power during outages. Can I get your name to start?";
+  const verboseOpening = await generateSalesEmployeeReply(
+    business,
+    [{ role: "user", content: "I want off-grid solar with batteries for AC and electric heating." }],
+    verboseOpeningState
+  );
+  assert(/right place/i.test(verboseOpening.reply), "shortened opening retains reassurance");
+  assert(/air conditioning and electric heating/i.test(verboseOpening.reply), "shortened opening retains the answer");
+  assert(/name/i.test(verboseOpening.reply), "shortened opening retains the next lead question");
+  assert(verboseOpening.reply.split(/\s+/).length <= 65, "verbose openings are shortened without dropping the answer");
+
   messages = [...messages, { role: "assistant", content: completed.reply }, { role: "user", content: "Yes, please arrange the site visit." }];
   const agreed = await generateSalesEmployeeReply(business, messages, completed.salesState);
   assert(agreed.salesState.customerAgreed, "explicit agreement is captured");

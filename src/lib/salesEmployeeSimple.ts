@@ -77,7 +77,6 @@ function simpleFacts(business: BusinessProfile): string {
     business.faqs.length
       ? `Verified answers: ${business.faqs.map(({ question, answer }) => `${question} ${answer}`).join("; ")}`
       : "",
-    business.systemPrompt ? `Other verified business information: ${business.systemPrompt}` : "",
   ].filter(Boolean).join("\n");
 }
 

@@ -30,7 +30,7 @@ const business: BusinessProfile = {
   pricingRules: "Exact price requires a site-specific design.",
   faqs: [],
   leadQuestions: ["Are you looking for a new solar system, batteries, or maintenance?"],
-  systemPrompt: "",
+  systemPrompt: "Old script: ask whether the customer needs a new solar system, batteries, or maintenance.",
   leadNotificationEmail: "pulsetechlabs1@gmail.com",
   leadNotificationPhone: "+919873599994",
 };
@@ -63,6 +63,7 @@ async function main() {
   assert(/name/i.test(result.reply), "the assistant begins with name capture");
   assert(latestInstructions.includes("WHAT YOU CAN DO") && latestInstructions.includes("WHAT YOU CAN’T DO"), "prompt is organized around the two requested topics");
   assert(!latestInstructions.includes("new solar system, batteries, or maintenance"), "the configured extra questionnaire is not passed to the assistant");
+  assert(!latestInstructions.includes("Old script"), "the previous long prompt is not carried into the new assistant");
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "UTK" }];
   modelReply = "Thanks, UTK. What’s the best phone number for the team to reach you?";

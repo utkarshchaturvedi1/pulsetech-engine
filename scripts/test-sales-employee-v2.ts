@@ -35,7 +35,7 @@ const business: BusinessProfile = {
   leadQuestions: [],
   systemPrompt: "",
   leadNotificationEmail: "alerts@summit.test",
-  leadNotificationPhone: "+15125550198",
+  leadNotificationPhone: "+15125551298",
 };
 
 async function main() {
@@ -75,11 +75,12 @@ async function main() {
   assert(/phone number/i.test(afterName.reply), "phone is the next field requested");
 
   messages = [...messages, { role: "assistant", content: afterName.reply }, { role: "user", content: "+1 555 010 0123" }];
-  modelReply = "Thank you.";
+  modelReply = "Thanks, Maya — I have your number. What’s the service address? What name should I use?";
   const afterPhone = await generateSalesEmployeeReply(business, messages, state);
   state = afterPhone.salesState;
   assert(state.lead.phone === "+1 555 010 0123", "phone is captured");
   assert(/service address/i.test(afterPhone.reply), "address is the next field requested");
+  assert(!/what name should i use/i.test(afterPhone.reply), "a captured name is never requested again");
 
   messages = [...messages, { role: "assistant", content: afterPhone.reply }, { role: "user", content: "How long does a typical roof repair take?" }];
   modelReply = "Timing depends on the roof and the damage, but many straightforward repairs can be completed in a day. What’s the service address?";
@@ -96,6 +97,17 @@ async function main() {
   assert(/would you like to arrange/i.test(completed.reply), "after contact capture the bot asks permission to arrange the next step");
   assert(!/team will contact|noted your request/i.test(completed.reply), "no delivery claim is made before agreement and timing");
   assert(!completed.reply.includes(business.phone), "business phone number is never disclosed");
+
+  const longReplyState = createInitialSalesState({ conversationId: "sales-employee-v2-concise", businessKey });
+  modelReply = "Thanks, Maya — good question. A roof replacement price depends on roof size, pitch, materials, tear-off, repairs, permits, and location. Key factors to consider:\n- Roof size and pitch.\n- Material selection.\n- Structural repairs and permits.\nWe can provide an exact quote after an inspection. What’s the best phone number for the team to reach you?";
+  const longReply = await generateSalesEmployeeReply(
+    business,
+    [{ role: "user", content: "I need a roof replacement. My name is Maya. How much does it cost?" }],
+    longReplyState
+  );
+  assert(!/^[-*•]/m.test(longReply.reply), "long generated answers do not show bullet lists");
+  assert(longReply.reply.split(/\s+/).length <= 65, "long generated answers are shortened for chat");
+  assert(/phone number/i.test(longReply.reply), "shortening preserves the next contact question");
 
   messages = [...messages, { role: "assistant", content: completed.reply }, { role: "user", content: "Yes, please arrange the site visit." }];
   const agreed = await generateSalesEmployeeReply(business, messages, completed.salesState);

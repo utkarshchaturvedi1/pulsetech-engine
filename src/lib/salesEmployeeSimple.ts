@@ -80,14 +80,17 @@ function simpleFacts(business: BusinessProfile): string {
   ].filter(Boolean).join("\n");
 }
 
-function simpleInstructions(state: SalesState, business: BusinessProfile, photoInvitation: boolean): string {
+function simpleInstructions(state: SalesState, business: BusinessProfile, photoInvitation: boolean, messages: SimpleSalesMessage[]): string {
   const field = nextContactField(state);
   const userNeed = state.primaryNeed || state.customerNeed || "not clear yet";
+  const reassuranceAlreadyGiven = messages.some(
+    (message) => message.role === "assistant" && /\b(right place|come to the right place)\b/i.test(message.content)
+  );
   return `You are the sales employee for the business below. Keep the whole conversation natural, warm, short, and focused on what the customer just said.
 
 WHAT YOU CAN DO
 - Explain the business’s services and answer the customer’s questions using the verified business information below.
-- When the business offers the service they need, begin with a brief assurance that they have come to the right place. Then answer their question.
+- When the business offers the service they need, begin the first substantive reply with a brief assurance that they have come to the right place. Say it only once. ${reassuranceAlreadyGiven ? "The reassurance has already been given; do not repeat it." : "Give the reassurance now."}
 - Answer only what the customer asked. Keep the reply to at most two short sentences and 45 words; do not add unrelated prices, service areas, or sales details.
 - Collect the customer’s name, phone number, and service address as part of helping. The next missing detail is ${field || "none"}. Ask only for that detail, and accept information the customer already gave.
 - The customer may attach up to three optional photos for the team to review; each photo can be up to 5 MB. Offer this only if the customer wants a person to review the issue.
@@ -172,7 +175,7 @@ export async function generateSimpleSalesReply(
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
   } else {
-    const instructions = simpleInstructions(state, business, photoInvitation);
+    const instructions = simpleInstructions(state, business, photoInvitation, messages);
     if (testModel) {
       reply = (await testModel(instructions, messages)).trim();
     } else {

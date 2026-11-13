@@ -100,6 +100,17 @@ function removeCapturedFieldQuestions(reply: string, state: SalesState): string 
     .trim();
 }
 
+function recoverAcknowledgedName(messages: SalesEmployeeMessage[]): string | null {
+  for (const message of messages) {
+    if (message.role !== "assistant") continue;
+    const match = message.content.match(
+      /\bthanks,?\s+([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,3})\s*(?:—|–|-)\s*(?:got your name|i(?:'|’)ve got your name|i have your name)\b/i
+    );
+    if (match?.[1]) return match[1].trim();
+  }
+  return null;
+}
+
 function compactSalesReply(reply: string): string {
   const words = reply.trim().split(/\s+/).filter(Boolean);
   const hasBullets = /(?:^|\n)\s*[-*•]\s/m.test(reply);
@@ -234,6 +245,10 @@ export async function generateSalesEmployeeReply(
 ): Promise<{ reply: string; salesState: SalesState; leadDelivery?: () => Promise<void> }> {
   const latestUser = [...messages].reverse().find((message) => message.role === "user")?.content || "";
   const state = updateSalesStateFromTurn(previousState, messages, business);
+  if (!state.lead.name) {
+    const acknowledgedName = recoverAcknowledgedName(messages);
+    if (acknowledgedName) state.lead.name = acknowledgedName;
+  }
   const openOwnerQuestion = missingOwnerQuestions(state)[0] || null;
   if (openOwnerQuestion) state.pendingOwnerQuestion = openOwnerQuestion;
   const missingContact = nextMissingContactField(state);
@@ -276,6 +291,17 @@ export async function generateSalesEmployeeReply(
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve noted your request, and the team will contact you as soon as possible.`;
   } else if (canClose && !answerBeforeClosing && state.leadDeliveryStatus === "FAILED") {
     reply = "I’m sorry, I couldn’t send your request through just now. Please try again shortly.";
+  } else if (!comparingProviders && !missingContact && state.customerAgreed && state.preferredTiming) {
+    // Never let the model invent appointment slots or claim a booking. At this
+    // point the request must either have been queued/sent above, or we should
+    // ask the outstanding owner question or report the handoff problem plainly.
+    if (openOwnerQuestion) {
+      reply = `One last detail so the team can prepare: ${openOwnerQuestion}`;
+    } else if (state.leadDeliveryStatus === "FAILED") {
+      reply = "I’m sorry, I couldn’t send your request through just now. Please try again shortly.";
+    } else {
+      reply = "I’ve noted your preferred time, but I can’t confirm that your request reached the team yet. Please try again shortly.";
+    }
   } else if (contactsAndOwnerQuestionsComplete && !answerBeforeClosing && !state.customerAgreed) {
     reply = buildPostContactNextStepReply(state, business);
   } else if (contactsAndOwnerQuestionsComplete && !answerBeforeClosing && state.customerAgreed && !state.preferredTiming) {

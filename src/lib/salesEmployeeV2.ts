@@ -7,7 +7,10 @@ import {
 } from "./leadHandoff";
 import { missingOwnerQuestions } from "./ownerQuestions";
 import { updateSalesStateFromTurn, type ChatTurnMessage } from "./salesController";
-import { buildAgreedPreferredTimeAsk, buildPostContactNextStepReply } from "./salesConversation";
+import {
+  buildAgreedPreferredTimeAsk,
+  buildPostContactNextStepReply,
+} from "./salesConversation";
 import { SalesState } from "./salesState";
 
 export type SalesEmployeeMessage = ChatTurnMessage;
@@ -81,6 +84,48 @@ function removeRepeatedFieldQuestion(
     .trim();
 }
 
+function removeCapturedFieldQuestions(reply: string, state: SalesState): string {
+  const capturedOrDeclined = (["name", "phone", "address"] as const).filter(
+    (field) => !!state.lead[field] || state.refusedLeadFields.includes(field)
+  );
+  if (!capturedOrDeclined.length) return reply;
+  const parts = reply.split(/(?<=[.!?])\s+|\n+/u);
+  return parts
+    .filter((part) => {
+      if (!part.trim().endsWith("?")) return true;
+      return !capturedOrDeclined.some((field) => assistantAskedForField(part, field));
+    })
+    .join(" ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .trim();
+}
+
+function compactSalesReply(reply: string): string {
+  const words = reply.trim().split(/\s+/).filter(Boolean);
+  const hasBullets = /(?:^|\n)\s*[-*•]\s/m.test(reply);
+  if (words.length <= 65 && !hasBullets) return reply;
+
+  const lines = reply.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const firstBullet = lines.findIndex((line) => /^[-*•]\s/.test(line));
+  const prose = (firstBullet >= 0 ? lines.slice(0, firstBullet) : lines)
+    .filter((line) => !/^(key factors|factors to consider)\b/i.test(line))
+    .join(" ");
+  const sentences = (prose.match(/[^.!?]+[.!?]+|[^.!?]+$/gu) || [])
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence && !/^thanks?,?\s+[^.!?]+\s+—\s+good question\.?$/i.test(sentence));
+  const finalQuestion = (reply.match(/[^.!?]*\?\s*$/u) || [""])[0].trim();
+  const finalPhotoInvitation = (reply.match(/[^.!?]*(?:photos?|pictures?|images?)[^.!?]*[.!?]?\s*$/iu) || [""])[0].trim();
+  const answer = sentences.slice(0, 2);
+  if (finalQuestion && !answer.some((sentence) => sentence.includes(finalQuestion))) answer.push(finalQuestion);
+  if (finalPhotoInvitation && !answer.some((sentence) => sentence.includes(finalPhotoInvitation))) answer.push(finalPhotoInvitation);
+
+  let concise = answer.join(" ").replace(/\s+/g, " ").trim();
+  if (concise.split(/\s+/).filter(Boolean).length > 65 && answer.length > 1) {
+    concise = [answer[0], finalQuestion, finalPhotoInvitation].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  }
+  return concise || reply;
+}
+
 function customerHasAlreadyBeenReassured(messages: SalesEmployeeMessage[]): boolean {
   return messages.some(
     (message) =>
@@ -132,7 +177,7 @@ function promptForTurn(state: SalesState, business: BusinessProfile, photoInvita
 
 Your priorities:
 1. If the business offers the requested service, reassure the customer in your first substantive reply. Use “Don’t worry—you’ve come to the right place” for a problem and a positive, confident variation for a new project. Give this reassurance once per conversation; do not repeat it after it has already been given. ${reassuranceAlreadyGiven ? "This customer has already received reassurance; skip it now." : "Include brief reassurance now when the business supports the request."} If the business does not offer the service, say so plainly and do not pretend it does.
-2. Helpfully answer what the customer actually asked. Do not ignore a question just to collect information. Keep replies warm, human, concise, and usually no more than two short sentences before one useful question.
+2. Helpfully answer what the customer actually asked. Do not ignore a question just to collect information. Keep replies warm, human, and concise: no bullets or lists, no more than 50 words, and at most two short sentences plus one useful question.
 3. For a genuine service request, collect the customer's name, phone number, and service address, one at a time and in that order. Ask only for the next missing field. If the customer asks another question instead of answering, answer it first; do not repeat the same request in the same reply if the previous assistant message already asked for that field. Never ask for a field already captured or one the customer declined to provide. Do not pressure or argue.
 4. Ask any still-unanswered owner-required question only after the three contact fields are captured, one question at a time. Do not ask optional discovery questions.
 5. If the customer asks to speak with a person, or the team would benefit from seeing the issue, invite them to attach up to three optional photos for the team to review before contacting them. Each photo may be up to 5 MB. Do not claim that you can inspect or diagnose the photos yourself. Mention this invitation at most once.
@@ -248,6 +293,7 @@ export async function generateSalesEmployeeReply(
         reply = `${reply.replace(/\s+$/, "")} ${fieldQuestion(missingContact)}`;
       }
     }
+    reply = removeCapturedFieldQuestions(reply, state);
   }
 
   if (photoInvitation) {
@@ -256,6 +302,8 @@ export async function generateSalesEmployeeReply(
     }
     state.customerPhotoInviteShown = true;
   }
+
+  reply = compactSalesReply(reply);
 
   const businessPhoneDigits = (business.phone || "").replace(/\D/g, "");
   if (businessPhoneDigits.length >= 7 && reply.replace(/\D/g, "").includes(businessPhoneDigits)) {

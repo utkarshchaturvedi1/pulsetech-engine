@@ -8,7 +8,6 @@ import VoiceDemoCard from "./VoiceDemoCard";
 import { BusinessProfile } from "../types/business";
 import { demoIdFromWebsite, saveDemoLocal } from "../lib/demoStore";
 import { DEMO_CHAT_LAYOUT } from "../lib/demoChatLayout";
-import { hasConfiguredWebsiteChatLeadAlerts } from "../lib/leadAlertRecipients";
 import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
 
 type DemoWorkspaceProps = {
@@ -185,7 +184,6 @@ export default function DemoWorkspace({
                   <CustomerAI
                     demoId={resolvedDemoId}
                     business={business}
-                    disabled={!hasConfiguredWebsiteChatLeadAlerts(business)}
                     className="h-full min-h-0 min-w-0 w-full"
                   />
                 </div>

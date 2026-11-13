@@ -22,7 +22,6 @@ function businessIconUrl(website: string): string | undefined {
 type CustomerAIProps = {
   business: BusinessProfile;
   demoId?: string;
-  disabled: boolean;
   className?: string;
 };
 
@@ -53,7 +52,6 @@ function profileContentSignature(business: BusinessProfile): string {
 export default function CustomerAI({
   business,
   demoId,
-  disabled,
   className = "",
 }: CustomerAIProps) {
   const sessionRef = useRef<CustomerChatSession | null>(null);
@@ -138,12 +136,7 @@ export default function CustomerAI({
       <ChatWindow
         key={identityKey}
         initialMessage={INITIAL_MESSAGE}
-        placeholder={
-          disabled
-            ? "Preparing your AI Sales Employee..."
-            : "Ask me anything..."
-        }
-        disabled={disabled}
+        placeholder="Ask me anything..."
         onUserMessage={handleCustomerMessage}
         onPhotoUpload={handlePhotoUpload}
       />

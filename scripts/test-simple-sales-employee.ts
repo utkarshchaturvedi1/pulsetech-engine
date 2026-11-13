@@ -62,6 +62,7 @@ async function main() {
   assert(/right place/i.test(result.reply), "a supported service request gets warm reassurance");
   assert(/name/i.test(result.reply), "the assistant begins with name capture");
   assert(latestInstructions.includes("WHAT YOU CAN DO") && latestInstructions.includes("WHAT YOU CAN’T DO"), "prompt is organized around the two requested topics");
+  assert(latestInstructions.includes("come to the right place") && latestInstructions.includes("45 words"), "the simple chat leads with reassurance and stays brief");
   assert(!latestInstructions.includes("new solar system, batteries, or maintenance"), "the configured extra questionnaire is not passed to the assistant");
   assert(!latestInstructions.includes("Old script"), "the previous long prompt is not carried into the new assistant");
 

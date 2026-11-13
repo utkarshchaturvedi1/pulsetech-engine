@@ -82,6 +82,29 @@ async function main() {
   assert(/service address/i.test(afterPhone.reply), "address is the next field requested");
   assert(!/what name should i use/i.test(afterPhone.reply), "a captured name is never requested again");
 
+  const recoveredState: SalesState = {
+    ...createInitialSalesState({ conversationId: "sales-employee-v2-recovered-name", businessKey }),
+    intent: "READY_TO_ACT",
+    primaryNeed: "Roof repair for an active leak",
+    customerNeed: "Roof repair for an active leak",
+    lead: { name: null, phone: "+1 555 010 0123", email: null, address: "123 Main St, Dallas TX 75201" },
+    leadStatus: "SECURING",
+  };
+  const recoveredMessages: SalesEmployeeMessage[] = [
+    { role: "assistant", content: "What name should I use?" },
+    { role: "user", content: "QA Solar Test" },
+    { role: "assistant", content: "Thanks, QA Solar Test — got your name. What's the best phone number to reach you?" },
+    { role: "user", content: "+1 555 010 0123" },
+    { role: "assistant", content: "Thanks, I have your phone. What is the service address?" },
+    { role: "user", content: "123 Main St, Dallas TX 75201" },
+    { role: "assistant", content: "Would you like me to arrange a roof inspection?" },
+    { role: "user", content: "Yes, please arrange it." },
+  ];
+  modelReply = "What name should I use? What day or time would you prefer?";
+  const recovered = await generateSalesEmployeeReply(business, recoveredMessages, recoveredState);
+  assert(recovered.salesState.lead.name === "QA Solar Test", "a name previously acknowledged by the assistant is restored if state was lost");
+  assert(!/what name should i use/i.test(recovered.reply), "recovered names are not requested again");
+
   messages = [...messages, { role: "assistant", content: afterPhone.reply }, { role: "user", content: "How long does a typical roof repair take?" }];
   modelReply = "Timing depends on the roof and the damage, but many straightforward repairs can be completed in a day. What’s the service address?";
   const answerInstead = await generateSalesEmployeeReply(business, messages, state);
@@ -132,6 +155,20 @@ async function main() {
   assert(!!readyForHandoff.salesState.preferredTiming, "preferred time is captured after agreement");
   assert(readyForHandoff.salesState.leadDeliveryStatus === "SENT", "only explicit agreement plus preferred time enters dry-run handoff");
   assert(/contact you as soon as possible/i.test(readyForHandoff.reply), "successful handoff gets a truthful follow-up close");
+
+  const blockedCloseState: SalesState = {
+    ...createInitialSalesState({ conversationId: "sales-employee-v2-blocked-close", businessKey }),
+    customerAgreed: true,
+    preferredTiming: "Saturday morning",
+    lead: { name: "QA Solar Test", phone: "+1 555 010 0123", email: null, address: "123 Main St, Dallas TX 75201" },
+  };
+  modelReply = "All set — your consultation is scheduled for Saturday at 9:00 AM.";
+  const blockedClose = await generateSalesEmployeeReply(
+    business,
+    [{ role: "user", content: "Saturday morning" }],
+    blockedCloseState
+  );
+  assert(!/scheduled|9:00 AM/i.test(blockedClose.reply), "the bot never invents appointment slots or claims a booking when handoff is not ready");
 
   const comparingState: SalesState = {
     ...createInitialSalesState({ conversationId: "sales-employee-v2-comparing", businessKey }),

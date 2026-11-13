@@ -116,14 +116,32 @@ function compactSalesReply(reply: string): string {
   const finalQuestion = (reply.match(/[^.!?]*\?\s*$/u) || [""])[0].trim();
   const finalPhotoInvitation = (reply.match(/[^.!?]*(?:photos?|pictures?|images?)[^.!?]*[.!?]?\s*$/iu) || [""])[0].trim();
   const answer = sentences.slice(0, 2);
-  if (finalQuestion && !answer.some((sentence) => sentence.includes(finalQuestion))) answer.push(finalQuestion);
-  if (finalPhotoInvitation && !answer.some((sentence) => sentence.includes(finalPhotoInvitation))) answer.push(finalPhotoInvitation);
-
-  let concise = answer.join(" ").replace(/\s+/g, " ").trim();
-  if (concise.split(/\s+/).filter(Boolean).length > 65 && answer.length > 1) {
-    concise = [answer[0], finalQuestion, finalPhotoInvitation].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const suffix = [finalQuestion, finalPhotoInvitation]
+    .filter((part, index, parts) => part && parts.indexOf(part) === index)
+    .filter((part) => !answer.some((sentence) => sentence.includes(part)));
+  const suffixWords = suffix.join(" ").split(/\s+/).filter(Boolean).length;
+  const availableWords = Math.max(12, 65 - suffixWords);
+  let main = answer.join(" ").replace(/\s+/g, " ").trim();
+  let mainWords = main.split(/\s+/).filter(Boolean);
+  if (mainWords.length > availableWords) {
+    const sourceSentence = answer.length > 1 ? answer[1] : answer[0];
+    const clauses = sourceSentence.split(/;\s+|,\s+(?=but\b)|\s+—\s+/i);
+    const usefulClause = clauses.find((clause) => {
+      const count = clause.trim().split(/\s+/).filter(Boolean).length;
+      return count >= 6 && count <= availableWords;
+    });
+    if (usefulClause) {
+      const shortenedAnswer = usefulClause.trim().replace(/[,:;—-]+$/, "") + ".";
+      main = answer.length > 1 ? `${answer[0]} ${shortenedAnswer}` : shortenedAnswer;
+    } else {
+      main = mainWords.slice(0, availableWords).join(" ").replace(/[,:;—-]+$/, "") + "…";
+    }
+    mainWords = main.split(/\s+/).filter(Boolean);
   }
-  return concise || reply;
+  if (mainWords.length + suffixWords > 65 && suffix.length) {
+    main = mainWords.slice(0, Math.max(1, 65 - suffixWords)).join(" ").replace(/[,:;—-]+$/, "") + "…";
+  }
+  return [main, ...suffix].filter(Boolean).join(" ").replace(/\s+/g, " ").trim() || reply;
 }
 
 function customerHasAlreadyBeenReassured(messages: SalesEmployeeMessage[]): boolean {

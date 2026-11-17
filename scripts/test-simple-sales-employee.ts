@@ -6,8 +6,10 @@ import {
   setSimpleSalesTestModel,
   type SimpleSalesMessage,
 } from "../src/lib/salesEmployeeSimple";
+import { CHAT_REQUEST_FAILURE_REPLY, createCustomerChatSession } from "../src/lib/customerChatClient";
 import { setLeadHandoffTestDelivery } from "../src/lib/leadHandoff";
 import { businessIdentityKey, createInitialSalesState, type SalesState } from "../src/lib/salesState";
+import { resolveCurrentChatProfile } from "../src/lib/sharedProfileStore";
 import type { BusinessProfile } from "../src/types/business";
 
 function assert(condition: boolean, message: string): void {
@@ -74,6 +76,65 @@ async function main() {
   assert(/phone number/i.test(result.reply), "phone is the next field");
   assert(!/email/i.test(result.reply), "the customer is not asked for an email address");
   assert(latestInstructions.includes("already been given; do not repeat it"), "reassurance is limited to the opening reply");
+
+  messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "The other company says they have the cheapest rates in Texas." }];
+  modelReply = "It makes sense to compare quotes; we can explain our proposal clearly once we understand your system needs. What's the best phone number to reach you?";
+  result = await generateSimpleSalesReply(business, messages, state);
+  state = result.salesState;
+  assert(/compare quotes/i.test(result.reply), "a competitor-price objection gets a direct, relevant answer");
+  assert(!/phone number/i.test(result.reply), "the bot does not repeat the unanswered phone question during an objection");
+
+  const priorFetch = globalThis.fetch;
+  const priorSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const priorSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const priorVercel = process.env.VERCEL;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://supabase.test";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key";
+  process.env.VERCEL = "1";
+  globalThis.fetch = (async () => { throw new Error("simulated profile store network failure"); }) as typeof fetch;
+  try {
+    const recoveredProfile = await resolveCurrentChatProfile(business, "texassolar");
+    assert(recoveredProfile === business, "a transient saved-profile lookup failure falls back to the bound business profile");
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSupabaseUrl === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = priorSupabaseUrl;
+    if (priorSupabaseKey === undefined) delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    else process.env.SUPABASE_SERVICE_ROLE_KEY = priorSupabaseKey;
+    if (priorVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = priorVercel;
+  }
+
+  const sessionFetch = globalThis.fetch;
+  let sessionRequestCount = 0;
+  let messagesAfterFailure: SimpleSalesMessage[] = [];
+  globalThis.fetch = (async (_input, init) => {
+    sessionRequestCount += 1;
+    if (sessionRequestCount === 2) return new Response("{}", { status: 500 });
+    if (sessionRequestCount === 3) {
+      const requestBody = JSON.parse(String(init?.body)) as { messages: SimpleSalesMessage[] };
+      messagesAfterFailure = requestBody.messages;
+    }
+    return new Response(JSON.stringify({ reply: "I can help with solar installation." }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+  try {
+    const session = createCustomerChatSession(business, "Hi", "texassolar");
+    await session.send("I want solar panels.");
+    try {
+      await session.send("A competitor says it has the cheapest rates.");
+    } catch {
+      // The UI displays CHAT_REQUEST_FAILURE_REPLY for the failed turn.
+    }
+    await session.send("What happened?");
+    assert(messagesAfterFailure.some((message) => message.content === CHAT_REQUEST_FAILURE_REPLY), "failed replies stay in conversation context instead of reviving an older question");
+    assert(messagesAfterFailure.some((message) => message.content === "A competitor says it has the cheapest rates."), "the failed customer message remains in the conversation context");
+    session.destroy();
+  } finally {
+    globalThis.fetch = sessionFetch;
+  }
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "+1 202 555 0123" }];
   modelReply = "Thanks. What’s the service address?";

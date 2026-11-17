@@ -5,6 +5,7 @@ import ChatWindow from "./Chat/ChatWindow";
 import ChatAgentShell from "./Chat/ChatAgentShell";
 import { BusinessProfile } from "../types/business";
 import {
+  CHAT_REQUEST_FAILURE_REPLY,
   createCustomerChatSession,
   type CustomerChatSession,
 } from "../lib/customerChatClient";
@@ -86,7 +87,7 @@ export default function CustomerAI({
     try {
       return await sessionRef.current.send(message);
     } catch {
-      return "I'm having trouble responding right now. Please try again in a moment.";
+      return CHAT_REQUEST_FAILURE_REPLY;
     }
   }
 

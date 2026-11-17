@@ -16,6 +16,9 @@ export type CustomerChatMessage = {
   content: string;
 };
 
+export const CHAT_REQUEST_FAILURE_REPLY =
+  "I'm having trouble responding right now. Please try again in a moment.";
+
 /**
  * Customer AI chat session.
  * conversationId is immutable. BusinessProfile content can be rebound
@@ -174,22 +177,35 @@ export function createCustomerChatSession(
       ? stampConversation(salesState)
       : createInitialSalesState({ conversationId, businessKey });
 
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        demoId,
-        conversationId,
-        business: boundBusiness,
-        messages: nextMessages,
-        salesState: outboundState,
-        customerPhotoPaths,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          demoId,
+          conversationId,
+          business: boundBusiness,
+          messages: nextMessages,
+          salesState: outboundState,
+          customerPhotoPaths,
+        }),
+      });
+    } catch {
+      history = [
+        ...nextMessages,
+        { role: "assistant", content: CHAT_REQUEST_FAILURE_REPLY },
+      ];
+      throw new Error("Chat request failed.");
+    }
 
     if (!response.ok) {
+      history = [
+        ...nextMessages,
+        { role: "assistant", content: CHAT_REQUEST_FAILURE_REPLY },
+      ];
       throw new Error("Chat request failed.");
     }
 

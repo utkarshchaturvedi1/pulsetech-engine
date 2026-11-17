@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { BusinessProfile } from "../types/business";
 import {
   buildOwnerUpdateReply,
+  buildNoVisitFeeRemovalPatch,
   mergeOwnerProfileUpdate,
   summarizeOwnerProfileChanges,
   type OwnerProfilePatch,
@@ -15,6 +16,21 @@ export async function applyOwnerFeedbackToProfile(
   business: BusinessProfile,
   feedback: string
 ): Promise<{ profile: BusinessProfile; reply: string; changes: string[] }> {
+  const noVisitFeePatch = buildNoVisitFeeRemovalPatch(business, feedback);
+  if (noVisitFeePatch) {
+    const profile = mergeOwnerProfileUpdate(business, noVisitFeePatch);
+    const changes = summarizeOwnerProfileChanges(business, profile);
+    return {
+      profile,
+      reply: "Removed the visiting charge. Site visits are now free, and the website chat and phone AI use this update.",
+      changes,
+    };
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("Update service is not configured.");
+  }
+
   const prompt = `
 You are helping a business owner correct the shared BusinessProfile used by website chat and inbound phone.
 

@@ -132,6 +132,10 @@ function hasQuestion(text: string): boolean {
   return text.includes("?") || /\b(how much|what(?:'s| is)|how do|how can|can you|does it|do you|is it|will it|which|when)\b/i.test(text);
 }
 
+function isCompetitorPricingConcern(text: string): boolean {
+  return /\b(?:competitor|another (?:company|installer|provider)|cheapest|most affordable|lower quote|lower price|best price)\b/i.test(text);
+}
+
 export async function generateSimpleSalesReply(
   business: BusinessProfile,
   messages: SimpleSalesMessage[],
@@ -149,6 +153,7 @@ export async function generateSimpleSalesReply(
 
   const missing = nextContactField(state);
   const lastAssistant = lastAssistantText(messages);
+  const competitorPricingConcern = isCompetitorPricingConcern(latestUser);
   const allContactDetailsCaptured = !missing;
   const canSubmit = allContactDetailsCaptured && !!(state.primaryNeed || state.customerNeed) && !state.leadCapturePaused;
   let handoff: LeadHandoffResult = { attempted: false, status: state.leadDeliveryStatus };
@@ -174,6 +179,10 @@ export async function generateSimpleSalesReply(
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve passed your request to the team, and they’ll contact you as soon as possible.`;
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
+  } else if (competitorPricingConcern) {
+    const comparisonAnswer = "It makes sense to compare quotes. I can’t verify another provider’s pricing claim; our quote depends on a site-specific design.";
+    const followUp = missing && !asksFor(lastAssistant, missing) ? questionFor(missing) : "";
+    reply = [comparisonAnswer, followUp].filter(Boolean).join(" ");
   } else {
     const instructions = simpleInstructions(state, business, photoInvitation, messages);
     if (testModel) {

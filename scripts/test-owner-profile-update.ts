@@ -6,9 +6,11 @@ import {
   buildConversationInitiationResponse,
 } from "../src/lib/inboundVoice";
 import {
+  buildNoVisitFeeRemovalPatch,
   mergeOwnerProfileUpdate,
   summarizeOwnerProfileChanges,
 } from "../src/lib/ownerProfileUpdate";
+import { applyOwnerFeedbackToProfile } from "../src/lib/updateBusinessProfile";
 import { formatBusinessKnowledge } from "../src/lib/businessKnowledge";
 import {
   applyOwnerPatchToSharedProfile,
@@ -52,6 +54,45 @@ async function main() {
   const idA = "test-owner-a-" + stamp;
   const idB = "test-owner-b-" + stamp;
   const rule = "Visit charge is $89 unless the customer approves the work.";
+
+  const feeProfile = {
+    ...fixture("Client A Solar", "https://client-a.test"),
+    pricingRules: "Visit charge: $20, waived if the customer proceeds with our recommended services.",
+    systemPrompt: "Represent this business only.\nNote: Our company charges a $20 visit charge that will be waived if the customer proceeds.\nKeep all other facts.",
+    leadQuestions: [
+      "Do you agree to the $20 visit charge, which is waived if you proceed?",
+      "What day works for a visit?",
+    ],
+    ownerLeadQuestions: [
+      "Do you agree to the $20 visit charge, which is waived if you proceed?",
+      "What day works for a visit?",
+    ],
+  };
+  const feeRemovalRequest = "Please remove $20 visiting charges. We have decided that we will not charge customers any visiting charges.";
+  assert(buildNoVisitFeeRemovalPatch(feeProfile, "For visit") === null, "an ambiguous fragment must not change profile facts");
+  const previousOpenAiKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  try {
+    const corrected = await applyOwnerFeedbackToProfile(feeProfile, feeRemovalRequest);
+    const correctedPricing = corrected.profile.pricingRules || "";
+    assert(correctedPricing.includes("There is no charge for site visits."), "clear visit-fee correction saves a customer-facing no-fee rule");
+    assert(!/\$20|waiv/i.test(correctedPricing), "old visit-fee pricing and waiver are removed");
+    assert(!/\$20|visit charge|waiv/i.test(corrected.profile.systemPrompt), "old visit-fee instructions are removed from the voice/chat prompt");
+    assert(corrected.profile.leadQuestions.every((question) => !/visit charge|\$20/i.test(question)), "obsolete visit-fee qualification question is removed");
+    assert(corrected.profile.leadQuestions.includes("What day works for a visit?"), "unrelated visit scheduling question stays intact");
+    assert(corrected.reply.includes("Removed the visiting charge"), "owner receives a clear saved-change confirmation");
+    const voice = buildConversationInitiationResponse({
+      ok: true,
+      calledNumber: "+15557654321",
+      demoId: idA,
+      demo: { id: idA, profile: corrected.profile, updatedAt: new Date().toISOString() } as never,
+    });
+    assert(voice.dynamic_variables.business_rules.includes("There is no charge for site visits."), "voice profile receives the updated no-fee rule");
+    console.log("PASS — explicit no-visit-fee owner correction is deterministic, removes stale instructions, and needs no OpenAI call");
+  } finally {
+    if (previousOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousOpenAiKey;
+  }
 
   await commitSharedProfile(idA, fixture("Client A Solar", "https://client-a.test"));
   await commitSharedProfile(idB, fixture("Client B Roofing", "https://client-b.test"));

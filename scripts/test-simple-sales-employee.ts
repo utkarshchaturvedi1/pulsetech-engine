@@ -84,6 +84,13 @@ async function main() {
   assert(/compare quotes/i.test(result.reply), "a competitor-price objection gets a direct, relevant answer");
   assert(!/phone number/i.test(result.reply), "the bot does not repeat the unanswered phone question during an objection");
 
+  messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "9898989898. I hope your quote is lower. I spoke with your competitor today and they said they are the most affordable solar installer in Texas." }];
+  result = await generateSimpleSalesReply(business, messages, state);
+  state = result.salesState;
+  assert(state.lead.phone === "9898989898", "phone volunteered with a competitor objection is captured");
+  assert(/compare quotes|compare/i.test(result.reply), "competitor objection is answered even when the phone is supplied in the same turn");
+  assert(/service address/i.test(result.reply), "after phone capture, the next missing field is the service address");
+
   const priorFetch = globalThis.fetch;
   const priorSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const priorSupabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -136,13 +143,6 @@ async function main() {
     globalThis.fetch = sessionFetch;
   }
 
-  messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "+1 202 555 0123" }];
-  modelReply = "Thanks. What’s the service address?";
-  result = await generateSimpleSalesReply(business, messages, state);
-  state = result.salesState;
-  assert(state.lead.phone === "+1 202 555 0123", "phone is captured");
-  assert(/service address/i.test(result.reply), "address is the next field");
-
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "1500 Marilla St, Dallas TX 75201" }];
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;
@@ -156,7 +156,7 @@ async function main() {
   assert(deliveryCalls[0].emailTo === "pulsetechlabs1@gmail.com", "notification email destination is correct");
   assert(deliveryCalls[0].smsTo === "+919873599994", "notification SMS destination is correct");
   assert(deliveryCalls[0].text.includes("1500 Marilla St"), "email includes the captured service address");
-  assert(deliveryCalls[0].smsBody.includes("+1 202 555 0123"), "SMS includes the captured phone number");
+  assert(deliveryCalls[0].smsBody.includes("9898989898"), "SMS includes the captured phone number");
 
   setSimpleSalesTestModel(null);
   setLeadHandoffTestDelivery(null);

@@ -25,13 +25,6 @@ function isBusinessProfile(value: unknown): boolean {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: "Update service is not configured." },
-        { status: 500 }
-      );
-    }
-
     const body = await request.json();
     const demoId = sanitizeDemoId(
       typeof body.demoId === "string" ? body.demoId : ""

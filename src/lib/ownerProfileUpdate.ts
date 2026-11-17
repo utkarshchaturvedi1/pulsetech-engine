@@ -33,6 +33,69 @@ export type OwnerProfilePatch = Partial<
   removeValues?: Partial<Record<"leadQuestions" | "systemPrompt" | "pricingRules" | "services" | "serviceAreas" | "faqs", string[]>>;
 };
 
+const VISIT_FEE_POLICY = "There is no charge for site visits.";
+const VISIT_FEE_REFERENCE = /\b(?:visit(?:ing)?|site visit|service call|diagnostic visit)\b.{0,60}\b(?:fee|charge|cost)s?\b|\b(?:fee|charge|cost)s?\b.{0,60}\b(?:visit(?:ing)?|site visit|service call)\b/i;
+const VISIT_FEE_WAIVER = /\b(?:waiv\w*|credited back|applied toward|deducted from)\b/i;
+
+function removeVisitFeeSentences(text: string): { remaining: string; removed: string[] } {
+  const parts = text.split(/(?<=[.!?])\s+|\n+/u).map((part) => part.trim()).filter(Boolean);
+  const kept: string[] = [];
+  const removed: string[] = [];
+  let feeWasJustRemoved = false;
+
+  for (const part of parts) {
+    if (VISIT_FEE_REFERENCE.test(part)) {
+      removed.push(part);
+      feeWasJustRemoved = true;
+      continue;
+    }
+    if (feeWasJustRemoved && VISIT_FEE_WAIVER.test(part)) {
+      removed.push(part);
+      feeWasJustRemoved = false;
+      continue;
+    }
+    feeWasJustRemoved = false;
+    kept.push(part);
+  }
+
+  return { remaining: kept.join("\n").trim(), removed: [...new Set(removed)] };
+}
+
+/**
+ * Recognize a clear owner instruction removing a visit fee without asking the
+ * language model to reconstruct exact old strings for the targeted-removal API.
+ */
+export function buildNoVisitFeeRemovalPatch(
+  current: BusinessProfile,
+  feedback: string
+): OwnerProfilePatch | null {
+  const asksToRemoveFee = /\b(?:remove|delete|stop|waive|waive off|no longer charge|do not charge|don't charge|will not charge|won't charge|decided not to charge|decided to stop charging)\b/i.test(feedback);
+  const mentionsVisitFee = VISIT_FEE_REFERENCE.test(feedback);
+  if (!asksToRemoveFee || !mentionsVisitFee) return null;
+
+  const oldPricing = typeof current.pricingRules === "string" ? current.pricingRules : "";
+  const pricing = removeVisitFeeSentences(oldPricing);
+  const prompt = removeVisitFeeSentences(current.systemPrompt || "");
+  const oldVisitQuestions = current.leadQuestions.filter((question) => VISIT_FEE_REFERENCE.test(question));
+  const remainingPricing = pricing.remaining
+    ? `${pricing.remaining}\n${VISIT_FEE_POLICY}`
+    : VISIT_FEE_POLICY;
+  const remainingPrompt = prompt.remaining
+    ? `${prompt.remaining}\n${VISIT_FEE_POLICY}`
+    : VISIT_FEE_POLICY;
+
+  const removeValues: NonNullable<OwnerProfilePatch["removeValues"]> = {};
+  if (pricing.removed.length) removeValues.pricingRules = pricing.removed;
+  if (prompt.removed.length) removeValues.systemPrompt = prompt.removed;
+  if (oldVisitQuestions.length) removeValues.leadQuestions = oldVisitQuestions;
+
+  return {
+    ...(Object.keys(removeValues).length ? { removeValues } : {}),
+    pricingRules: remainingPricing,
+    systemPrompt: remainingPrompt,
+  };
+}
+
 const PATCH_KEYS: Array<Exclude<keyof OwnerProfilePatch, "removeValues">> = [
   "businessName",
   "tagline",

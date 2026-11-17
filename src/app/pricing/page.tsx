@@ -2,15 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import SiteFooter from "@/components/landing/SiteFooter";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { pricingSans } from "@/lib/plusJakarta";
 import "./pricing.css";
-
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-pricing-sans",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Pricing | PulseTech Labs",
@@ -29,7 +22,7 @@ const features = [
 
 export default function PricingPage() {
   return (
-    <div className={`${jakarta.variable} ${jakarta.className} pt-pricing-page`}>
+    <div className={`${pricingSans.variable} ${pricingSans.className} pt-pricing-page`}>
       <header className="pt-pricing-header">
         <div className="pt-pricing-nav">
           <Link href="/" aria-label="PulseTech Labs home">

@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { landingSans } from "@/lib/plusJakarta";
 import LandingPage from "../components/landing/LandingPage";
-
-const landingSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-landing-sans",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "PulseTech Labs | AI Sales Employees for high-intent businesses",

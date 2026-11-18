@@ -264,11 +264,18 @@ function isAuthoritativePersonName(value: string | null | undefined): boolean {
 }
 
 function extractExplicitPersonName(text: string): string | null {
+  // Accept a name volunteered in a compound answer (for example,
+  // "I'm Taylor. Another company says ...") instead of requiring the
+  // entire customer turn to contain only the name.
+  const introduction = text.match(
+    /\b(?:i am|i['’]m)\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?(?:\s+[A-Za-z][A-Za-z.'-]{1,40}){0,2})(?=\s*(?:[,;.!?]|$|\band\b))/i
+  )?.[1];
   const labeled = text.match(
     /(?:my\s+(?:first\s+)?name(?:'s| is)|(?:first\s+)?name(?:'s| is)|this is|call me)\s+([A-Za-z](?:[A-Za-z.'-]{0,40})?(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?)/i
   )?.[1];
-  if (!labeled) return null;
-  const cleaned = labeled
+  const candidate = introduction || labeled;
+  if (!candidate) return null;
+  const cleaned = candidate
     .replace(/\b(and|my|phone|number|email|address)\b.*$/i, "")
     .trim();
   return isPlausiblePersonName(cleaned) ? cleaned : null;

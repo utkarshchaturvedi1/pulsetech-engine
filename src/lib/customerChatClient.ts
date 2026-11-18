@@ -19,6 +19,23 @@ export type CustomerChatMessage = {
 export const CHAT_REQUEST_FAILURE_REPLY =
   "I'm having trouble responding right now. Please try again in a moment.";
 
+const RETRYABLE_CHAT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+function canRetryChatRequest(state: SalesState, message: string): boolean {
+  const mayContainPhone = /(?:^|\D)\+?[\d\s().-]{7,}\d(?:\D|$)/.test(message);
+  return (
+    !state.lead.phone &&
+    !mayContainPhone &&
+    !state.handoffReady &&
+    state.leadDeliveryStatus !== "SENT" &&
+    state.leadDeliveryStatus !== "QUEUED"
+  );
+}
+
+function retryDelay(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 250));
+}
+
 /**
  * Customer AI chat session.
  * conversationId is immutable. BusinessProfile content can be rebound
@@ -177,23 +194,46 @@ export function createCustomerChatSession(
       ? stampConversation(salesState)
       : createInitialSalesState({ conversationId, businessKey });
 
-    let response: Response;
-    try {
-      response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          demoId,
-          conversationId,
-          business: boundBusiness,
-          messages: nextMessages,
-          salesState: outboundState,
-          customerPhotoPaths,
-        }),
-      });
-    } catch {
+    const request = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        demoId,
+        conversationId,
+        business: boundBusiness,
+        messages: nextMessages,
+        salesState: outboundState,
+        customerPhotoPaths,
+      }),
+    };
+    const retryAllowed = canRetryChatRequest(outboundState, message);
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        response = await fetch("/api/chat", request);
+      } catch {
+        if (attempt === 0 && retryAllowed) {
+          await retryDelay();
+          continue;
+        }
+        history = [
+          ...nextMessages,
+          { role: "assistant", content: CHAT_REQUEST_FAILURE_REPLY },
+        ];
+        throw new Error("Chat request failed.");
+      }
+
+      if (response.ok) break;
+      if (
+        attempt === 0 &&
+        retryAllowed &&
+        RETRYABLE_CHAT_STATUSES.has(response.status)
+      ) {
+        await retryDelay();
+        continue;
+      }
       history = [
         ...nextMessages,
         { role: "assistant", content: CHAT_REQUEST_FAILURE_REPLY },
@@ -201,7 +241,7 @@ export function createCustomerChatSession(
       throw new Error("Chat request failed.");
     }
 
-    if (!response.ok) {
+    if (!response?.ok) {
       history = [
         ...nextMessages,
         { role: "assistant", content: CHAT_REQUEST_FAILURE_REPLY },

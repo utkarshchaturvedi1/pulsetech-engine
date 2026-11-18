@@ -135,13 +135,51 @@ async function main() {
     globalThis.fetch = identityFetch;
   }
 
+  const retryFetch = globalThis.fetch;
+  let transientAttemptCount = 0;
+  globalThis.fetch = (async () => {
+    transientAttemptCount += 1;
+    if (transientAttemptCount === 1) return new Response("temporary failure", { status: 503 });
+    return new Response(JSON.stringify({ reply: "We can help with that. What name should I use?" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+  try {
+    const retrySession = createCustomerChatSession(business, "Hi", "texassolar");
+    const recoveredReply = await retrySession.send("My AC is not cooling.");
+    assert(transientAttemptCount === 2, "one transient failure gets exactly one automatic retry");
+    assert(/what name should i use/i.test(recoveredReply), "a recovered request returns the chatbot reply instead of the generic error");
+    retrySession.destroy();
+  } finally {
+    globalThis.fetch = retryFetch;
+  }
+
+  let phoneTurnAttempts = 0;
+  globalThis.fetch = (async () => {
+    phoneTurnAttempts += 1;
+    return new Response("temporary failure", { status: 503 });
+  }) as typeof fetch;
+  try {
+    const phoneTurnSession = createCustomerChatSession(business, "Hi", "texassolar");
+    try {
+      await phoneTurnSession.send("My number is +1 (214) 555-0188");
+    } catch {
+      // Preserve the existing safe failure reply when a retry could duplicate a lead handoff.
+    }
+    assert(phoneTurnAttempts === 1, "a phone-containing turn is not retried, preventing duplicate lead alerts");
+    phoneTurnSession.destroy();
+  } finally {
+    globalThis.fetch = retryFetch;
+  }
+
   const sessionFetch = globalThis.fetch;
   let sessionRequestCount = 0;
   let messagesAfterFailure: SimpleSalesMessage[] = [];
   globalThis.fetch = (async (_input, init) => {
     sessionRequestCount += 1;
-    if (sessionRequestCount === 2) return new Response("{}", { status: 500 });
-    if (sessionRequestCount === 3) {
+    if (sessionRequestCount === 2 || sessionRequestCount === 3) return new Response("{}", { status: 500 });
+    if (sessionRequestCount === 4) {
       const requestBody = JSON.parse(String(init?.body)) as { messages: SimpleSalesMessage[] };
       messagesAfterFailure = requestBody.messages;
     }

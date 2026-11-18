@@ -147,7 +147,7 @@ async function main() {
   modelReply = "Please provide the service address for your rooftop solar and battery installation.";
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;
-  assert(/don’t have a fixed price list/i.test(result.reply), "a direct price question receives a direct answer even if the model would dodge it");
+  assert(/can.t give an exact total/i.test(result.reply), "a direct price question receives a direct answer even if the model would dodge it");
   assert(/work|parts or materials|property conditions/i.test(result.reply), "the price answer uses business-neutral cost drivers without inventing a figure");
   assert(!/service address/i.test(result.reply), "the already-asked service address is not repeated while answering the price question");
   assert(state.leadDeliveryStatus !== "QUEUED" && !result.leadDelivery, "a direct price question is answered before any lead alert is submitted");

@@ -136,6 +136,14 @@ function isCompetitorPricingConcern(text: string): boolean {
   return /\b(?:competitor|another (?:company|installer|provider)|cheapest|most affordable|lower quote|lower price|best price)\b/i.test(text);
 }
 
+function isDirectPriceQuestion(text: string): boolean {
+  return /\b(how much|what(?:'s| is| will be) (?:the |this |our )?(?:total |system )?(?:cost|price)|what will .{0,40} cost|how much does .{0,40} cost|price list|pricing)\b/i.test(text);
+}
+
+function directPriceAnswer(): string {
+  return "We don’t have a fixed price list. The total depends on your home’s energy use, system size, battery capacity, and roof and site conditions; the team can give you an accurate quote after reviewing the property.";
+}
+
 export async function generateSimpleSalesReply(
   business: BusinessProfile,
   messages: SimpleSalesMessage[],
@@ -156,8 +164,9 @@ export async function generateSimpleSalesReply(
   const competitorPricingConcern = isCompetitorPricingConcern(latestUser);
   const allContactDetailsCaptured = !missing;
   const canSubmit = allContactDetailsCaptured && !!(state.primaryNeed || state.customerNeed) && !state.leadCapturePaused;
+  const directPriceQuestion = isDirectPriceQuestion(latestUser);
   let handoff: LeadHandoffResult = { attempted: false, status: state.leadDeliveryStatus };
-  if (canSubmit && state.leadDeliveryStatus !== "SENT" && state.leadDeliveryStatus !== "QUEUED") {
+  if (canSubmit && !directPriceQuestion && state.leadDeliveryStatus !== "SENT" && state.leadDeliveryStatus !== "QUEUED") {
     // A customer who described a service need and supplied their contact details
     // has asked the business to follow up. This is a lead handoff, not a booked
     // appointment, so do not ask for scheduling consent or invent a time.
@@ -179,6 +188,11 @@ export async function generateSimpleSalesReply(
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve passed your request to the team, and they’ll contact you as soon as possible.`;
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
+  } else if (directPriceQuestion) {
+    const followUp = missing
+      ? questionFor(missing)
+      : "Would you like the team to follow up with an accurate quote?";
+    reply = `${directPriceAnswer()} ${followUp}`;
   } else if (competitorPricingConcern) {
     const comparisonAnswer = "It makes sense to compare quotes. I can’t verify another provider’s pricing claim; our quote depends on a site-specific design.";
     const followUp = missing && !asksFor(lastAssistant, missing) ? questionFor(missing) : "";

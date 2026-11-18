@@ -143,6 +143,15 @@ async function main() {
     globalThis.fetch = sessionFetch;
   }
 
+  messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "How much will the system cost?" }];
+  modelReply = "Please provide the service address for your rooftop solar and battery installation.";
+  result = await generateSimpleSalesReply(business, messages, state);
+  state = result.salesState;
+  assert(/don’t have a fixed price list/i.test(result.reply), "a direct price question receives a direct answer even if the model would dodge it");
+  assert(/energy use|system size|battery capacity/i.test(result.reply), "the price answer explains the real cost drivers without inventing a figure");
+  assert(/service address/i.test(result.reply), "the next missing contact detail is asked only after the price answer");
+  assert(state.leadDeliveryStatus !== "QUEUED" && !result.leadDelivery, "a direct price question is answered before any lead alert is submitted");
+
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "1500 Marilla St, Dallas TX 75201" }];
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;

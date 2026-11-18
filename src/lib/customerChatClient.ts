@@ -31,7 +31,7 @@ export function createCustomerChatSession(
 ) {
   const conversationId = createConversationId();
   let boundBusiness: BusinessProfile = cloneBusinessProfile(business);
-  const businessKey = businessIdentityKey(boundBusiness);
+  const businessKey = businessIdentityKey(boundBusiness, demoId);
 
   let history: CustomerChatMessage[] = [
     {

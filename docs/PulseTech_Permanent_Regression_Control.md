@@ -335,3 +335,10 @@ When fixing one failure, preserve every other category:
 - Semantic checking must recognize the pending part of a required instruction. Deterministic explicit answers survive checker rejection or outage.
 - Owner-requested classification selects exact existing question strings and preserves discovery questions and other website facts. Unknown questions are rejected.
 - Independent check: all six required suites and production build passed. Exact saved Dallas Plumbing profile replayed locally after reviewed configuration migration, with contact order and fee waiver preserved. Live verification is still required before calling production repaired.
+
+## Cross-business answer and identity isolation (18 November 2026)
+
+- Every customer-facing answer must use the active business profile and the customer's stated need: reassurance, service capability, price, follow-up questions, and handoff wording. Do not carry terminology, services, claims, or cost drivers from another business or industry.
+- Each conversation has a unique conversation ID and its state is scoped to the stable saved profile ID (`demoId`) when present. The API must reject a conversation state whose conversation ID or business identity does not match. When two profiles share a website, their profile IDs must still isolate state.
+- After any shared chat prompt, fallback, or conversation change, replay representative conversations against at least two distinct business profiles. Verify active services and pricing facts are in context, check for foreign-industry terms, and confirm captured details are not requested again.
+- Required replay: solar-plus-battery pricing uses the solar profile; clogged-sink pricing uses the plumbing profile. Keep coverage in `scripts/test-simple-sales-employee.ts`; run `npm run test:simple-sales-employee`, `npm run test:demo-chat`, and `npm run test:owner-pricing-regression` before returning chat changes.

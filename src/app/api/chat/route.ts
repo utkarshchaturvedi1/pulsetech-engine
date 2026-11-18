@@ -89,7 +89,8 @@ export async function POST(request: NextRequest) {
     }
     business = await resolveCurrentChatProfile(business, body.demoId);
 
-    const businessKey = businessIdentityKey(business);
+    const demoId = typeof body.demoId === "string" ? body.demoId : "";
+    const businessKey = businessIdentityKey(business, demoId || undefined);
 
     let previousState: SalesState | null = isSalesState(body.salesState)
       ? normalizeSalesState(body.salesState)
@@ -125,7 +126,6 @@ export async function POST(request: NextRequest) {
       previousState = createInitialSalesState({ conversationId, businessKey });
     }
 
-    const demoId = typeof body.demoId === "string" ? body.demoId : "";
     const photoPaths = demoId
       ? normalizeCustomerPhotoPaths(body.customerPhotoPaths, demoId, conversationId)
       : [];

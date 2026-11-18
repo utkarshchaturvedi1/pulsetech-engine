@@ -85,7 +85,7 @@ export default function CustomerAI({
   className = "",
 }: CustomerAIProps) {
   const sessionRef = useRef<CustomerChatSession | null>(null);
-  const identityKey = businessIdentityKey(business);
+  const identityKey = businessIdentityKey(business, demoId);
   const contentKey = profileContentSignature(business);
 
   useEffect(() => {

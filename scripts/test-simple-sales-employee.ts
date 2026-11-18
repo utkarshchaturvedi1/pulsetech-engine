@@ -112,6 +112,29 @@ async function main() {
     else process.env.VERCEL = priorVercel;
   }
 
+  const identityFetch = globalThis.fetch;
+  const isolatedRequests: Array<{ conversationId: string; salesState: SalesState }> = [];
+  globalThis.fetch = (async (_input, init) => {
+    const payload = JSON.parse(String(init?.body)) as { conversationId: string; salesState: SalesState };
+    isolatedRequests.push(payload);
+    return new Response(JSON.stringify({ reply: "I can help with that." }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    const sameSitePlumbing: BusinessProfile = { ...business, businessName: "Autrey’s Plumbing LLC" };
+    const firstProfileSession = createCustomerChatSession(business, "Hi", "profile-solar-test");
+    const secondProfileSession = createCustomerChatSession(sameSitePlumbing, "Hi", "profile-plumbing-test");
+    await Promise.all([firstProfileSession.send("I need help."), secondProfileSession.send("I need help.")]);
+    assert(isolatedRequests.length === 2, "both profile conversations reach the chat API");
+    assert(isolatedRequests[0].conversationId !== isolatedRequests[1].conversationId, "each conversation receives a unique conversation ID");
+    assert(isolatedRequests[0].salesState.businessKey === "profile:profile-solar-test", "solar chat state is keyed to its stable profile ID");
+    assert(isolatedRequests[1].salesState.businessKey === "profile:profile-plumbing-test", "plumbing chat state is keyed to its stable profile ID");
+    assert(isolatedRequests[0].salesState.businessKey !== isolatedRequests[1].salesState.businessKey, "same-site business profiles cannot share chat state");
+    firstProfileSession.destroy();
+    secondProfileSession.destroy();
+  } finally {
+    globalThis.fetch = identityFetch;
+  }
+
   const sessionFetch = globalThis.fetch;
   let sessionRequestCount = 0;
   let messagesAfterFailure: SimpleSalesMessage[] = [];
@@ -144,11 +167,11 @@ async function main() {
   }
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "How much will the system cost?" }];
-  modelReply = "Please provide the service address for your rooftop solar and battery installation.";
+  modelReply = "An exact price needs a site-specific design. System size, battery capacity, and roof conditions determine the total. Would you like a site-specific quote?";
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;
-  assert(/can.t give an exact total/i.test(result.reply), "a direct price question receives a direct answer even if the model would dodge it");
-  assert(/work|parts or materials|property conditions/i.test(result.reply), "the price answer uses business-neutral cost drivers without inventing a figure");
+  assert(/site-specific design/i.test(result.reply) && /battery capacity/i.test(result.reply), "solar price answers use the active business facts");
+  assert(latestInstructions.includes("Every answer must be specific to the assigned business") && latestInstructions.includes("verified pricing information"), "the model receives cross-business and verified-pricing rules");
   assert(!/service address/i.test(result.reply), "the already-asked service address is not repeated while answering the price question");
   assert(state.leadDeliveryStatus !== "QUEUED" && !result.leadDelivery, "a direct price question is answered before any lead alert is submitted");
 
@@ -176,9 +199,12 @@ async function main() {
     { role: "assistant", content: "Thanks, AB. What's the service address?" },
     { role: "user", content: "Before I give the address, how much will it cost to unclog the sink?" },
   ];
+  modelReply = "I can’t quote this without assessing the drain. The cost depends on the blockage and any materials needed. Would you like the team to provide an estimate?";
   const plumbingPrice = await generateSimpleSalesReply(plumbingBusiness, plumbingMessages, plumbingState);
-  assert(/work|parts or materials|property conditions/i.test(plumbingPrice.reply), "plumbing receives a neutral, relevant unknown-price answer");
-  assert(!/solar|battery capacity|roof|energy use|system size/i.test(plumbingPrice.reply), "plumbing price answers never inherit solar-specific cost language");
+  assert(/assessing the drain/i.test(plumbingPrice.reply) && /blockage/i.test(plumbingPrice.reply), "plumbing price answers reflect the plumbing request");
+  assert(!/solar|battery capacity|roof|energy use|system size/i.test(plumbingPrice.reply), "plumbing answers never inherit solar-specific language");
+  assert(latestInstructions.includes("Business name: Autrey’s Plumbing LLC") || latestInstructions.includes("Business name: Autrey's Plumbing LLC"), "the active plumbing business is in the model context");
+  assert(latestInstructions.includes("Drain cleaning"), "the active plumbing services are in the model context");
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "1500 Marilla St, Dallas TX 75201" }];
   result = await generateSimpleSalesReply(business, messages, state);

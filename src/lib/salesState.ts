@@ -98,7 +98,9 @@ export function createConversationId(): string {
 export function businessIdentityKey(business: {
   website?: string;
   businessName?: string;
-}): string {
+}, profileId?: string): string {
+  const stableProfileId = profileId?.trim().toLowerCase();
+  if (stableProfileId) return `profile:${stableProfileId}`;
   const website = business.website?.trim().toLowerCase();
   if (website) return website;
   const name = business.businessName?.trim().toLowerCase();

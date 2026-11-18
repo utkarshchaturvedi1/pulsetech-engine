@@ -148,9 +148,37 @@ async function main() {
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;
   assert(/don’t have a fixed price list/i.test(result.reply), "a direct price question receives a direct answer even if the model would dodge it");
-  assert(/energy use|system size|battery capacity/i.test(result.reply), "the price answer explains the real cost drivers without inventing a figure");
+  assert(/work|parts or materials|property conditions/i.test(result.reply), "the price answer uses business-neutral cost drivers without inventing a figure");
   assert(!/service address/i.test(result.reply), "the already-asked service address is not repeated while answering the price question");
   assert(state.leadDeliveryStatus !== "QUEUED" && !result.leadDelivery, "a direct price question is answered before any lead alert is submitted");
+
+  const plumbingBusiness: BusinessProfile = {
+    ...business,
+    website: "https://dallasplumbing.test",
+    businessName: "Autrey's Plumbing LLC",
+    tagline: "Residential plumbing service",
+    services: ["Drain cleaning", "Leak repair", "Water heater repair"],
+    pricingRules: "Exact job pricing depends on the issue and parts needed.",
+    leadQuestions: [],
+    systemPrompt: "",
+  };
+  const plumbingConversation = "simple-sales-plumbing-price-0001";
+  const plumbingState = createInitialSalesState({
+    conversationId: plumbingConversation,
+    businessKey: businessIdentityKey(plumbingBusiness),
+  });
+  const plumbingMessages: SimpleSalesMessage[] = [
+    { role: "user", content: "My kitchen sink is clogged and backing up. Can you help?" },
+    { role: "assistant", content: "You've come to the right place. What's your name?" },
+    { role: "user", content: "AB" },
+    { role: "assistant", content: "Thanks, AB. What's the best phone number to reach you?" },
+    { role: "user", content: "+12125550147" },
+    { role: "assistant", content: "Thanks, AB. What's the service address?" },
+    { role: "user", content: "Before I give the address, how much will it cost to unclog the sink?" },
+  ];
+  const plumbingPrice = await generateSimpleSalesReply(plumbingBusiness, plumbingMessages, plumbingState);
+  assert(/work|parts or materials|property conditions/i.test(plumbingPrice.reply), "plumbing receives a neutral, relevant unknown-price answer");
+  assert(!/solar|battery capacity|roof|energy use|system size/i.test(plumbingPrice.reply), "plumbing price answers never inherit solar-specific cost language");
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "1500 Marilla St, Dallas TX 75201" }];
   result = await generateSimpleSalesReply(business, messages, state);

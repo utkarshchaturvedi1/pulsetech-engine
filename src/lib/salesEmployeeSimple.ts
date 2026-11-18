@@ -92,7 +92,8 @@ WHAT YOU CAN DO
 - Explain the business’s services and answer the customer’s questions using the verified business information below.
 - When the business offers the service they need, begin the first substantive reply with a brief assurance that they have come to the right place. Say it only once. ${reassuranceAlreadyGiven ? "The reassurance has already been given; do not repeat it." : "Give the reassurance now."}
 - Every answer must be specific to the assigned business and the customer’s stated need. Use only that business’s verified services, policies, pricing, and FAQs. Do not carry facts, terminology, price drivers, claims, or examples from another industry or business. Answer only what the customer asked. Keep the reply to at most two short sentences and 45 words; do not add unrelated prices, service areas, or sales details.
-- For price questions, use the active business’s verified pricing information. If no exact price is provided, explain that a quote requires reviewing the requested work or project, and describe only relevant cost factors supported by that business’s facts.
+- For price questions, use the active business’s verified pricing information. If no exact price is provided, say an accurate quote requires reviewing the requested work or project. Mention cost factors only when the active business facts support them. Never say a quote or visit is free, paid, waived, or discounted unless that exact policy is verified below; missing fee information does not mean the service is free.
+- If a customer compares another provider, respond naturally to that comparison using only this business’s verified information. Do not claim to be cheaper, use a scripted industry-specific comparison, or change the subject; answer the question and continue the conversation.
 - Collect the customer’s name, phone number, and service address as part of helping. The next missing detail is ${field || "none"}. Ask only for that detail, and accept information the customer already gave.
 - The customer may attach up to three optional photos for the team to review; each photo can be up to 5 MB. Offer this only if the customer wants a person to review the issue.
 - Business information: ${simpleFacts(business)}
@@ -101,7 +102,7 @@ ${photoInvitation ? "A photo invitation is appropriate in this reply." : "Do not
 
 WHAT YOU CAN’T DO
 - Do not claim the business offers something it does not offer. If the information is missing, say you’re not sure and offer to have the team confirm.
-- Do not invent prices, licenses, guarantees, availability, appointments, completed work, or successful contact with the team.
+- Do not invent prices, fees, free offers, discounts, licenses, guarantees, availability, appointments, completed work, or successful contact with the team.
 - Do not give out the business phone number or internal email/SMS details.
 - Do not ask for information already provided, ask unnecessary service-category questions, or repeat a question the customer has not answered in the same reply.
 - Do not say the request was sent or that the team will contact the customer unless the system says the lead alert is queued or sent.
@@ -133,10 +134,6 @@ function hasQuestion(text: string): boolean {
   return text.includes("?") || /\b(how much|what(?:'s| is)|how do|how can|can you|does it|do you|is it|will it|which|when)\b/i.test(text);
 }
 
-function isCompetitorPricingConcern(text: string): boolean {
-  return /\b(?:competitor|another (?:company|installer|provider)|cheapest|most affordable|lower quote|lower price|best price)\b/i.test(text);
-}
-
 function isDirectPriceQuestion(text: string): boolean {
   return /\b(how much|what(?:'s| is| will be) (?:the |this |our )?(?:total |system )?(?:cost|price)|what will .{0,40} cost|how much does .{0,40} cost|price list|pricing)\b/i.test(text);
 }
@@ -158,7 +155,6 @@ export async function generateSimpleSalesReply(
 
   const missing = nextContactField(state);
   const lastAssistant = lastAssistantText(messages);
-  const competitorPricingConcern = isCompetitorPricingConcern(latestUser);
   const allContactDetailsCaptured = !missing;
   const canSubmit = allContactDetailsCaptured && !!(state.primaryNeed || state.customerNeed) && !state.leadCapturePaused;
   const directPriceQuestion = isDirectPriceQuestion(latestUser);
@@ -185,10 +181,6 @@ export async function generateSimpleSalesReply(
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve passed your request to the team, and they’ll contact you as soon as possible.`;
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
-  } else if (competitorPricingConcern) {
-    const comparisonAnswer = "It makes sense to compare quotes. I can’t verify another provider’s pricing claim; our quote depends on a site-specific design.";
-    const followUp = missing && !asksFor(lastAssistant, missing) ? questionFor(missing) : "";
-    reply = [comparisonAnswer, followUp].filter(Boolean).join(" ");
   } else {
     const instructions = simpleInstructions(state, business, photoInvitation, messages);
     if (testModel) {

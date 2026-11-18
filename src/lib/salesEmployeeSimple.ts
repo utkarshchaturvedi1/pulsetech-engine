@@ -189,9 +189,11 @@ export async function generateSimpleSalesReply(
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
   } else if (directPriceQuestion) {
-    const followUp = missing
+    const followUp = missing && !asksFor(lastAssistant, missing)
       ? questionFor(missing)
-      : "Would you like the team to follow up with an accurate quote?";
+      : missing
+        ? ""
+        : "Would you like the team to follow up with an accurate quote?";
     reply = `${directPriceAnswer()} ${followUp}`;
   } else if (competitorPricingConcern) {
     const comparisonAnswer = "It makes sense to compare quotes. I can’t verify another provider’s pricing claim; our quote depends on a site-specific design.";

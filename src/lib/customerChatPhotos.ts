@@ -3,11 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 export const CUSTOMER_CHAT_PHOTO_BUCKET = "customer-chat-photos";
 export const CUSTOMER_CHAT_PHOTO_LIMIT = 3;
 export const CUSTOMER_CHAT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
-export const CUSTOMER_CHAT_PHOTO_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-] as const;
+export const CUSTOMER_CHAT_PHOTO_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 const EXTENSIONS: Record<(typeof CUSTOMER_CHAT_PHOTO_MIME_TYPES)[number], string> = {
   "image/jpeg": "jpg",
@@ -19,7 +15,7 @@ function storageAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/$/, "");
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url || !key) throw new Error("Customer photo storage is not configured.");
-  return { url, key, client: createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } }) };
+  return { url, client: createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } }) };
 }
 
 async function ensurePrivateBucket() {
@@ -74,7 +70,12 @@ export async function createCustomerPhotoUpload(demoId: string, conversationId: 
   const { data, error } = await client.storage.from(CUSTOMER_CHAT_PHOTO_BUCKET).createSignedUploadUrl(path, { upsert: false });
   if (error) throw error;
   const { url } = storageAdmin();
-  return { path, signedUrl: data.signedUrl, supabaseUrl: url, anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "" };
+  return {
+    path,
+    token: data.token,
+    supabaseUrl: url,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "",
+  };
 }
 
 export async function signCustomerPhotoLinks(demoId: string, conversationId: string, value: unknown): Promise<string[]> {

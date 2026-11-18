@@ -14,6 +14,7 @@ import {
   type SalesState,
 } from "../src/lib/salesState";
 import type { BusinessProfile } from "../src/types/business";
+import { validateSalesReply } from "../src/lib/salesController";
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -106,6 +107,12 @@ async function main() {
   assert(state.lead.phone === "+1 555 010 0123", "phone is captured");
   assert(/service address/i.test(afterPhone.reply), "address is the next field requested");
   assert(!/what name should i use/i.test(afterPhone.reply), "a captured name is never requested again");
+  const duplicateNameValidation = validateSalesReply(
+    "Thanks, QA Test Lead — I have your number. What’s the service address? What name should I use?",
+    { ...afterPhone.salesState, currentObjective: "COLLECT_ADDRESS" },
+    business
+  );
+  assert(!duplicateNameValidation.ok, "validator rejects a second name request while collecting address");
 
   const recoveredState: SalesState = {
     ...createInitialSalesState({ conversationId: "sales-employee-v2-recovered-name", businessKey }),

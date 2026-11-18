@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
 import ChatWindow from "./Chat/ChatWindow";
 import ChatAgentShell from "./Chat/ChatAgentShell";
 import { BusinessProfile } from "../types/business";
@@ -11,7 +10,35 @@ import {
   type CustomerChatSession,
 } from "../lib/customerChatClient";
 import { businessIdentityKey } from "../lib/salesState";
-import { CUSTOMER_CHAT_PHOTO_BUCKET } from "../lib/customerChatPhotos";
+
+const MAX_UPLOAD_BODY_BYTES = 3_800_000;
+
+async function preparePhotoForUpload(file: File): Promise<File> {
+  if (file.size <= MAX_UPLOAD_BODY_BYTES) return file;
+  const bitmap = await createImageBitmap(file);
+  try {
+    let scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("This photo could not be prepared. Please choose another image.");
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+      for (const quality of [0.84, 0.74, 0.64, 0.54]) {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+        if (blob && blob.size <= MAX_UPLOAD_BODY_BYTES) {
+          return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+        }
+      }
+      scale *= 0.8;
+    }
+  } finally {
+    bitmap.close();
+  }
+  throw new Error("This photo could not be reduced for upload. Please choose a smaller image.");
+}
 
 function businessIconUrl(website: string): string | undefined {
   try {
@@ -97,35 +124,20 @@ export default function CustomerAI({
     if (!demoId || !sessionRef.current?.isActive()) {
       throw new Error("Photo uploads are unavailable in this chat.");
     }
+    const uploadFile = await preparePhotoForUpload(file);
+    const form = new FormData();
+    form.set("demoId", demoId);
+    form.set("conversationId", sessionRef.current.conversationId);
+    form.set("slot", String(slot));
+    form.set("photo", uploadFile);
     const response = await fetch("/api/chat/photo-upload", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        demoId,
-        conversationId: sessionRef.current.conversationId,
-        slot,
-        contentType: file.type,
-      }),
+      body: form,
     });
-    const upload = (await response.json()) as {
-      error?: string;
-      token?: string;
-      supabaseUrl?: string;
-      anonKey?: string;
-      path?: string;
-    };
-    if (!response.ok || !upload.token || !upload.supabaseUrl || !upload.anonKey || !upload.path) {
+    const upload = (await response.json()) as { error?: string; path?: string };
+    if (!response.ok || !upload.path) {
       throw new Error(upload.error || "Could not prepare this photo for upload.");
     }
-
-    const storage = createClient(upload.supabaseUrl, upload.anonKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    const { error } = await storage.storage
-      .from(CUSTOMER_CHAT_PHOTO_BUCKET)
-      .uploadToSignedUrl(upload.path, upload.token, file, { contentType: file.type });
-    if (error) throw new Error(error.message || "Photo upload failed. Please try again.");
-
     if (!sessionRef.current.addPhotoPath(upload.path)) {
       throw new Error("You can attach up to three photos in a chat.");
     }

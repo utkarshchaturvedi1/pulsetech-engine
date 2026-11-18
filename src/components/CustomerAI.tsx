@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 import ChatWindow from "./Chat/ChatWindow";
 import ChatAgentShell from "./Chat/ChatAgentShell";
 import { BusinessProfile } from "../types/business";
@@ -10,6 +11,7 @@ import {
   type CustomerChatSession,
 } from "../lib/customerChatClient";
 import { businessIdentityKey } from "../lib/salesState";
+import { CUSTOMER_CHAT_PHOTO_BUCKET } from "../lib/customerChatPhotos";
 
 function businessIconUrl(website: string): string | undefined {
   try {
@@ -105,21 +107,25 @@ export default function CustomerAI({
         contentType: file.type,
       }),
     });
-    const upload = (await response.json()) as { error?: string; signedUrl?: string; anonKey?: string; path?: string };
-    if (!response.ok || !upload.signedUrl || !upload.anonKey || !upload.path) {
+    const upload = (await response.json()) as {
+      error?: string;
+      token?: string;
+      supabaseUrl?: string;
+      anonKey?: string;
+      path?: string;
+    };
+    if (!response.ok || !upload.token || !upload.supabaseUrl || !upload.anonKey || !upload.path) {
       throw new Error(upload.error || "Could not prepare this photo for upload.");
     }
-    const stored = await fetch(upload.signedUrl, {
-      method: "PUT",
-      headers: {
-        apikey: upload.anonKey,
-        Authorization: `Bearer ${upload.anonKey}`,
-        "Content-Type": file.type,
-        "x-upsert": "false",
-      },
-      body: file,
+
+    const storage = createClient(upload.supabaseUrl, upload.anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
     });
-    if (!stored.ok) throw new Error("Photo upload failed. Please try again.");
+    const { error } = await storage.storage
+      .from(CUSTOMER_CHAT_PHOTO_BUCKET)
+      .uploadToSignedUrl(upload.path, upload.token, file, { contentType: file.type });
+    if (error) throw new Error(error.message || "Photo upload failed. Please try again.");
+
     if (!sessionRef.current.addPhotoPath(upload.path)) {
       throw new Error("You can attach up to three photos in a chat.");
     }

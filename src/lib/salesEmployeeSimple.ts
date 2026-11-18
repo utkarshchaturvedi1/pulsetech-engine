@@ -141,7 +141,7 @@ function isDirectPriceQuestion(text: string): boolean {
 }
 
 function directPriceAnswer(): string {
-  return "We don’t have a fixed price list. The total depends on your home’s energy use, system size, battery capacity, and roof and site conditions; the team can give you an accurate quote after reviewing the property.";
+  return "I can’t give an exact total yet; it depends on the specific work, any parts or materials, and the property conditions. The team can provide an accurate quote after reviewing the job.";
 }
 
 export async function generateSimpleSalesReply(

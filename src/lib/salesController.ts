@@ -1845,7 +1845,7 @@ function leadFieldAskPatterns(field: keyof LeadFields): RegExp[] {
   switch (field) {
     case "name":
       return [
-        /\b(what(?:'s| is) your (first )?name|may i (have|get) your (first )?name|your (first )?name\??|last name)\b/i,
+        /\b(what(?:'s| is) your (first )?name|what name should i (?:use|put down)|what should i call you|may i (have|get) your (first )?name|your (first )?name\??|last name)\b/i,
       ];
     case "phone":
       return [

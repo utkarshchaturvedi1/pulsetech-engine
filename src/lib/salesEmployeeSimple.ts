@@ -91,7 +91,8 @@ function simpleInstructions(state: SalesState, business: BusinessProfile, photoI
 WHAT YOU CAN DO
 - Explain the business’s services and answer the customer’s questions using the verified business information below.
 - When the business offers the service they need, begin the first substantive reply with a brief assurance that they have come to the right place. Say it only once. ${reassuranceAlreadyGiven ? "The reassurance has already been given; do not repeat it." : "Give the reassurance now."}
-- Answer only what the customer asked. Keep the reply to at most two short sentences and 45 words; do not add unrelated prices, service areas, or sales details.
+- Every answer must be specific to the assigned business and the customer’s stated need. Use only that business’s verified services, policies, pricing, and FAQs. Do not carry facts, terminology, price drivers, claims, or examples from another industry or business. Answer only what the customer asked. Keep the reply to at most two short sentences and 45 words; do not add unrelated prices, service areas, or sales details.
+- For price questions, use the active business’s verified pricing information. If no exact price is provided, explain that a quote requires reviewing the requested work or project, and describe only relevant cost factors supported by that business’s facts.
 - Collect the customer’s name, phone number, and service address as part of helping. The next missing detail is ${field || "none"}. Ask only for that detail, and accept information the customer already gave.
 - The customer may attach up to three optional photos for the team to review; each photo can be up to 5 MB. Offer this only if the customer wants a person to review the issue.
 - Business information: ${simpleFacts(business)}
@@ -140,10 +141,6 @@ function isDirectPriceQuestion(text: string): boolean {
   return /\b(how much|what(?:'s| is| will be) (?:the |this |our )?(?:total |system )?(?:cost|price)|what will .{0,40} cost|how much does .{0,40} cost|price list|pricing)\b/i.test(text);
 }
 
-function directPriceAnswer(): string {
-  return "I can’t give an exact total yet; it depends on the specific work, any parts or materials, and the property conditions. The team can provide an accurate quote after reviewing the job.";
-}
-
 export async function generateSimpleSalesReply(
   business: BusinessProfile,
   messages: SimpleSalesMessage[],
@@ -188,13 +185,6 @@ export async function generateSimpleSalesReply(
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve passed your request to the team, and they’ll contact you as soon as possible.`;
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
-  } else if (directPriceQuestion) {
-    const followUp = missing && !asksFor(lastAssistant, missing)
-      ? questionFor(missing)
-      : missing
-        ? ""
-        : "Would you like the team to follow up with an accurate quote?";
-    reply = `${directPriceAnswer()} ${followUp}`;
   } else if (competitorPricingConcern) {
     const comparisonAnswer = "It makes sense to compare quotes. I can’t verify another provider’s pricing claim; our quote depends on a site-specific design.";
     const followUp = missing && !asksFor(lastAssistant, missing) ? questionFor(missing) : "";

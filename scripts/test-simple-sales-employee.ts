@@ -206,6 +206,22 @@ async function main() {
   assert(latestInstructions.includes("Business name: Autrey’s Plumbing LLC") || latestInstructions.includes("Business name: Autrey's Plumbing LLC"), "the active plumbing business is in the model context");
   assert(latestInstructions.includes("Drain cleaning"), "the active plumbing services are in the model context");
 
+  const plumbingPhotoMessages: SimpleSalesMessage[] = [
+    ...plumbingMessages,
+    { role: "assistant", content: plumbingPrice.reply },
+    { role: "user", content: "Please review this photo of the sink and tell me if you can help." },
+  ];
+  modelReply = "We can help with a kitchen sink clog, and the team can review your attached photo. What name should I use?";
+  const plumbingPhotoReply = await generateSimpleSalesReply(
+    plumbingBusiness,
+    plumbingPhotoMessages,
+    plumbingState,
+    ["https://photos.example.test/signed-test-photo"]
+  );
+  assert(latestInstructions.includes("cannot inspect their contents"), "the assistant is told that images are for team review, not AI inspection");
+  assert(!latestInstructions.includes("A photo invitation is appropriate"), "the assistant does not invite another photo after one is attached");
+  assert(!/based on the photo|I can see|the photo shows/i.test(plumbingPhotoReply.reply), "the assistant never claims to visually inspect an uploaded image");
+
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "1500 Marilla St, Dallas TX 75201" }];
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;

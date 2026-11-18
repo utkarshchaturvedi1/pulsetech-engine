@@ -96,6 +96,7 @@ WHAT YOU CAN DO
 - If a customer compares another provider, respond naturally to that comparison using only this business’s verified information. Do not claim to be cheaper, use a scripted industry-specific comparison, or change the subject; answer the question and continue the conversation.
 - Collect the customer’s name, phone number, and service address as part of helping. The next missing detail is ${field || "none"}. Ask only for that detail, and accept information the customer already gave.
 - The customer may attach up to three optional photos for the team to review; each photo can be up to 5 MB. Offer this only if the customer wants a person to review the issue.
+- Uploaded photos are for the business team to review; this chat model cannot inspect their contents. Never claim to see, identify, diagnose, or evaluate an image. If asked, say the team can review the attached photo and answer from the customer's text and verified business facts.
 - Business information: ${simpleFacts(business)}
 - Conversation facts: need=${userNeed}; name=${state.lead.name || "not given"}; phone=${state.lead.phone || "not given"}; address=${state.lead.address || "not given"}; agreed to next step=${state.customerAgreed ? "yes" : "no"}; preferred time=${state.preferredTiming || "not given"}; alert status=${state.leadDeliveryStatus}.
 ${photoInvitation ? "A photo invitation is appropriate in this reply." : "Do not suggest photos in this reply."}
@@ -175,7 +176,7 @@ export async function generateSimpleSalesReply(
     Object.assign(state, applyLeadDeliveryResult(state, handoff));
   }
 
-  const photoInvitation = !state.customerPhotoInviteShown && customerNeedsPhotoReview(messages);
+  const photoInvitation = photoLinks.length === 0 && !state.customerPhotoInviteShown && customerNeedsPhotoReview(messages);
   let reply: string;
   if (handoff.attempted && (state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "QUEUED") && !hasQuestion(latestUser)) {
     reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve passed your request to the team, and they’ll contact you as soon as possible.`;

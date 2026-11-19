@@ -20,7 +20,7 @@ export const CHAT_REQUEST_FAILURE_REPLY =
   "I'm having trouble responding right now. Please try again in a moment.";
 
 const RETRYABLE_CHAT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
-const CHAT_REQUEST_TIMEOUT_MS = 15_000;
+const CHAT_REQUEST_TIMEOUT_MS = 27_000;
 let customerChatTimeoutMs = CHAT_REQUEST_TIMEOUT_MS;
 
 export function setCustomerChatTimeoutForTests(timeoutMs: number | null): void {

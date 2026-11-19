@@ -15,6 +15,8 @@ import {
 } from "../../../lib/salesState";
 import { updateSalesStateFromTurn } from "../../../lib/salesController";
 
+export const maxDuration = 25;
+
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") {
     return false;

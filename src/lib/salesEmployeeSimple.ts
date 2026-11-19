@@ -255,11 +255,11 @@ export async function generateSimpleSalesReply(
     if (testModel) {
       reply = (await testModel(instructions, messages)).trim();
     } else {
-      // Bound provider latency so a slow upstream model cannot leave the chat
-      // request open until the serverless function times out.
+      // Allow a normal slow response while keeping a firm ceiling; the route
+      // falls back to a truthful, question-aware reply when this expires.
       const client = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
-        timeout: 8_000,
+        timeout: 20_000,
         maxRetries: 0,
       });
       const response = await client.responses.create({

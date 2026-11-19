@@ -69,6 +69,15 @@ async function main() {
   assert(!latestInstructions.includes("new solar system, batteries, or maintenance"), "the configured extra questionnaire is not passed to the assistant");
   assert(!latestInstructions.includes("Old script"), "the previous long prompt is not carried into the new assistant");
 
+  modelReply = "I’m here to help. What name should I use?";
+  const deflectionState = createInitialSalesState({ conversationId: "simple-sales-deflection-test", businessKey });
+  const deflection = await generateSimpleSalesReply(business, [
+    { role: "user", content: "Can solar run my AC and heating?" },
+  ], deflectionState);
+  assert(/don['’]t have enough verified information/i.test(deflection.reply), "a question-only contact deflection is replaced with an honest answer limitation");
+  assert(/what name should i use/i.test(deflection.reply), "the corrected limitation can still collect the next useful lead detail");
+  modelReply = "Thanks, UTK. What’s the best phone number for the team to reach you?";
+
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "UTK" }];
   modelReply = "Thanks, UTK. What’s the best phone number for the team to reach you?";
   result = await generateSimpleSalesReply(business, messages, state);

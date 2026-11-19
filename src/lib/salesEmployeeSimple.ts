@@ -166,6 +166,18 @@ function isMalformedReply(reply: string): boolean {
   return false;
 }
 
+function isContactOnlyDeflection(reply: string, latestUser: string): boolean {
+  if (!hasQuestion(latestUser)) return false;
+  return /^(?:i(?:['’]m| am) here to help|absolutely|sure|of course|happy to help|glad to help|great|that sounds like a great project)[.! ]+\s*(?:what(?:'s| is) your name|what name should i use|what(?:'s| is) the best (?:phone|number)|what(?:'s| is) the service address)\?$/i.test(reply.trim());
+}
+
+function answerQuestionBeforeCapture(state: SalesState, latestUser: string, reply: string): string {
+  if (!isContactOnlyDeflection(reply, latestUser)) return reply;
+  const field = nextContactField(state);
+  const capture = field ? ` ${questionFor(field)}` : "";
+  return `I don’t have enough verified information to answer that confidently yet. I can have the business team confirm it.${capture}`;
+}
+
 function isSimpleAffirmation(text: string): boolean {
   return /^(?:yes(?:,?\s+please)?|yeah|yep|yup|sure|please do|go ahead|that works|sounds good)[.!\s]*$/i.test(text.trim());
 }
@@ -258,6 +270,7 @@ export async function generateSimpleSalesReply(
       reply = response.output_text?.trim() || "";
     }
     if (!reply) throw new Error("Sales employee returned an empty reply.");
+    reply = answerQuestionBeforeCapture(state, latestUser, reply);
 
     if (missing && asksFor(lastAssistant, missing)) {
       reply = reply.split(/(?<=[.!?])\s+|\n+/u).filter((part) => !(part.trim().endsWith("?") && asksFor(part, missing))).join(" ").trim();

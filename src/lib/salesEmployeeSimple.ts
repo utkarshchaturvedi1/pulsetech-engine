@@ -33,6 +33,15 @@ function questionFor(field: "name" | "phone" | "address"): string {
   return "What’s the service address?";
 }
 
+function customerNameForReply(name: string | null | undefined): string {
+  return name?.trim().replace(/[.,!?;:]+$/u, "") || "";
+}
+
+function thanksOpening(state: SalesState): string {
+  const name = customerNameForReply(state.lead.name);
+  return `Thanks${name ? `, ${name}` : ""}.`;
+}
+
 function asksFor(reply: string, field: "name" | "phone" | "address"): boolean {
   const patterns = {
     name: /\b(your name|what name should i use|what should i call you|first name)\b/i,
@@ -205,7 +214,7 @@ function groundedOperationsReply(
   handoffIsReady: boolean
 ): string {
   if (handoffIsReady && (isSimpleAffirmation(latestUser) || !hasQuestion(latestUser))) {
-    return `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. Your request is with the team, and they’ll contact you as soon as possible.`;
+    return `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`;
   }
   if (isServiceTimingQuestion(latestUser)) {
     const leadStatus = state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "QUEUED";
@@ -261,7 +270,7 @@ export async function generateSimpleSalesReply(
   let reply: string;
   const handoffIsReady = state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "QUEUED";
   if (handoffIsReady && (!hasQuestion(latestUser) || isSimpleAffirmation(latestUser))) {
-    reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. Your request is with the team, and they’ll contact you as soon as possible.`;
+    reply = `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`;
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
   } else if (isServiceTimingQuestion(latestUser)) {
@@ -302,7 +311,7 @@ export async function generateSimpleSalesReply(
     }
     if (allContactDetailsCaptured && !hasQuestion(latestUser) && !state.leadCapturePaused) {
       reply = handoffIsReady
-        ? `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. Your request is with the team, and they’ll contact you as soon as possible.`
+        ? `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`
         : groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady);
     }
   }

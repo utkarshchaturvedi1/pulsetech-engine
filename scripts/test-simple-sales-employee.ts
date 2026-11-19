@@ -86,6 +86,14 @@ async function main() {
   ], deflectionState);
   assert(!/site visits? (?:are|is) free/i.test(feeClaimReply.reply), "an unverified free-visit claim is removed without discarding the useful answer");
   assert(/properly sized system may support AC and heating/i.test(feeClaimReply.reply), "sanitizing an unsupported fee preserves the relevant answer");
+  const closeState = createInitialSalesState({ conversationId: "simple-sales-close-punctuation", businessKey });
+  closeState.lead = { name: "Staging QA.", phone: "+919873599994", address: "1500 Marilla St, Dallas, TX 75201", email: null };
+  closeState.primaryNeed = "solar installation";
+  closeState.leadDeliveryStatus = "SENT";
+  const punctuationClose = await generateSimpleSalesReply(business, [
+    { role: "user", content: "Thanks, I'll wait for the team." },
+  ], closeState);
+  assert(/Thanks, Staging QA\. Your request is with the team/i.test(punctuationClose.reply), "captured-name punctuation does not create a broken close");
   modelReply = "Thanks, UTK. What’s the best phone number for the team to reach you?";
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "UTK" }];

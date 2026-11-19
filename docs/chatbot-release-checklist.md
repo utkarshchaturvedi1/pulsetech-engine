@@ -19,6 +19,7 @@ For each reference business, use a fresh conversation and confirm:
 - [ ] Performance claims are conditional unless the active business profile verifies the promised result for that customer's situation.
 - [ ] An objection or follow-up question is answered before the bot resumes collecting details.
 - [ ] Name, phone, address, and timing are retained when supplied together or across turns; already captured details are not requested again.
+- [ ] Names with punctuation in the original message still appear cleanly in acknowledgements and the final close.
 - [ ] The close says the team will follow up; it does not claim an appointment is booked unless a real booking integration confirms it.
 - [ ] One completed inquiry creates one lead handoff, not repeated requests or duplicate notifications.
 - [ ] Email and SMS delivery results are checked in provider/application logs. A queued/API success result is not described as proof of inbox or handset receipt.

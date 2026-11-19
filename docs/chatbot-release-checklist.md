@@ -15,12 +15,15 @@ For each reference business, use a fresh conversation and confirm:
 - [ ] A supported request gets a short, relevant answer grounded in that business profile.
 - [ ] An unsupported service is declined politely without importing another business's services, prices, or claims.
 - [ ] A price question is answered from that business's configured pricing; missing pricing is not invented.
+- [ ] Unverified free/paid/discount/waiver claims are removed while retaining any verified part of the answer.
+- [ ] Performance claims are conditional unless the active business profile verifies the promised result for that customer's situation.
 - [ ] An objection or follow-up question is answered before the bot resumes collecting details.
 - [ ] Name, phone, address, and timing are retained when supplied together or across turns; already captured details are not requested again.
 - [ ] The close says the team will follow up; it does not claim an appointment is booked unless a real booking integration confirms it.
 - [ ] One completed inquiry creates one lead handoff, not repeated requests or duplicate notifications.
 - [ ] Email and SMS delivery results are checked in provider/application logs. A queued/API success result is not described as proof of inbox or handset receipt.
 - [ ] A transient failure is recovered once only when retrying cannot duplicate a lead handoff; persistent failure remains visible and is logged.
+- [ ] Force an AI-provider timeout and a saved-profile lookup failure; each fallback must address the latest question, avoid unsupported claims, and clear the typing state within its bounded timeout.
 
 ## Release and observation
 
@@ -36,3 +39,5 @@ For each reference business, use a fresh conversation and confirm:
 - Start each business test in a fresh conversation so prior messages and captured fields do not affect the result.
 - Verify the active profile and alert destinations before the handoff test. Same website text does not imply the same business profile or alert configuration.
 - Test the staging alias after deployment; an individual preview URL being ready does not prove the staging alias points to it.
+- Test output guards on generated replies and on provider-error fallbacks; prompt instructions alone do not prevent unsupported claims or contact-only deflections.
+- Treat SMTP/Twilio API success as provider acceptance. Confirm inbox/handset delivery in the providers' logs before marking delivery fully verified.

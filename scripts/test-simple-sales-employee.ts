@@ -2,6 +2,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import {
+  buildSimpleSalesFallback,
   generateSimpleSalesReply,
   setSimpleSalesTestModel,
   type SimpleSalesMessage,
@@ -76,6 +77,9 @@ async function main() {
   ], deflectionState);
   assert(/don['’]t have enough verified information/i.test(deflection.reply), "a question-only contact deflection is replaced with an honest answer limitation");
   assert(/what name should i use/i.test(deflection.reply), "the corrected limitation can still collect the next useful lead detail");
+  const providerFailureFallback = buildSimpleSalesFallback(deflectionState, business, "", "Can solar run my AC and heating?");
+  assert(/don't have enough verified information|don’t have enough verified information/i.test(providerFailureFallback), "the provider-error fallback also addresses a direct customer question");
+  assert(/what name should i use/i.test(providerFailureFallback), "the provider-error fallback still captures the next useful detail");
   modelReply = "Thanks, UTK. What’s the best phone number for the team to reach you?";
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "UTK" }];

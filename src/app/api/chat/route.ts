@@ -152,7 +152,8 @@ export async function POST(request: NextRequest) {
       reply = buildSimpleSalesFallback(
         nextState,
         business,
-        [...messages].reverse().find((message) => message.role === "assistant")?.content || ""
+        [...messages].reverse().find((message) => message.role === "assistant")?.content || "",
+        [...messages].reverse().find((message) => message.role === "user")?.content || ""
       );
     }
 

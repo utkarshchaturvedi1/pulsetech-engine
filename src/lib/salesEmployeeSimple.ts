@@ -303,6 +303,16 @@ export async function generateSimpleSalesReply(
   return { reply: reply.replace(/\s+/g, " ").trim(), salesState: state, leadDelivery: handoff.delivery };
 }
 
-export function buildSimpleSalesFallback(state: SalesState, business: BusinessProfile, lastAssistant = ""): string {
+export function buildSimpleSalesFallback(
+  state: SalesState,
+  business: BusinessProfile,
+  lastAssistant = "",
+  latestUser = ""
+): string {
+  if (hasQuestion(latestUser)) {
+    const field = nextContactField(state);
+    const followUp = field && !asksFor(lastAssistant, field) ? ` ${questionFor(field)}` : "";
+    return `I don’t have enough verified information to answer that confidently yet. The business team can confirm it.${followUp}`;
+  }
   return fallbackReply(state, business, lastAssistant);
 }

@@ -80,6 +80,12 @@ async function main() {
   const providerFailureFallback = buildSimpleSalesFallback(deflectionState, business, "", "Can solar run my AC and heating?");
   assert(/don't have enough verified information|don’t have enough verified information/i.test(providerFailureFallback), "the provider-error fallback also addresses a direct customer question");
   assert(/what name should i use/i.test(providerFailureFallback), "the provider-error fallback still captures the next useful detail");
+  modelReply = "You're in the right place. A properly sized system may support AC and heating. (Site visits are free.) What name should I use?";
+  const feeClaimReply = await generateSimpleSalesReply(business, [
+    { role: "user", content: "Can solar run my AC and heating?" },
+  ], deflectionState);
+  assert(!/site visits? (?:are|is) free/i.test(feeClaimReply.reply), "an unverified free-visit claim is removed without discarding the useful answer");
+  assert(/properly sized system may support AC and heating/i.test(feeClaimReply.reply), "sanitizing an unsupported fee preserves the relevant answer");
   modelReply = "Thanks, UTK. What’s the best phone number for the team to reach you?";
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "UTK" }];

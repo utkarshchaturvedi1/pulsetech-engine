@@ -93,6 +93,7 @@ WHAT YOU CAN DO
 - When the business offers the service they need, begin the first substantive reply with a brief assurance that they have come to the right place. Say it only once. ${reassuranceAlreadyGiven ? "The reassurance has already been given; do not repeat it." : "Give the reassurance now."}
 - Answer-first rule: if the customer asks a question, answer that question directly before asking for contact details. Do not replace an answer with a greeting, reassurance, or a name/phone/address question. If verified business information is not enough to answer confidently, say exactly what you cannot confirm and offer to have the team clarify it; then ask for at most one useful missing detail.
 - Every answer must be specific to the assigned business and the customer’s stated need. Use only that business’s verified services, policies, pricing, and FAQs. Do not carry facts, terminology, price drivers, claims, or examples from another industry or business. Answer only what the customer asked. Keep the reply to at most two short sentences and 45 words; do not add unrelated prices, service areas, or sales details.
+- Do not promise that a specific property, system, or service will achieve an outcome unless that exact result is supported by the business information. Explain relevant dependencies and say the team must assess anything that cannot be confirmed from the profile.
 - For price questions, use the active business’s verified pricing information. If no exact price is provided, say an accurate quote requires reviewing the requested work or project. Mention cost factors only when the active business facts support them. Never say a quote or visit is free, paid, waived, or discounted unless that exact policy is verified below; missing fee information does not mean the service is free.
 - If a customer compares another provider, respond naturally to that comparison using only this business’s verified information. Do not claim to be cheaper, use a scripted industry-specific comparison, or change the subject; answer the question and continue the conversation.
 - Collect the customer’s name, phone number, and service address as part of helping. The next missing detail is ${field || "none"}. Ask only for that detail, and accept information the customer already gave.
@@ -149,7 +150,7 @@ function hasUnsupportedOperationalClaim(reply: string, business: BusinessProfile
   const claimGroups: Array<{ pattern: RegExp; fact: RegExp }> = [
     { pattern: /\b(24\s*\/\s*7|24 hours a day|around the clock|immediately|right away|same[- ]day|within (?:\d+|one|two|three) (?:minutes?|hours?)|respond immediately|available today|available tonight|emergency service)\b/i, fact: /\b(24\s*\/\s*7|24 hours a day|around the clock|immediately|right away|same[- ]day|within (?:\d+|one|two|three) (?:minutes?|hours?)|emergency service)\b/i },
     { pattern: /\b(licensed|licen[cs]ed|certified|insured|bonded)\b/i, fact: /\b(licensed|licen[cs]ed|certified|insured|bonded)\b/i },
-    { pattern: /\b(guarantee(?:d|s)?|warrant(?:y|ies)|free estimate|no charge|waived|discount(?:ed)?|cheapest|lowest price)\b/i, fact: /\b(guarantee(?:d|s)?|warrant(?:y|ies)|free estimate|no charge|waived|discount(?:ed)?|cheapest|lowest price)\b/i },
+    { pattern: /\b(guarantee(?:d|s)?|warrant(?:y|ies)|free(?:\s+(?:site\s+)?(?:visit|consultation|estimate|quote|assessment|inspection))?|complimentary|no charge|waived|discount(?:ed)?|cheapest|lowest price)\b/i, fact: /\b(guarantee(?:d|s)?|warrant(?:y|ies)|free(?:\s+(?:site\s+)?(?:visit|consultation|estimate|quote|assessment|inspection))?|complimentary|no charge|waived|discount(?:ed)?|cheapest|lowest price)\b/i },
     { pattern: /\b(dispatch|send (?:a|our|the) (?:technician|tech|crew|team)|we(?:'ll| will) be there|appointment (?:is )?(?:confirmed|booked)|i(?:'ve| have) scheduled|we(?:'ve| have) scheduled)\b/i, fact: /\b(dispatch|send (?:a|our|the) (?:technician|tech|crew|team)|appointment (?:is )?(?:confirmed|booked)|scheduled)\b/i },
   ];
 
@@ -157,6 +158,21 @@ function hasUnsupportedOperationalClaim(reply: string, business: BusinessProfile
     const match = reply.match(pattern);
     return Boolean(match && !fact.test(verified));
   });
+}
+
+function removeUnverifiedFeeClaims(reply: string, business: BusinessProfile): string {
+  const verified = simpleFacts(business).toLowerCase();
+  const feeClaim = /\b(?:free(?:\s+(?:site\s+)?(?:visit|consultation|estimate|quote|assessment|inspection))?|complimentary|no charge|waived|discount(?:ed)?)\b/i;
+  if (feeClaim.test(verified)) return reply;
+
+  const removeFeeClaim = (text: string) => feeClaim.test(text);
+  return reply
+    .replace(/\s*\(([^)]*)\)/g, (whole, content: string) => removeFeeClaim(content) ? "" : whole)
+    .split(/(?<=[.!?])\s+|\n+/u)
+    .filter((sentence) => !removeFeeClaim(sentence))
+    .join(" ")
+    .replace(/\s+([,.!?])/g, "$1")
+    .trim();
 }
 
 function isMalformedReply(reply: string): boolean {
@@ -271,6 +287,7 @@ export async function generateSimpleSalesReply(
     }
     if (!reply) throw new Error("Sales employee returned an empty reply.");
     reply = answerQuestionBeforeCapture(state, latestUser, reply);
+    reply = removeUnverifiedFeeClaims(reply, business);
 
     if (missing && asksFor(lastAssistant, missing)) {
       reply = reply.split(/(?<=[.!?])\s+|\n+/u).filter((part) => !(part.trim().endsWith("?") && asksFor(part, missing))).join(" ").trim();

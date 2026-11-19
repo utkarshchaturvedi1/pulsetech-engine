@@ -139,6 +139,60 @@ function isDirectPriceQuestion(text: string): boolean {
   return /\b(how much|what(?:'s| is| will be) (?:the |this |our )?(?:total |system )?(?:cost|price)|what will .{0,40} cost|how much does .{0,40} cost|price list|pricing)\b/i.test(text);
 }
 
+function isServiceTimingQuestion(text: string): boolean {
+  return /\b(how (?:fast|soon|quickly|long)|when can (?:you|someone|the team)|how long (?:will|does)|can (?:you|someone) come|send (?:someone|a technician)|dispatch|available (?:today|now|this weekend)|emergency)\b/i.test(text);
+}
+
+function hasUnsupportedOperationalClaim(reply: string, business: BusinessProfile): boolean {
+  const verified = simpleFacts(business).toLowerCase();
+  const claimGroups: Array<{ pattern: RegExp; fact: RegExp }> = [
+    { pattern: /\b(24\s*\/\s*7|24 hours a day|around the clock|immediately|right away|same[- ]day|within (?:\d+|one|two|three) (?:minutes?|hours?)|respond immediately|available today|available tonight|emergency service)\b/i, fact: /\b(24\s*\/\s*7|24 hours a day|around the clock|immediately|right away|same[- ]day|within (?:\d+|one|two|three) (?:minutes?|hours?)|emergency service)\b/i },
+    { pattern: /\b(licensed|licen[cs]ed|certified|insured|bonded)\b/i, fact: /\b(licensed|licen[cs]ed|certified|insured|bonded)\b/i },
+    { pattern: /\b(guarantee(?:d|s)?|warrant(?:y|ies)|free estimate|no charge|waived|discount(?:ed)?|cheapest|lowest price)\b/i, fact: /\b(guarantee(?:d|s)?|warrant(?:y|ies)|free estimate|no charge|waived|discount(?:ed)?|cheapest|lowest price)\b/i },
+    { pattern: /\b(dispatch|send (?:a|our|the) (?:technician|tech|crew|team)|we(?:'ll| will) be there|appointment (?:is )?(?:confirmed|booked)|i(?:'ve| have) scheduled|we(?:'ve| have) scheduled)\b/i, fact: /\b(dispatch|send (?:a|our|the) (?:technician|tech|crew|team)|appointment (?:is )?(?:confirmed|booked)|scheduled)\b/i },
+  ];
+
+  return claimGroups.some(({ pattern, fact }) => {
+    const match = reply.match(pattern);
+    return Boolean(match && !fact.test(verified));
+  });
+}
+
+function isMalformedReply(reply: string): boolean {
+  const text = reply.trim();
+  if (!text || /\bthanks,?\s+[\w'-]+\.?\s+how\.?\s*(?:i have|i['’]ve)?\s+your details\b/i.test(text)) return true;
+  if (/\b(?:how|what|when|where|why|can|could|would|will|do|does|is|are)\s*[.!]$/i.test(text)) return true;
+  return false;
+}
+
+function isSimpleAffirmation(text: string): boolean {
+  return /^(?:yes(?:,?\s+please)?|yeah|yep|yup|sure|please do|go ahead|that works|sounds good)[.!\s]*$/i.test(text.trim());
+}
+
+function groundedOperationsReply(
+  state: SalesState,
+  latestUser: string,
+  lastAssistant: string,
+  handoffIsReady: boolean
+): string {
+  if (handoffIsReady && (isSimpleAffirmation(latestUser) || !hasQuestion(latestUser))) {
+    return `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. Your request is with the team, and they’ll contact you as soon as possible.`;
+  }
+  if (isServiceTimingQuestion(latestUser)) {
+    const leadStatus = state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "QUEUED";
+    const update = leadStatus ? " Your request is with the team, and they’ll confirm timing." : "";
+    const field = nextContactField(state);
+    const followUp = field && !asksFor(lastAssistant, field) ? ` ${questionFor(field)}` : "";
+    return `I can’t confirm availability or completion time from this chat.${update}${followUp}`;
+  }
+  if (handoffIsReady) {
+    return `I’ve passed your request to the team, and they’ll contact you as soon as possible. Is there anything else you’d like to ask?`;
+  }
+  const field = nextContactField(state);
+  const followUp = field && !asksFor(lastAssistant, field) ? ` ${questionFor(field)}` : "";
+  return `I don’t have verified information to confirm that. The business team can clarify it.${followUp}`;
+}
+
 export async function generateSimpleSalesReply(
   business: BusinessProfile,
   messages: SimpleSalesMessage[],
@@ -161,27 +215,28 @@ export async function generateSimpleSalesReply(
   const directPriceQuestion = isDirectPriceQuestion(latestUser);
   let handoff: LeadHandoffResult = { attempted: false, status: state.leadDeliveryStatus };
   if (canSubmit && !directPriceQuestion && state.leadDeliveryStatus !== "SENT" && state.leadDeliveryStatus !== "QUEUED") {
-    // A customer who described a service need and supplied their contact details
-    // has asked the business to follow up. This is a lead handoff, not a booked
-    // appointment, so do not ask for scheduling consent or invent a time.
-    state.customerAgreed = true;
-    state.appointmentIntent = true;
-    state.preferredTiming = state.preferredTiming || "As soon as possible";
+    // Captured contact details allow a business follow-up. They do not mean the
+    // customer accepted an appointment or confirmed a preferred time.
     const simpleBusiness: BusinessProfile = {
       ...business,
       leadQuestions: [],
       ownerLeadQuestions: [],
     };
-    handoff = await maybeSendLeadHandoff(simpleBusiness, state, "closure", latestUser, photoLinks);
+    handoff = await maybeSendLeadHandoff(simpleBusiness, state, "closure", latestUser, photoLinks, {
+      allowContactCaptureOnly: true,
+    });
     Object.assign(state, applyLeadDeliveryResult(state, handoff));
   }
 
   const photoInvitation = photoLinks.length === 0 && !state.customerPhotoInviteShown && customerNeedsPhotoReview(messages);
   let reply: string;
-  if (handoff.attempted && (state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "QUEUED") && !hasQuestion(latestUser)) {
-    reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I’ve passed your request to the team, and they’ll contact you as soon as possible.`;
+  const handoffIsReady = state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "QUEUED";
+  if (handoffIsReady && (!hasQuestion(latestUser) || isSimpleAffirmation(latestUser))) {
+    reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. Your request is with the team, and they’ll contact you as soon as possible.`;
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
+  } else if (isServiceTimingQuestion(latestUser)) {
+    reply = groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady);
   } else {
     const instructions = simpleInstructions(state, business, photoInvitation, messages);
     if (testModel) {
@@ -205,8 +260,13 @@ export async function generateSimpleSalesReply(
       if (actionable) reply = `${reply.replace(/\s+$/, "")} ${questionFor(missing)}`;
     }
     reply = removeCapturedFieldQuestions(reply, state);
+    if (hasUnsupportedOperationalClaim(reply, business) || isMalformedReply(reply)) {
+      reply = groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady);
+    }
     if (allContactDetailsCaptured && !hasQuestion(latestUser) && !state.leadCapturePaused) {
-      reply = `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. I have your details and will pass your request to the team so they can contact you as soon as possible.`;
+      reply = handoffIsReady
+        ? `Thanks${state.lead.name ? `, ${state.lead.name}` : ""}. Your request is with the team, and they’ll contact you as soon as possible.`
+        : groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady);
     }
   }
 

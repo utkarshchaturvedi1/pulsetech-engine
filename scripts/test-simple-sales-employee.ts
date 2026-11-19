@@ -260,6 +260,47 @@ async function main() {
   assert(!latestInstructions.includes("A photo invitation is appropriate"), "the assistant does not invite another photo after one is attached");
   assert(!/based on the photo|I can see|the photo shows/i.test(plumbingPhotoReply.reply), "the assistant never claims to visually inspect an uploaded image");
 
+  const plumbingTimingState = createInitialSalesState({
+    conversationId: "simple-sales-plumbing-timing-0001",
+    businessKey: businessIdentityKey(plumbingBusiness),
+  });
+  plumbingTimingState.lead = { name: "UT", phone: "9898989898", address: "1500 Marilla St, Dallas TX 75201", email: null };
+  plumbingTimingState.primaryNeed = "kitchen sink clog";
+  plumbingTimingState.customerNeed = "kitchen sink clog";
+  const plumbingTimingMessages: SimpleSalesMessage[] = [
+    { role: "user", content: "This is severe. How fast can it be resolved?" },
+  ];
+  modelReply = "We offer 24/7 emergency service; licensed techs can respond immediately and dispatch a technician now.";
+  const plumbingTiming = await generateSimpleSalesReply(plumbingBusiness, plumbingTimingMessages, plumbingTimingState);
+  assert(/can’t confirm availability or completion time/i.test(plumbingTiming.reply), "resolution-time questions get an honest, deterministic answer");
+  assert(!/24\s*\/\s*7|licensed|immediately|dispatch|respond immediately/i.test(plumbingTiming.reply), "unsupported service, credential, dispatch, and response-time claims are blocked");
+  assert(/your request is with the team/i.test(plumbingTiming.reply), `a timing answer reflects the actual queued handoff (${plumbingTiming.salesState.leadDeliveryStatus}: ${plumbingTiming.reply})`);
+  assert(plumbingTiming.salesState.leadDeliveryStatus === "QUEUED", `a complete service request is handed off once (${plumbingTiming.salesState.leadDeliveryStatus})`);
+  assert(plumbingTiming.salesState.customerAgreed !== true && plumbingTiming.salesState.appointmentIntent !== true, "capturing lead details is not misrepresented as appointment consent");
+
+  const landscapingBusiness: BusinessProfile = {
+    ...business,
+    website: "https://greenacre.test",
+    businessName: "Greenacre Landscaping",
+    tagline: "Residential landscaping and tree care",
+    services: ["Lawn care", "Tree trimming", "Garden design"],
+    pricingRules: "Pricing is determined after reviewing the property and requested work.",
+    leadQuestions: [],
+    systemPrompt: "",
+  };
+  const landscapingMessages: SimpleSalesMessage[] = [
+    { role: "user", content: "I need tree trimming. Are your crew insured and do you guarantee same-day service?" },
+  ];
+  modelReply = "Yes, our insured crew guarantees same-day service. What name should I use?";
+  const landscapingResult = await generateSimpleSalesReply(
+    landscapingBusiness,
+    landscapingMessages,
+    createInitialSalesState({ conversationId: "simple-sales-landscaping-0001", businessKey: businessIdentityKey(landscapingBusiness) })
+  );
+  assert(!/insured|guarantee|same-day/i.test(landscapingResult.reply), "unsupported insurance, guarantees, and availability claims are blocked for a second business");
+  assert(/verified information/i.test(landscapingResult.reply), "unsupported business-specific claims are answered transparently");
+  assert(/name should i use/i.test(landscapingResult.reply), "safe correction preserves the next lead-capture step");
+
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "1500 Marilla St, Dallas TX 75201" }];
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;
@@ -274,6 +315,17 @@ async function main() {
   assert(deliveryCalls[0].smsTo === "+919873599994", "notification SMS destination is correct");
   assert(deliveryCalls[0].text.includes("1500 Marilla St"), "email includes the captured service address");
   assert(deliveryCalls[0].smsBody.includes("9898989898"), "SMS includes the captured phone number");
+
+  const beforeConfirmationTurn = deliveryCalls.length;
+  modelReply = "Thanks, UT. How. I have your details and will dispatch a technician immediately.";
+  const confirmationTurn = await generateSimpleSalesReply(
+    business,
+    [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "Yes, please." }],
+    state
+  );
+  assert(/your request is with the team/i.test(confirmationTurn.reply), `a confirmation after handoff receives a deterministic close (${confirmationTurn.reply})`);
+  assert(!/how\.|dispatch|immediately|scheduled|booked/i.test(confirmationTurn.reply), "malformed or invented closing language is not shown to customers");
+  assert(deliveryCalls.length === beforeConfirmationTurn, "a confirmation after handoff does not send duplicate alerts");
 
   setSimpleSalesTestModel(null);
   setLeadHandoffTestDelivery(null);

@@ -242,7 +242,13 @@ export async function generateSimpleSalesReply(
     if (testModel) {
       reply = (await testModel(instructions, messages)).trim();
     } else {
-      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      // Bound provider latency so a slow upstream model cannot leave the chat
+      // request open until the serverless function times out.
+      const client = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        timeout: 8_000,
+        maxRetries: 0,
+      });
       const response = await client.responses.create({
         model: "gpt-5-mini",
         instructions,

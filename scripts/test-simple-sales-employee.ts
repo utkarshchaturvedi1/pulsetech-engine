@@ -6,7 +6,7 @@ import {
   setSimpleSalesTestModel,
   type SimpleSalesMessage,
 } from "../src/lib/salesEmployeeSimple";
-import { CHAT_REQUEST_FAILURE_REPLY, createCustomerChatSession } from "../src/lib/customerChatClient";
+import { CHAT_REQUEST_FAILURE_REPLY, createCustomerChatSession, setCustomerChatTimeoutForTests } from "../src/lib/customerChatClient";
 import { setLeadHandoffTestDelivery } from "../src/lib/leadHandoff";
 import { businessIdentityKey, createInitialSalesState, type SalesState } from "../src/lib/salesState";
 import { resolveCurrentChatProfile } from "../src/lib/sharedProfileStore";
@@ -153,6 +153,31 @@ async function main() {
     retrySession.destroy();
   } finally {
     globalThis.fetch = retryFetch;
+  }
+
+  const timeoutFetch = globalThis.fetch;
+  let timeoutAbortCount = 0;
+  globalThis.fetch = (async (_input, init) => new Promise<Response>((_resolve, reject) => {
+    const signal = init?.signal;
+    if (!signal) throw new Error("chat timeout signal was not passed to fetch");
+    signal.addEventListener("abort", () => {
+      timeoutAbortCount += 1;
+      reject(new DOMException("Request timed out", "AbortError"));
+    }, { once: true });
+  })) as typeof fetch;
+  setCustomerChatTimeoutForTests(15);
+  try {
+    const timeoutSession = createCustomerChatSession(business, "Hi", "texassolar");
+    try {
+      await timeoutSession.send("Can you explain the service options?");
+    } catch {
+      // The customer receives the normal recoverable chat error after bounded retries.
+    }
+    assert(timeoutAbortCount === 2, "a stalled chat request is aborted and gets only one safe retry");
+    timeoutSession.destroy();
+  } finally {
+    setCustomerChatTimeoutForTests(null);
+    globalThis.fetch = timeoutFetch;
   }
 
   let phoneTurnAttempts = 0;

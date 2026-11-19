@@ -20,6 +20,12 @@ export const CHAT_REQUEST_FAILURE_REPLY =
   "I'm having trouble responding right now. Please try again in a moment.";
 
 const RETRYABLE_CHAT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+const CHAT_REQUEST_TIMEOUT_MS = 15_000;
+let customerChatTimeoutMs = CHAT_REQUEST_TIMEOUT_MS;
+
+export function setCustomerChatTimeoutForTests(timeoutMs: number | null): void {
+  customerChatTimeoutMs = timeoutMs ?? CHAT_REQUEST_TIMEOUT_MS;
+}
 
 function canRetryChatRequest(state: SalesState, message: string): boolean {
   const mayContainPhone = /(?:^|\D)\+?[\d\s().-]{7,}\d(?:\D|$)/.test(message);
@@ -34,6 +40,16 @@ function canRetryChatRequest(state: SalesState, message: string): boolean {
 
 function retryDelay(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 250));
+}
+
+async function fetchChatWithTimeout(request: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), customerChatTimeoutMs);
+  try {
+    return await fetch("/api/chat", { ...request, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 /**
@@ -212,7 +228,7 @@ export function createCustomerChatSession(
     let response: Response | null = null;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        response = await fetch("/api/chat", request);
+        response = await fetchChatWithTimeout(request);
       } catch {
         if (attempt === 0 && retryAllowed) {
           await retryDelay();

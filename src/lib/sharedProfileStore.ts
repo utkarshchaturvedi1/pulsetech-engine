@@ -119,6 +119,7 @@ async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
         Authorization: "Bearer " + config.key,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(3_000),
     }
   );
   if (!response.ok) return null;

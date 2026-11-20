@@ -1,16 +1,9 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { landingSans } from "@/lib/plusJakarta";
 import SiteFooter from "./SiteFooter";
 import "./landing.css";
-
-const landingSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-landing-sans",
-  display: "swap",
-});
 
 const PULSETECH_LOGO = "/branding/pulsetech-logo-color.svg";
 export const CONTACT_EMAIL = "contact@pulsetechlabs.com";

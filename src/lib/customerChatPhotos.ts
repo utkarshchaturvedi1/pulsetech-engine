@@ -56,10 +56,18 @@ export function normalizeCustomerPhotoPaths(value: unknown, demoId: string, conv
   return [...new Set(paths)].slice(0, CUSTOMER_CHAT_PHOTO_LIMIT);
 }
 
-export async function createCustomerPhotoUpload(demoId: string, conversationId: string, slot: number, mimeType: string) {
-  const extension = customerPhotoExtension(mimeType);
+export async function storeCustomerPhotoUpload(
+  demoId: string,
+  conversationId: string,
+  slot: number,
+  file: File,
+) {
+  const extension = customerPhotoExtension(file.type);
   if (!extension || !Number.isInteger(slot) || slot < 1 || slot > CUSTOMER_CHAT_PHOTO_LIMIT) {
     throw new Error("Choose a JPEG, PNG, or WebP photo. You can add up to three.");
+  }
+  if (file.size > CUSTOMER_CHAT_PHOTO_MAX_BYTES) {
+    throw new Error("This photo is over the 5 MB limit. Please choose a smaller image.");
   }
 
   const client = await ensurePrivateBucket();
@@ -71,10 +79,12 @@ export async function createCustomerPhotoUpload(demoId: string, conversationId: 
   }
 
   const path = `${folder}/photo-${slot}.${extension}`;
-  const { data, error } = await client.storage.from(CUSTOMER_CHAT_PHOTO_BUCKET).createSignedUploadUrl(path, { upsert: false });
+  const { error } = await client.storage.from(CUSTOMER_CHAT_PHOTO_BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
   if (error) throw error;
-  const { url } = storageAdmin();
-  return { path, signedUrl: data.signedUrl, supabaseUrl: url, anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "" };
+  return { path };
 }
 
 export async function signCustomerPhotoLinks(demoId: string, conversationId: string, value: unknown): Promise<string[]> {

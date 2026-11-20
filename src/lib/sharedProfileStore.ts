@@ -88,7 +88,16 @@ export class ProfileUpdateConflict extends Error {
 export async function resolveCurrentChatProfile(client: BusinessProfile, demoId?: unknown): Promise<BusinessProfile> {
   if (demoId == null || demoId === "") return client;
   if (typeof demoId !== "string" || !sanitizeDemoId(demoId)) throw new Error("Invalid demo identity.");
-  const saved = await loadSharedProfile(demoId);
+  let saved: StoredDemo | null;
+  try {
+    saved = await loadSharedProfile(demoId);
+  } catch (error) {
+    // A transient profile-store/network failure should not turn an otherwise
+    // valid customer message into an HTTP 500. Use the already-bound profile
+    // for this turn; a successful lookup on the next turn will restore saved data.
+    console.error("[profileStore] chat profile lookup failed; using bound profile for this turn", error);
+    return client;
+  }
   if (!saved || businessIdentityKey(saved.profile) !== businessIdentityKey(client)) throw new Error("Saved business identity does not match this chat.");
   if (isEphemeralRuntime() && isDurableProfileStoreConfigured() && !saved.durableVersion && !getBundledTestDemo(demoId)) throw new Error("Saved business configuration is temporarily unavailable.");
   return saved.profile;
@@ -110,6 +119,7 @@ async function loadSupabaseRecord(id: string): Promise<StoredDemo | null> {
         Authorization: "Bearer " + config.key,
       },
       cache: "no-store",
+      signal: AbortSignal.timeout(3_000),
     }
   );
   if (!response.ok) return null;

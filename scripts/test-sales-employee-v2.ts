@@ -14,6 +14,7 @@ import {
   type SalesState,
 } from "../src/lib/salesState";
 import type { BusinessProfile } from "../src/types/business";
+import { validateSalesReply } from "../src/lib/salesController";
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -74,6 +75,31 @@ async function main() {
   assert(state.lead.name === "QA Test Lead", "multi-word customer names are captured");
   assert(/phone number/i.test(afterName.reply), "phone is the next field requested");
 
+  const plumbingBusiness: BusinessProfile = {
+    ...business,
+    website: "https://autrey-plumbing.test",
+    businessName: "Autrey's Plumbing LLC",
+    services: ["Drain cleaning", "Sink unclogging"],
+  };
+  const compoundNameState = createInitialSalesState({
+    conversationId: "sales-employee-v2-compound-name",
+    businessKey: businessIdentityKey(plumbingBusiness),
+  });
+  const compoundNameMessages: SalesEmployeeMessage[] = [
+    { role: "user", content: "My kitchen sink is clogged. Can you help?" },
+    { role: "assistant", content: "You've come to the right place. What is your name?" },
+    { role: "user", content: "I'm Taylor. Another company says it's the cheapest in Dallas." },
+  ];
+  modelReply = "I can't verify another company's price. What’s the best phone number for the team to reach you? What name should I use?";
+  const compoundName = await generateSalesEmployeeReply(
+    plumbingBusiness,
+    compoundNameMessages,
+    compoundNameState
+  );
+  assert(compoundName.salesState.lead.name === "Taylor", "a name in a compound answer is captured before a competitor objection");
+  assert(/phone number/i.test(compoundName.reply), `compound name answer advances to phone capture: ${JSON.stringify(compoundName.reply)}`);
+  assert(!/name should i use|what is your name|first name/i.test(compoundName.reply), "a name already given in a compound answer is never requested again");
+
   messages = [...messages, { role: "assistant", content: afterName.reply }, { role: "user", content: "+1 555 010 0123" }];
   modelReply = "Thanks, QA Test Lead — I have your number. What’s the service address? What name should I use?";
   const afterPhone = await generateSalesEmployeeReply(business, messages, state);
@@ -81,6 +107,12 @@ async function main() {
   assert(state.lead.phone === "+1 555 010 0123", "phone is captured");
   assert(/service address/i.test(afterPhone.reply), "address is the next field requested");
   assert(!/what name should i use/i.test(afterPhone.reply), "a captured name is never requested again");
+  const duplicateNameValidation = validateSalesReply(
+    "Thanks, QA Test Lead — I have your number. What’s the service address? What name should I use?",
+    { ...afterPhone.salesState, currentObjective: "COLLECT_ADDRESS" },
+    business
+  );
+  assert(!duplicateNameValidation.ok, "validator rejects a second name request while collecting address");
 
   const recoveredState: SalesState = {
     ...createInitialSalesState({ conversationId: "sales-employee-v2-recovered-name", businessKey }),

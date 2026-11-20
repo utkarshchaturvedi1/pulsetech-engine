@@ -83,15 +83,19 @@ export default function ChatWindow({
     let reply =
       "Thank you. This is a temporary response until OpenAI is connected.";
 
-    if (onUserMessage) {
-      const result = await onUserMessage(text);
+    try {
+      if (onUserMessage) {
+        const result = await onUserMessage(text);
 
-      if (result) {
-        reply = result;
+        if (result) {
+          reply = result;
+        }
       }
+    } catch {
+      reply = "I’m having trouble responding right now. Please try again in a moment.";
+    } finally {
+      setTyping(false);
     }
-
-    setTyping(false);
 
     const assistantMessage: ChatMessageData = {
       id: crypto.randomUUID(),

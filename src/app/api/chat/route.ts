@@ -15,6 +15,8 @@ import {
 } from "../../../lib/salesState";
 import { updateSalesStateFromTurn } from "../../../lib/salesController";
 
+export const maxDuration = 25;
+
 function isBusinessProfile(value: unknown): value is BusinessProfile {
   if (!value || typeof value !== "object") {
     return false;
@@ -89,7 +91,8 @@ export async function POST(request: NextRequest) {
     }
     business = await resolveCurrentChatProfile(business, body.demoId);
 
-    const businessKey = businessIdentityKey(business);
+    const demoId = typeof body.demoId === "string" ? body.demoId : "";
+    const businessKey = businessIdentityKey(business, demoId || undefined);
 
     let previousState: SalesState | null = isSalesState(body.salesState)
       ? normalizeSalesState(body.salesState)
@@ -125,7 +128,6 @@ export async function POST(request: NextRequest) {
       previousState = createInitialSalesState({ conversationId, businessKey });
     }
 
-    const demoId = typeof body.demoId === "string" ? body.demoId : "";
     const photoPaths = demoId
       ? normalizeCustomerPhotoPaths(body.customerPhotoPaths, demoId, conversationId)
       : [];
@@ -152,7 +154,8 @@ export async function POST(request: NextRequest) {
       reply = buildSimpleSalesFallback(
         nextState,
         business,
-        [...messages].reverse().find((message) => message.role === "assistant")?.content || ""
+        [...messages].reverse().find((message) => message.role === "assistant")?.content || "",
+        [...messages].reverse().find((message) => message.role === "user")?.content || ""
       );
     }
 

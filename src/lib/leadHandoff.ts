@@ -433,7 +433,8 @@ export async function maybeSendLeadHandoff(
   state: SalesState,
   reason: LeadHandoffReason,
   latestUserMessage?: string,
-  photoLinks: string[] = []
+  photoLinks: string[] = [],
+  options: { allowContactCaptureOnly?: boolean } = {}
 ): Promise<LeadHandoffResult> {
   Object.assign(state, synchronizeOwnerQuestions(state, business));
   state.handoffReady = evaluateHandoffReadiness(state, latestUserMessage).handoffReady;
@@ -451,7 +452,13 @@ export async function maybeSendLeadHandoff(
     return { attempted: false, status };
   }
 
-  if (!shouldAttemptLeadHandoff(state, reason, latestUserMessage)) {
+  const contactCaptured = Boolean(
+    state.lead.name?.trim() &&
+    state.lead.phone?.trim() &&
+    state.lead.address?.trim() &&
+    (state.primaryNeed || state.customerNeed)?.trim()
+  );
+  if (!(options.allowContactCaptureOnly && contactCaptured) && !shouldAttemptLeadHandoff(state, reason, latestUserMessage)) {
     console.log(
       "[leadHandoff] decision",
       publicHandoffDecisionLog({

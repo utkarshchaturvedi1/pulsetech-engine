@@ -20,6 +20,55 @@ Do not redesign the UI, change landing-page content, change business logic delib
 
 Preserve all existing chat functionality, business logic, recipient routing, after() background delivery, Twilio, and ElevenLabs behavior unless the approved change explicitly requires it.
 
+## Mandatory deployment checklist — code, environment, and alias must match
+
+Passing local tests or a Vercel preview URL does **not** prove that the staging site works. The URL alias, deployed commit, branch-scoped environment variables, and live request path are separate pieces and must be checked together.
+
+### Before pushing or deploying
+
+- [ ] Read this entire regression-control file and identify the affected rules.
+- [ ] Confirm the exact GitHub branch and commit SHA that will be deployed. Confirm it contains the intended code and tests.
+- [ ] Run the required tests below and record each result. Do not describe a preview-only test as a staging test.
+- [ ] In Vercel, confirm required environment-variable **names and scopes** for the exact deployment branch/environment. For chat, verify `OPENAI_API_KEY` is present for the branch that will serve staging. Never print, copy, or put secret values in logs, notes, or chat.
+- [ ] Confirm the deployment built successfully and its source SHA matches the intended GitHub commit.
+- [ ] Confirm which deployment currently owns the staging domain before changing its alias. Reassign only the staging alias; production stays untouched unless the user separately approves a production release.
+
+### After deploying
+
+- [ ] Open the actual staging domain, not only the `*.vercel.app` preview URL.
+- [ ] Verify the staging alias points to the deployment just checked, and verify the deployed commit SHA again.
+- [ ] Run a fresh, non-sensitive live chat smoke test on that domain: supported service request → appropriate reassurance → name capture → a direct question or objection → a relevant response → a follow-up question. Confirm there is no generic error and no stale-question replay.
+- [ ] Check the browser-visible transcript and the server response/logs for the same test window. A blank log query is not proof of success; it can mean retention or filtering prevented results.
+- [ ] Verify image-upload behavior if the change touches it. Verify email/SMS only with an explicitly authorized test destination; distinguish mocked delivery tests from a real delivered message.
+- [ ] Record the staging URL, deployed commit, environment scope check, smoke-test transcript/result, and any untested integrations in the release note before saying “ready.”
+- [ ] Do not promote to production until staging verification passes and the user explicitly approves that production deployment.
+
+### 17 November 2026 — staging alias used a branch without the chat key
+
+**Failure:** The chat fix was built, but the staging alias initially served a deployment whose branch-scoped Vercel Preview environment did not have `OPENAI_API_KEY`. Requests therefore failed before the assistant could reply. A separate preview deployment on a branch with the configured key worked, which led to confusing and contradictory test results.
+
+**Process error:** The preview URL was tested, but the actual `staging.pulsetechlabs.com` alias was not verified against the same working deployment before reporting staging ready. Local tests could not catch this environment/alias mismatch.
+
+**Permanent rule:** For every staging release, test the actual staging hostname after alias assignment, verify the alias-to-deployment mapping and the required environment-variable scope by name (never reveal values), and send a fresh live chat turn through the staging hostname. A READY build or a successful preview URL alone is insufficient.
+
+**Coverage:** This is an operational deployment gate; unit tests cannot establish Vercel branch-variable scope or alias routing. Preserve the UI smoke test and deployment evidence in the release record.
+
+### 17 November 2026 — owner fee removal and staging lead delivery
+
+**Observed staging failures:**
+
+- A clear owner instruction to remove the $20 visit fee reached `/api/update-profile`, but the model produced a malformed `removeValues` patch. The server logged `Invalid removal operation` and returned 500; the UI hid the cause behind a generic save error. The saved fee therefore remained in the profile.
+- A customer supplied name, phone, and address after discussing a competitor. The simple chat did not answer the competitor concern before asking for the address. On the address turn the handoff ran, but Vercel logged that `SMTP_*` and `TWILIO_*` transports were not configured for the staging Preview branch, so email/SMS delivery failed.
+
+**Permanent rules:**
+
+- Clear owner pricing removals such as “remove the $20 visit charge; visits are free” must use a deterministic, tested update path; do not make profile correctness depend on an LLM reproducing exact old text for a targeted-removal patch. Remove the old fee from pricing rules, system instructions, and fee-specific qualifying questions while preserving unrelated service prices and scheduling questions. The updated rule must reach website chat and inbound voice.
+- If a customer raises a competitor or affordability concern, acknowledge and answer it briefly before asking the next missing lead field. Preserve any phone/address already supplied and do not make unsupported comparative claims.
+- Before claiming lead alerts work on staging, verify the required `SMTP_*` and `TWILIO_*` keys are present in that exact Preview branch scope. Do not copy Production secrets into Preview without explicit authorization. Test email/SMS with an authorized test destination; mocked delivery is not evidence of real delivery.
+- Keep the customer-facing delivery failure truthful if the alert transport actually fails; never mark an undelivered alert as sent.
+
+**Coverage:** `scripts/test-owner-profile-update.ts` verifies deterministic fee removal without OpenAI, preserving unrelated questions and forwarding the policy to voice. `scripts/test-simple-sales-employee.ts` verifies a supplied phone plus competitor objection receives an answer and advances to the address question. Deployment configuration and real notification delivery remain operational checks, not unit-test assertions.
+
 Lead capture must not turn the AI Sales Employee into a robotic form. After name + customer phone + service address are secured, the conversation must return to helpful, warm, sales-oriented service guidance. Direct customer questions—especially price—must be answered first, truthfully and without invented facts. Do not promise an alert/team contact before a ready handoff has actually queued.
 
 **Permanent conversation-quality rule:** Lead protection must never turn the AI Sales Employee into a cold form. Before contact capture, acknowledge the customer’s stated situation with intent-appropriate emotion (empathy for problems, enthusiasm for projects, excitement for celebrations, confident help for consultations)—never a universal “I’m sorry” template. After required contact details are secured, provide a helpful, profile-aware explanation and ask for agreement before asking preferred time. Do not repeat the customer’s name mechanically.
@@ -286,3 +335,12 @@ When fixing one failure, preserve every other category:
 - Semantic checking must recognize the pending part of a required instruction. Deterministic explicit answers survive checker rejection or outage.
 - Owner-requested classification selects exact existing question strings and preserves discovery questions and other website facts. Unknown questions are rejected.
 - Independent check: all six required suites and production build passed. Exact saved Dallas Plumbing profile replayed locally after reviewed configuration migration, with contact order and fee waiver preserved. Live verification is still required before calling production repaired.
+
+## Cross-business answer and identity isolation (18 November 2026)
+
+- Every customer-facing answer must use the active business profile and the customer's stated need: reassurance, service capability, price, follow-up questions, and handoff wording. Do not carry terminology, services, claims, or cost drivers from another business or industry.
+- Each conversation has a unique conversation ID and its state is scoped to the stable saved profile ID (`demoId`) when present. The API must reject a conversation state whose conversation ID or business identity does not match. When two profiles share a website, their profile IDs must still isolate state.
+- After any shared chat prompt, fallback, or conversation change, replay representative conversations against at least two distinct business profiles. Verify active services and pricing facts are in context, check for foreign-industry terms, and confirm captured details are not requested again.
+- Required replay: solar-plus-battery pricing uses the solar profile; clogged-sink pricing uses the plumbing profile. Keep coverage in `scripts/test-simple-sales-employee.ts`; run `npm run test:simple-sales-employee`, `npm run test:demo-chat`, and `npm run test:owner-pricing-regression` before returning chat changes.
+- Uploaded photos are stored for the assigned business team to review; the text-only sales model must not claim to have seen, identified, or diagnosed image contents. Do not invite another photo after the customer has already attached one. Verify both upload state and the reply to a message asking about the attachment.
+- Capture a name volunteered inside a compound answer (for example, “I’m Taylor. Another company says …”) and never ask for it again when advancing to phone or address capture.

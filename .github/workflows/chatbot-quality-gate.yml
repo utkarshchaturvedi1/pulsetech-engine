@@ -1,0 +1,31 @@
+name: Chatbot quality gate
+
+on:
+  pull_request:
+    branches:
+      - main
+      - codex/staging-exact-production
+  push:
+    branches:
+      - main
+      - codex/staging-exact-production
+
+jobs:
+  chatbot-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:simple-sales-employee
+      - run: npm run test:sales-employee-v2
+      - run: npm run test:demo-chat
+      - run: npm run test:owner-pricing-regression
+      - run: npm run test:handoff-timing
+      - run: npm run test:owner-profile-update
+      - run: npm run test:inbound-voice
+      - run: npm run test:voice-demo
+      - run: npm run build

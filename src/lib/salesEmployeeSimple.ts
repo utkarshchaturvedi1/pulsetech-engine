@@ -27,6 +27,21 @@ function nextContactField(state: SalesState): "name" | "phone" | "address" | nul
   return null;
 }
 
+function newlyCapturedContactField(
+  previous: SalesState,
+  current: SalesState,
+  latestUser: string
+): "name" | "phone" | "address" | null {
+  const normalized = latestUser.trim().toLowerCase().replace(/[.,!?;:]+$/u, "");
+  if (!normalized) return null;
+  if (!previous.lead.name && current.lead.name && normalized === current.lead.name.trim().toLowerCase()) return "name";
+  const digits = latestUser.replace(/\D/g, "");
+  if (!previous.lead.phone && current.lead.phone && /^[+\d\s().-]+$/u.test(latestUser.trim()) && digits.length >= 7 && digits === current.lead.phone.replace(/\D/g, "")) return "phone";
+  const normalizedAddress = (value: string) => value.trim().toLowerCase().replace(/[.,!?;:]+$/u, "").replace(/\s+/g, " ");
+  if (!previous.lead.address && current.lead.address && normalizedAddress(latestUser) === normalizedAddress(current.lead.address)) return "address";
+  return null;
+}
+
 function questionFor(field: "name" | "phone" | "address"): string {
   if (field === "name") return "What name should I use?";
   if (field === "phone") return "What’s the best phone number for the team to reach you?";
@@ -151,7 +166,39 @@ function isDirectPriceQuestion(text: string): boolean {
 }
 
 function isServiceTimingQuestion(text: string): boolean {
-  return /\b(how (?:fast|soon|quickly|long)|when can (?:you|someone|the team)|how long (?:will|does)|can (?:you|someone) come|send (?:someone|a technician)|dispatch|available (?:today|now|this weekend)|emergency)\b/i.test(text);
+  return /\b(asap|as soon as possible|right away|urgently|urgent|how (?:fast|soon|quickly|long)|when can (?:you|someone|the team)|how long (?:will|does)|can (?:you|someone) come|send (?:someone|a technician)|dispatch|available (?:today|now|this weekend)|emergency)\b/i.test(text);
+}
+
+function supportsCustomerNeed(state: SalesState, business: BusinessProfile): boolean {
+  const need = state.primaryNeed || state.customerNeed || "";
+  const services = business.services.join(" ").toLowerCase();
+  if (!need || !services) return false;
+  return need.toLowerCase().split(/\W+/).some((word) => word.length > 4 && services.includes(word));
+}
+
+function unsupportedClaimFallback(
+  state: SalesState,
+  business: BusinessProfile,
+  latestUser: string,
+  lastAssistant: string
+): string {
+  const field = nextContactField(state);
+  const followUp = field && !asksFor(lastAssistant, field) ? ` ${questionFor(field)}` : "";
+  const reassurance = supportsCustomerNeed(state, business)
+    ? "Don’t worry—you’ve come to the right place."
+    : "I’ll help as best I can.";
+  if (isServiceTimingQuestion(latestUser)) {
+    return `${reassurance} I can’t confirm an arrival time from this chat.${followUp}`;
+  }
+  return `${reassurance}${followUp || " What would you like to know?"}`;
+}
+
+function contactCaptureReply(field: "name" | "phone", state: SalesState): string {
+  const name = customerNameForReply(state.lead.name);
+  const opening = `Thanks${name ? `, ${name}` : ""}.`;
+  return field === "name"
+    ? `${opening} ${questionFor("phone")}`
+    : `${opening} ${questionFor("address")}`;
 }
 
 function hasUnsupportedOperationalClaim(reply: string, business: BusinessProfile): boolean {
@@ -163,10 +210,15 @@ function hasUnsupportedOperationalClaim(reply: string, business: BusinessProfile
     { pattern: /\b(dispatch|send (?:a|our|the) (?:technician|tech|crew|team)|we(?:'ll| will) be there|appointment (?:is )?(?:confirmed|booked)|i(?:'ve| have) scheduled|we(?:'ve| have) scheduled)\b/i, fact: /\b(dispatch|send (?:a|our|the) (?:technician|tech|crew|team)|appointment (?:is )?(?:confirmed|booked)|scheduled)\b/i },
   ];
 
-  return claimGroups.some(({ pattern, fact }) => {
-    const match = reply.match(pattern);
-    return Boolean(match && !fact.test(verified));
-  });
+  const sentences = reply.split(/(?<=[.!?])\s+|\n+/u);
+  return sentences.some((sentence) => claimGroups.some(({ pattern, fact }) => {
+    const match = sentence.match(pattern);
+    if (!match || fact.test(verified)) return false;
+    // A customer may repeat a competitor's claim while asking us to respond.
+    // Attribution is not a claim about this business.
+    if (/\b(competitor|another (?:company|provider)|other (?:company|provider)|compare (?:quotes|prices)|they (?:say|claim)|claims? to be)\b/i.test(sentence)) return false;
+    return true;
+  }));
 }
 
 function removeUnverifiedFeeClaims(reply: string, business: BusinessProfile): string {
@@ -211,7 +263,8 @@ function groundedOperationsReply(
   state: SalesState,
   latestUser: string,
   lastAssistant: string,
-  handoffIsReady: boolean
+  handoffIsReady: boolean,
+  business: BusinessProfile
 ): string {
   if (handoffIsReady && (isSimpleAffirmation(latestUser) || !hasQuestion(latestUser))) {
     return `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`;
@@ -221,7 +274,10 @@ function groundedOperationsReply(
     const update = leadStatus ? " Your request is with the team, and they’ll confirm timing." : "";
     const field = nextContactField(state);
     const followUp = field && !asksFor(lastAssistant, field) ? ` ${questionFor(field)}` : "";
-    return `I can’t confirm availability or completion time from this chat.${update}${followUp}`;
+    const reassurance = !state.lead.name && supportsCustomerNeed(state, business)
+      ? "Don’t worry—you’ve come to the right place. "
+      : "";
+    return `${reassurance}I can’t confirm availability or completion time from this chat.${update}${followUp}`;
   }
   if (handoffIsReady) {
     return `I’ve passed your request to the team, and they’ll contact you as soon as possible. Is there anything else you’d like to ask?`;
@@ -248,6 +304,7 @@ export async function generateSimpleSalesReply(
 
   const missing = nextContactField(state);
   const lastAssistant = lastAssistantText(messages);
+  const capturedThisTurn = newlyCapturedContactField(previousState, state, latestUser);
   const allContactDetailsCaptured = !missing;
   const canSubmit = allContactDetailsCaptured && !!(state.primaryNeed || state.customerNeed) && !state.leadCapturePaused;
   const directPriceQuestion = isDirectPriceQuestion(latestUser);
@@ -273,8 +330,10 @@ export async function generateSimpleSalesReply(
     reply = `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`;
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
+  } else if (!hasQuestion(latestUser) && (capturedThisTurn === "name" || capturedThisTurn === "phone")) {
+    reply = contactCaptureReply(capturedThisTurn, state);
   } else if (isServiceTimingQuestion(latestUser)) {
-    reply = groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady);
+    reply = groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady, business);
   } else {
     const instructions = simpleInstructions(state, business, photoInvitation, messages);
     if (testModel) {
@@ -307,12 +366,12 @@ export async function generateSimpleSalesReply(
     }
     reply = removeCapturedFieldQuestions(reply, state);
     if (hasUnsupportedOperationalClaim(reply, business) || isMalformedReply(reply)) {
-      reply = groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady);
+      reply = unsupportedClaimFallback(state, business, latestUser, lastAssistant);
     }
     if (allContactDetailsCaptured && !hasQuestion(latestUser) && !state.leadCapturePaused) {
       reply = handoffIsReady
         ? `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`
-        : groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady);
+        : groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady, business);
     }
   }
 

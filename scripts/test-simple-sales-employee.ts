@@ -103,7 +103,7 @@ async function main() {
   assert(state.lead.name === "UTK", "name is captured");
   assert(/phone number/i.test(result.reply), "phone is the next field");
   assert(!/email/i.test(result.reply), "the customer is not asked for an email address");
-  assert(latestInstructions.includes("already been given; do not repeat it"), "reassurance is limited to the opening reply");
+  assert(!/right place/i.test(result.reply), "reassurance is limited to the opening reply");
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "The other company says they have the cheapest rates in Texas." }];
   modelReply = "It makes sense to compare quotes; we can explain our proposal clearly once we understand your system needs. What's the best phone number to reach you?";
@@ -116,7 +116,7 @@ async function main() {
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;
   assert(state.lead.phone === "9898989898", "phone volunteered with a competitor objection is captured");
-  assert(/compare quotes|compare/i.test(result.reply), "competitor objection is answered even when the phone is supplied in the same turn");
+  assert(/compare quotes|compare/i.test(result.reply), `competitor objection is answered even when the phone is supplied in the same turn: ${result.reply}`);
   assert(/service address/i.test(result.reply), "after phone capture, the next missing field is the service address");
 
   const priorFetch = globalThis.fetch;
@@ -271,7 +271,7 @@ async function main() {
     website: "https://dallasplumbing.test",
     businessName: "Autrey's Plumbing LLC",
     tagline: "Residential plumbing service",
-    services: ["Drain cleaning", "Leak repair", "Water heater repair"],
+    services: ["24/7 Emergency Plumbing", "Drain Cleaning & Unclogging", "Kitchen Plumbing", "Leak repair", "Water heater repair"],
     pricingRules: "Exact job pricing depends on the issue and parts needed.",
     leadQuestions: [],
     systemPrompt: "",
@@ -295,7 +295,37 @@ async function main() {
   assert(/assessing the drain/i.test(plumbingPrice.reply) && /blockage/i.test(plumbingPrice.reply), "plumbing price answers reflect the plumbing request");
   assert(!/solar|battery capacity|roof|energy use|system size/i.test(plumbingPrice.reply), "plumbing answers never inherit solar-specific language");
   assert(latestInstructions.includes("Business name: Autrey’s Plumbing LLC") || latestInstructions.includes("Business name: Autrey's Plumbing LLC"), "the active plumbing business is in the model context");
-  assert(latestInstructions.includes("Drain cleaning"), "the active plumbing services are in the model context");
+  assert(/Drain cleaning/i.test(latestInstructions), "the active plumbing services are in the model context");
+
+  // Reproduce the reported staging exchange. Unsafe availability/credential
+  // claims must not replace the conversation, and a one-word name or phone
+  // answer must advance to the next field without an LLM-generated detour.
+  const brokenChatState = createInitialSalesState({
+    conversationId: "simple-sales-reported-staging-failure",
+    businessKey: businessIdentityKey(plumbingBusiness),
+  });
+  const brokenChatMessages: SimpleSalesMessage[] = [
+    { role: "user", content: "my kitchen sync is clogged. I need help ASAP." },
+  ];
+  modelReply = "You're in the right place — Autrey's offers 24/7 emergency plumbing and drain unclogging; our licensed technicians can respond immediately to kitchen sink clogs. Can I get your name to get this started?";
+  let brokenChat = await generateSimpleSalesReply(plumbingBusiness, brokenChatMessages, brokenChatState);
+  assert(/right place/i.test(brokenChat.reply), `an urgent supported plumbing request keeps reassurance after unsafe claims are removed: ${brokenChat.reply}`);
+  assert(/can.t confirm availability or completion time/i.test(brokenChat.reply), "ASAP requests do not trigger an invented response-time promise");
+  assert(/name/i.test(brokenChat.reply) && !/licensed|immediately|24\s*\/\s*7/i.test(brokenChat.reply), "the safe opening collects the name without unverified claims");
+
+  brokenChatMessages.push({ role: "assistant", content: brokenChat.reply }, { role: "user", content: "UT" });
+  modelReply = "I don’t have verified information to confirm that. The business team can clarify it. What’s the best phone number for the team to reach you?";
+  brokenChat = await generateSimpleSalesReply(plumbingBusiness, brokenChatMessages, brokenChat.salesState);
+  assert(brokenChat.salesState.lead.name === "UT", "the reported one-word name is captured");
+  assert(/Thanks, UT\./i.test(brokenChat.reply) && /phone number/i.test(brokenChat.reply), "a name answer deterministically advances to phone capture");
+  assert(!/verified information|business team can clarify/i.test(brokenChat.reply), "a captured name cannot be answered with an unrelated verification deflection");
+
+  brokenChatMessages.push({ role: "assistant", content: brokenChat.reply }, { role: "user", content: "9898989898" });
+  modelReply = "I don’t have verified information to confirm that. The business team can clarify it. What’s the service address?";
+  brokenChat = await generateSimpleSalesReply(plumbingBusiness, brokenChatMessages, brokenChat.salesState);
+  assert(brokenChat.salesState.lead.phone === "9898989898", "the reported phone number is captured");
+  assert(/Thanks, UT\./i.test(brokenChat.reply) && /service address/i.test(brokenChat.reply), "a phone answer deterministically advances to address capture");
+  assert(!/verified information|business team can clarify/i.test(brokenChat.reply), "a captured phone cannot be answered with an unrelated verification deflection");
 
   const plumbingPhotoMessages: SimpleSalesMessage[] = [
     ...plumbingMessages,
@@ -351,7 +381,7 @@ async function main() {
     createInitialSalesState({ conversationId: "simple-sales-landscaping-0001", businessKey: businessIdentityKey(landscapingBusiness) })
   );
   assert(!/insured|guarantee|same-day/i.test(landscapingResult.reply), "unsupported insurance, guarantees, and availability claims are blocked for a second business");
-  assert(/verified information/i.test(landscapingResult.reply), "unsupported business-specific claims are answered transparently");
+  assert(/right place/i.test(landscapingResult.reply), "unsupported claims do not erase the supported service reassurance");
   assert(/name should i use/i.test(landscapingResult.reply), "safe correction preserves the next lead-capture step");
 
   messages = [...messages, { role: "assistant", content: result.reply }, { role: "user", content: "1500 Marilla St, Dallas TX 75201" }];

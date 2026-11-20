@@ -316,7 +316,13 @@ function groundedCommercialQuestionReply(
   const parts: string[] = [];
 
   if (asksPrice) {
-    parts.push(buildIntentAwarePriceAnswer(state, business, latestUser));
+    const priceAnswer = buildIntentAwarePriceAnswer(state, business, latestUser);
+    const hasOverallPriceGuidance = /\b(?:exact pricing|exact price|accurate quote|accurate price|exact total|overall service|total price|pricing depends|price depends|cost depends|can't give an exact|cannot give an exact|can’t give an exact|requires? reviewing|site-specific design|consultation scope)\b/i.test(priceAnswer);
+    parts.push(
+      hasOverallPriceGuidance
+        ? priceAnswer
+        : `I can’t give an exact total without reviewing the project details. ${priceAnswer}`
+    );
   }
   if (asksTiming) {
     parts.push(

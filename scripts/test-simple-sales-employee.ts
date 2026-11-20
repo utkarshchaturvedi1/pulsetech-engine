@@ -99,11 +99,17 @@ async function main() {
   });
   const identityReply = await generateSimpleSalesReply(business, [
     { role: "assistant", content: "What’s your name?" },
-    { role: "user", content: "your name? its pulsetechlabs i think" },
+    { role: "user", content: "What is your name? I think your name is PulseTech Labs." },
   ], identityState);
   assert(/sales assistant for Texas Solar Professional/i.test(identityReply.reply), "a question about the assistant's name is answered with the active business identity");
   assert(identityReply.salesState.lead.name === null, "the assistant or platform name is never stored as the customer's name");
   assert(/name should i use/i.test(identityReply.reply), "the customer can then provide their own name");
+  const mixedIdentity = await generateSimpleSalesReply(business, [
+    { role: "assistant", content: "What’s your name?" },
+    { role: "user", content: "I’m Alex, and what is your name?" },
+  ], createInitialSalesState({ conversationId: "simple-sales-mixed-identity", businessKey }));
+  assert(mixedIdentity.salesState.lead.name === "Alex", "a visitor's explicit name is retained when they also ask the assistant's identity");
+  assert(/phone number/i.test(mixedIdentity.reply), "after capturing the visitor's name, the next lead question advances to phone");
   modelReply = "You're in the right place. A properly sized system may support AC and heating. (Site visits are free.) What name should I use?";
   const feeClaimReply = await generateSimpleSalesReply(business, [
     { role: "user", content: "Can solar run my AC and heating?" },

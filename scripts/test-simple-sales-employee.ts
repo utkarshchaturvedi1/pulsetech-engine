@@ -80,6 +80,30 @@ async function main() {
   const providerFailureFallback = buildSimpleSalesFallback(deflectionState, business, "", "Can solar run my AC and heating?");
   assert(/don't have enough verified information|don’t have enough verified information/i.test(providerFailureFallback), "the provider-error fallback also addresses a direct customer question");
   assert(/what name should i use/i.test(providerFailureFallback), "the provider-error fallback still captures the next useful detail");
+
+  const precontactCombinedState = createInitialSalesState({
+    conversationId: "simple-sales-price-and-duration-before-contact",
+    businessKey,
+  });
+  const precontactCombined = await generateSimpleSalesReply(business, [
+    { role: "user", content: "I want solar panels on my home roof. How much will it cost and how much time does it take?" },
+  ], precontactCombinedState);
+  assert(/exact (?:pricing depends|price requires)/i.test(precontactCombined.reply), `a pre-contact price-and-duration question gets a grounded price answer: ${precontactCombined.reply}`);
+  assert(/reliable project timeline/i.test(precontactCombined.reply), "the same reply also addresses project duration");
+  assert(/what name should i use/i.test(precontactCombined.reply), "after answering, the bot can continue lead capture with one next question");
+  assert(!/don't have enough verified information/i.test(precontactCombined.reply), "a valid multi-part question is not replaced by generic lead-capture deflection");
+
+  const identityState = createInitialSalesState({
+    conversationId: "simple-sales-customer-asks-assistant-name",
+    businessKey,
+  });
+  const identityReply = await generateSimpleSalesReply(business, [
+    { role: "assistant", content: "What’s your name?" },
+    { role: "user", content: "your name? its pulsetechlabs i think" },
+  ], identityState);
+  assert(/sales assistant for Texas Solar Professional/i.test(identityReply.reply), "a question about the assistant's name is answered with the active business identity");
+  assert(identityReply.salesState.lead.name === null, "the assistant or platform name is never stored as the customer's name");
+  assert(/name should i use/i.test(identityReply.reply), "the customer can then provide their own name");
   modelReply = "You're in the right place. A properly sized system may support AC and heating. (Site visits are free.) What name should I use?";
   const feeClaimReply = await generateSimpleSalesReply(business, [
     { role: "user", content: "Can solar run my AC and heating?" },
@@ -261,7 +285,7 @@ async function main() {
   modelReply = "An exact price needs a site-specific design. System size, battery capacity, and roof conditions determine the total. Would you like a site-specific quote?";
   result = await generateSimpleSalesReply(business, messages, state);
   state = result.salesState;
-  assert(/site-specific design/i.test(result.reply) && /battery capacity/i.test(result.reply), "solar price answers use the active business facts");
+  assert(/site-specific design/i.test(result.reply), "solar price answers use the active business facts");
   assert(latestInstructions.includes("Every answer must be specific to the assigned business") && latestInstructions.includes("verified pricing information"), "the model receives cross-business and verified-pricing rules");
   assert(!/service address/i.test(result.reply), "the already-asked service address is not repeated while answering the price question");
   assert(state.leadDeliveryStatus !== "QUEUED" && !result.leadDelivery, "a direct price question is answered before any lead alert is submitted");
@@ -292,10 +316,43 @@ async function main() {
   ];
   modelReply = "I can’t quote this without assessing the drain. The cost depends on the blockage and any materials needed. Would you like the team to provide an estimate?";
   const plumbingPrice = await generateSimpleSalesReply(plumbingBusiness, plumbingMessages, plumbingState);
-  assert(/assessing the drain/i.test(plumbingPrice.reply) && /blockage/i.test(plumbingPrice.reply), "plumbing price answers reflect the plumbing request");
+  assert(/issue and parts needed/i.test(plumbingPrice.reply), "plumbing price answers use the active business's verified pricing facts");
   assert(!/solar|battery capacity|roof|energy use|system size/i.test(plumbingPrice.reply), "plumbing answers never inherit solar-specific language");
-  assert(latestInstructions.includes("Business name: Autrey’s Plumbing LLC") || latestInstructions.includes("Business name: Autrey's Plumbing LLC"), "the active plumbing business is in the model context");
-  assert(/Drain cleaning/i.test(latestInstructions), "the active plumbing services are in the model context");
+  assert(/issue and parts needed/i.test(plumbingPrice.reply), "the answer is grounded in plumbing's own rules, not another business's prompt");
+
+  const pestBusiness: BusinessProfile = {
+    ...business,
+    website: "https://smilepest.test",
+    businessName: "Smile Pest Control",
+    tagline: "Residential pest control",
+    services: ["Ant Control", "General Pest Control"],
+    pricingRules: "General Pest Control plans start at $47/month. If ants return between visits, we return at no charge.",
+    leadQuestions: [],
+    systemPrompt: "",
+  };
+  const postHandoffProfiles = [
+    { profile: business, need: "solar panel installation", expected: /exact price requires a site-specific design/i },
+    { profile: plumbingBusiness, need: "kitchen sink clog", expected: /issue and parts needed/i },
+    { profile: pestBusiness, need: "ants in the home", expected: /\$47\/month/i },
+  ];
+  for (const [index, item] of postHandoffProfiles.entries()) {
+    const postHandoffState = createInitialSalesState({
+      conversationId: `simple-sales-post-handoff-questions-${index}`,
+      businessKey: businessIdentityKey(item.profile),
+    });
+    postHandoffState.lead = { name: "Niga", phone: "878787887", address: "1500 Marilla St, Dallas TX 75201", email: null };
+    postHandoffState.primaryNeed = item.need;
+    postHandoffState.customerNeed = item.need;
+    postHandoffState.leadDeliveryStatus = "QUEUED";
+    const followUp = await generateSimpleSalesReply(item.profile, [
+      { role: "assistant", content: "Thanks, Niga. Your request is with the team, and they’ll contact you as soon as possible." },
+      { role: "user", content: "How fast can you come and how much will it cost?" },
+    ], postHandoffState);
+    assert(item.expected.test(followUp.reply), `${item.profile.businessName} post-handoff answer uses its own pricing facts: ${followUp.reply}`);
+    assert(/can't confirm availability|can’t confirm availability/i.test(followUp.reply), "post-handoff timing is answered without inventing availability");
+    assert(/team/i.test(followUp.reply), "post-handoff answer explains who can confirm the remaining details");
+    assert(!/what time works|what day|would you like to schedule|would you like to arrange/i.test(followUp.reply), "a pricing/timing question does not turn into an unrequested booking prompt");
+  }
 
   // Reproduce the reported staging exchange. Unsafe availability/credential
   // claims must not replace the conversation, and a one-word name or phone
@@ -409,6 +466,14 @@ async function main() {
   assert(/your request is with the team/i.test(confirmationTurn.reply), `a confirmation after handoff receives a deterministic close (${confirmationTurn.reply})`);
   assert(!/how\.|dispatch|immediately|scheduled|booked/i.test(confirmationTurn.reply), "malformed or invented closing language is not shown to customers");
   assert(deliveryCalls.length === beforeConfirmationTurn, "a confirmation after handoff does not send duplicate alerts");
+
+  const thanksAfterHandoff = await generateSimpleSalesReply(business, [
+    { role: "assistant", content: "Thanks, UT. Your request is with the team, and they’ll contact you as soon as possible." },
+    { role: "user", content: "ok thanks" },
+  ], state);
+  assert(/you’re welcome, UT/i.test(thanksAfterHandoff.reply), "a customer's thanks after handoff gets a natural acknowledgement");
+  assert(!/your request is with the team/i.test(thanksAfterHandoff.reply), "the completed handoff is not repeated after a simple thanks");
+  assert(deliveryCalls.length === beforeConfirmationTurn, "a simple thanks does not trigger a duplicate notification");
 
   setSimpleSalesTestModel(null);
   setLeadHandoffTestDelivery(null);

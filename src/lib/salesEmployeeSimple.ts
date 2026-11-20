@@ -6,6 +6,7 @@ import {
   type LeadHandoffResult,
 } from "./leadHandoff";
 import { updateSalesStateFromTurn, type ChatTurnMessage } from "./salesController";
+import { buildIntentAwarePriceAnswer } from "./salesConversation";
 import type { SalesState } from "./salesState";
 
 export type SimpleSalesMessage = ChatTurnMessage;
@@ -116,6 +117,9 @@ WHAT YOU CAN DO
 - Explain the business’s services and answer the customer’s questions using the verified business information below.
 - When the business offers the service they need, begin the first substantive reply with a brief assurance that they have come to the right place. Say it only once. ${reassuranceAlreadyGiven ? "The reassurance has already been given; do not repeat it." : "Give the reassurance now."}
 - Answer-first rule: if the customer asks a question, answer that question directly before asking for contact details. Do not replace an answer with a greeting, reassurance, or a name/phone/address question. If verified business information is not enough to answer confidently, say exactly what you cannot confirm and offer to have the team clarify it; then ask for at most one useful missing detail.
+- If the customer asks who you are or asks your name, identify yourself as the sales assistant for ${business.businessName}. Never interpret the business or product name as the customer's name.
+- If one message contains multiple questions, answer each part in the same reply. Never let a timing, pricing, lead-capture, or handoff shortcut cause you to skip another question.
+- After a request has been handed to the team, answer follow-up questions normally. Do not repeat the handoff message, ask for appointment preferences, or imply an appointment is booked unless the customer asks to arrange one and the business has confirmed it.
 - Every answer must be specific to the assigned business and the customer’s stated need. Use only that business’s verified services, policies, pricing, and FAQs. Do not carry facts, terminology, price drivers, claims, or examples from another industry or business. Answer only what the customer asked. Keep the reply to at most two short sentences and 45 words; do not add unrelated prices, service areas, or sales details.
 - Do not promise that a specific property, system, or service will achieve an outcome unless that exact result is supported by the business information. Explain relevant dependencies and say the team must assess anything that cannot be confirmed from the profile.
 - For price questions, use the active business’s verified pricing information. If no exact price is provided, say an accurate quote requires reviewing the requested work or project. Mention cost factors only when the active business facts support them. Never say a quote or visit is free, paid, waived, or discounted unless that exact policy is verified below; missing fee information does not mean the service is free.
@@ -167,6 +171,18 @@ function isDirectPriceQuestion(text: string): boolean {
 
 function isServiceTimingQuestion(text: string): boolean {
   return /\b(asap|as soon as possible|right away|urgently|urgent|how (?:fast|soon|quickly|long)|when can (?:you|someone|the team)|how long (?:will|does)|can (?:you|someone) come|send (?:someone|a technician)|dispatch|available (?:today|now|this weekend)|emergency)\b/i.test(text);
+}
+
+function isProjectDurationQuestion(text: string): boolean {
+  return /\b(?:how much time|how long does it take|how long will it take|how long is (?:the )?(?:installation|install|project)|installation timeline|project timeline|time to complete)\b/i.test(text);
+}
+
+function isSimpleThanks(text: string): boolean {
+  return /^(?:(?:ok|okay|all right|alright)[,\s]+)?(?:thanks|thank you|got it)(?:[,\s]+(?:thanks|thank you))?[.!\s]*$/i.test(text.trim());
+}
+
+function isAssistantIdentityQuestion(text: string): boolean {
+  return /\b(?:what(?:'s| is) your name|your name\s*\?|who are you|what are you called|which company are you with)/i.test(text);
 }
 
 function supportsCustomerNeed(state: SalesState, business: BusinessProfile): boolean {
@@ -287,6 +303,50 @@ function groundedOperationsReply(
   return `I don’t have verified information to confirm that. The business team can clarify it.${followUp}`;
 }
 
+/** Answer every pricing/timing part of a turn before any lead or handoff prompt. */
+function groundedCommercialQuestionReply(
+  state: SalesState,
+  latestUser: string,
+  lastAssistant: string,
+  handoffIsReady: boolean,
+  business: BusinessProfile
+): string {
+  const asksPrice = isDirectPriceQuestion(latestUser);
+  const asksTiming = isServiceTimingQuestion(latestUser) || isProjectDurationQuestion(latestUser);
+  const parts: string[] = [];
+
+  if (asksPrice) {
+    parts.push(buildIntentAwarePriceAnswer(state, business, latestUser));
+  }
+  if (asksTiming) {
+    parts.push(
+      isProjectDurationQuestion(latestUser)
+        ? "I can’t give a reliable project timeline without reviewing the scope and site."
+        : "I can’t confirm availability or completion time from this chat."
+    );
+  }
+  const reassuranceAlreadyGiven = /\b(?:right place|come to the right place)\b/i.test(lastAssistant);
+  if (!state.lead.name && supportsCustomerNeed(state, business) && !reassuranceAlreadyGiven) {
+    parts.unshift("Don’t worry—you’ve come to the right place.");
+  }
+  if (handoffIsReady) {
+    parts.push("Your request is with the team; they can confirm these details.");
+  } else {
+    const field = nextContactField(state);
+    if (field && !asksFor(lastAssistant, field)) parts.push(questionFor(field));
+  }
+  return parts.join(" ");
+}
+
+function assistantIdentityReply(
+  state: SalesState,
+  business: BusinessProfile
+): string {
+  const field = nextContactField(state);
+  const followUp = field ? ` ${questionFor(field)}` : "";
+  return `I’m the sales assistant for ${business.businessName}.${followUp}`;
+}
+
 export async function generateSimpleSalesReply(
   business: BusinessProfile,
   messages: SimpleSalesMessage[],
@@ -326,14 +386,19 @@ export async function generateSimpleSalesReply(
   const photoInvitation = photoLinks.length === 0 && !state.customerPhotoInviteShown && customerNeedsPhotoReview(messages);
   let reply: string;
   const handoffIsReady = state.leadDeliveryStatus === "SENT" || state.leadDeliveryStatus === "QUEUED";
-  if (handoffIsReady && (!hasQuestion(latestUser) || isSimpleAffirmation(latestUser))) {
+  if (handoffIsReady && isSimpleThanks(latestUser)) {
+    const name = customerNameForReply(state.lead.name);
+    reply = `You’re welcome${name ? `, ${name}` : ""}. Feel free to ask if anything else comes up.`;
+  } else if (handoffIsReady && (!hasQuestion(latestUser) || isSimpleAffirmation(latestUser))) {
     reply = `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`;
+  } else if (isAssistantIdentityQuestion(latestUser)) {
+    reply = assistantIdentityReply(state, business);
   } else if (state.leadDeliveryStatus === "FAILED" && canSubmit) {
     reply = "I’m sorry, I couldn’t send your request to the team just now. Please try again shortly.";
   } else if (!hasQuestion(latestUser) && (capturedThisTurn === "name" || capturedThisTurn === "phone")) {
     reply = contactCaptureReply(capturedThisTurn, state);
-  } else if (isServiceTimingQuestion(latestUser)) {
-    reply = groundedOperationsReply(state, latestUser, lastAssistant, handoffIsReady, business);
+  } else if (isServiceTimingQuestion(latestUser) || isProjectDurationQuestion(latestUser) || isDirectPriceQuestion(latestUser)) {
+    reply = groundedCommercialQuestionReply(state, latestUser, lastAssistant, handoffIsReady, business);
   } else {
     const instructions = simpleInstructions(state, business, photoInvitation, messages);
     if (testModel) {

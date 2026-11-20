@@ -263,7 +263,18 @@ function isAuthoritativePersonName(value: string | null | undefined): boolean {
   return cleaned.length >= 2 && isPlausiblePersonName(cleaned);
 }
 
+function asksAssistantIdentity(text: string): boolean {
+  return /\b(?:what(?:'s| is) your name|your name\s*\?|who are you|what are you called|which company are you with)\b/i.test(text);
+}
+
+function explicitlyProvidesVisitorName(text: string): boolean {
+  return /\b(?:i am|i['’]m|my name(?:'s| is)|call me)\b/i.test(text);
+}
+
 function extractExplicitPersonName(text: string): string | null {
+  // "Your name is PulseTech Labs" is about the assistant, not the visitor.
+  // Still retain a visitor's explicit self-introduction in a mixed question.
+  if (asksAssistantIdentity(text) && !explicitlyProvidesVisitorName(text)) return null;
   // Accept a name volunteered in a compound answer (for example,
   // "I'm Taylor. Another company says ...") instead of requiring the
   // entire customer turn to contain only the name.
@@ -293,6 +304,7 @@ function extractName(
   objective: SalesObjective,
   priorAssistant = ""
 ): string | null {
+  if (asksAssistantIdentity(text) && !explicitlyProvidesVisitorName(text)) return null;
   const explicit = extractExplicitPersonName(text);
   if (explicit) return explicit;
 

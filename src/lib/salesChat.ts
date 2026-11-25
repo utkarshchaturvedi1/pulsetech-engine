@@ -30,6 +30,14 @@ import { asksVisitPrice, scopedPricing, feeOnlyPriceReply } from "./pricingScope
 import { buildIntentAwarePriceAnswer, buildPostContactPriceReply, buildPostContactNextStepReply } from "./salesConversation";
 import { messageAsksPricingOrBilling } from "./schedulingPolicy";
 
+export function assistantAskedForName(
+  assistantText: string | null | undefined
+): boolean {
+  return /\\b(?:what(?:['’]s| is) your (?:first )?name|may i (?:have|ask) your name|what should i call you)\\b/i.test(
+    assistantText || ""
+  );
+}
+
 function getOpenAI() {
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -654,11 +662,15 @@ export async function generateSalesReply(
 
 ${buildTurnControlBlock(salesState, business)}
 
+${assistantAskedForName(previousAssistant?.content) && salesState.currentObjective === "ANSWER" && !salesState.lead.name
+  ? `FOLLOW-UP: The previous assistant turn already asked the customer for their name. They asked a substantive question instead of answering it. Answer that question and do not repeat or append the name request in this turn.`
+  : ""}
+
 ${priceTurn ? `PRICE SCOPE CHECK: The customer asks: ${latestUser?.content}.
 Active service need: ${salesState.primaryNeed || salesState.customerNeed}.
 Verified visit/diagnostic terms (NOT the total service price): ${pricing.visit || "none"}.
 Other verified pricing terms: ${pricing.service || "No exact service/project pricing provided"}.
-Answer the requested price scope first. Never substitute a visit/diagnostic/call-out fee for a total or quote an unrelated service price. When the total is unknown, say so naturally and explain 2–3 genuine industry factors specifically relevant to this customer's stated need. Use safe general industry knowledge without inventing prices, promises, diagnosis, or capabilities. Distinguish any verified visit fee and preserve its waiver conditions.
+Answer the requested price scope first and address every distinct part of the customer's message, not only the price. If they ask for savings that depend on their usage or site and exact data is missing, explain the key inputs without inventing a number. Never substitute a visit/diagnostic/call-out fee for a total or quote an unrelated service price. When the total is unknown, say so naturally and explain 2–3 genuine industry factors specifically relevant to this customer's stated need. Use safe general industry knowledge without inventing prices, promises, diagnosis, or capabilities. Distinguish any verified visit fee and preserve its waiver conditions.
 Read previous price answers. If the customer asks again, address the unresolved total directly with more relevant explanation instead of repeating the same fee or consultation template.
 ${ownerAsk ? `After answering, ask ONLY this required owner question: ${ownerAsk}. Do not ask timing or agreement as well.` : "Continue naturally with at most one relevant next-step question."}` : ""}`;
 

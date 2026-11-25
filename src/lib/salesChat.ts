@@ -491,7 +491,7 @@ ${formatBusinessKnowledge(business)}
 export function assistantAskedForName(
   assistantText: string | null | undefined
 ): boolean {
-  return /\\b(?:what(?:['’]s| is) your (?:first )?name|may i (?:have|ask) your name|what should i call you)\\b/i.test(
+  return /\b(?:what(?:['’]s| is) your (?:first )?name|may i (?:have|ask) your name|what should i call you)\b/i.test(
     assistantText || ""
   );
 }

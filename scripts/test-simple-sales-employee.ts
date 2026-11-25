@@ -93,6 +93,27 @@ async function main() {
   assert(/what name should i use/i.test(precontactCombined.reply), "after answering, the bot can continue lead capture with one next question");
   assert(!/don't have enough verified information/i.test(precontactCombined.reply), "a valid multi-part question is not replaced by generic lead-capture deflection");
 
+  const solarPriceBenefits = await generateSimpleSalesReply(business, [
+    { role: "user", content: "I want to install solar panels at home. How much will it cost and tell me the benefits." },
+  ], createInitialSalesState({ conversationId: "simple-sales-solar-price-benefits", businessKey }));
+  assert(/exact pricing depends|exact price requires/i.test(solarPriceBenefits.reply), `a solar cost question gets grounded price guidance: ${solarPriceBenefits.reply}`);
+  assert(/reduce the electricity you buy from the grid/i.test(solarPriceBenefits.reply), `a combined solar cost and benefits question gets a specific benefit answer: ${solarPriceBenefits.reply}`);
+  assert(/savings depend on your usage|actual savings depend/i.test(solarPriceBenefits.reply), "solar savings are qualified by real usage and site factors");
+  assert(/what name should i use/i.test(solarPriceBenefits.reply), "the solar answer can still collect the next missing lead field");
+
+  const afterPhoneState = createInitialSalesState({ conversationId: "simple-sales-solar-ballpark-after-phone", businessKey });
+  afterPhoneState.lead = { name: "UT", phone: "9898989898", address: null, email: null };
+  afterPhoneState.primaryNeed = "solar panel installation";
+  afterPhoneState.customerNeed = "solar panel installation";
+  const ballparkAfterPhone = await generateSimpleSalesReply(business, [
+    { role: "assistant", content: "Thanks, UT. What’s the service address?" },
+    { role: "user", content: "Can you give me a ballpark figure and tell me how much electricity cost it will save?" },
+  ], afterPhoneState);
+  assert(/exact pricing depends|exact price requires/i.test(ballparkAfterPhone.reply), `a ballpark request after phone capture gets price guidance: ${ballparkAfterPhone.reply}`);
+  assert(/actual savings depend/i.test(ballparkAfterPhone.reply), "an electricity savings question after phone capture is answered");
+  assert(!/phone number/i.test(ballparkAfterPhone.reply), "answering a price question after phone capture does not re-ask for the phone");
+  assert(!/what(?:'s| is) the service address/i.test(ballparkAfterPhone.reply), "an unanswered address request is not duplicated in the price answer");
+
   const identityState = createInitialSalesState({
     conversationId: "simple-sales-customer-asks-assistant-name",
     businessKey,

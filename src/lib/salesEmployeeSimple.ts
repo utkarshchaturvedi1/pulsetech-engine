@@ -166,7 +166,14 @@ function hasQuestion(text: string): boolean {
 }
 
 function isDirectPriceQuestion(text: string): boolean {
-  return /\b(how much|what(?:'s| is| will be) (?:the |this |our )?(?:total |system )?(?:cost|price)|what will .{0,40} cost|how much does .{0,40} cost|price list|pricing)\b/i.test(text);
+  return /\b(how much|ballpark|price estimate|cost estimate|estimated (?:cost|price)|what(?:'s| is| will be) (?:the |this |our )?(?:total |system )?(?:cost|price)|what will .{0,40} cost|how much does .{0,40} cost|price list|pricing)\b/i.test(text);
+}
+
+function isSolarSavingsOrBenefitsQuestion(text: string, state: SalesState, business: BusinessProfile): boolean {
+  const businessContext = `${business.businessName} ${business.tagline || ""} ${business.services.join(" ")} ${state.primaryNeed || ""} ${state.customerNeed || ""}`;
+  const isSolarContext = /\bsolar\b/i.test(businessContext);
+  const asksSavingsOrBenefits = /\b(sav(?:e|ings|ed)|electricity bill|power bill|benefits?|advantages|reduce.{0,20}(?:bill|electricity|grid)|lower.{0,20}(?:bill|electricity|cost))\b/i.test(text);
+  return isSolarContext && asksSavingsOrBenefits;
 }
 
 function isServiceTimingQuestion(text: string): boolean {
@@ -316,6 +323,7 @@ function groundedCommercialQuestionReply(
   business: BusinessProfile
 ): string {
   const asksPrice = isDirectPriceQuestion(latestUser);
+  const asksSolarSavingsOrBenefits = isSolarSavingsOrBenefitsQuestion(latestUser, state, business);
   const asksTiming = isServiceTimingQuestion(latestUser) || isProjectDurationQuestion(latestUser);
   const parts: string[] = [];
 
@@ -327,6 +335,9 @@ function groundedCommercialQuestionReply(
         ? priceAnswer
         : `I can’t give an exact total without reviewing the project details. ${priceAnswer}`
     );
+  }
+  if (asksSolarSavingsOrBenefits) {
+    parts.push("Solar can reduce the electricity you buy from the grid, but actual savings depend on your usage, utility rates, roof exposure, and system design. A battery can add backup capability.");
   }
   if (asksTiming) {
     parts.push(

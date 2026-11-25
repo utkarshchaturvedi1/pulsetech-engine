@@ -57,7 +57,9 @@ import {
   PRE_CONTACT_ASK_ADDRESS,
   PRE_CONTACT_ASK_FIRST_NAME,
   PRE_CONTACT_ASK_PHONE,
+  buildTurnControlBlock,
   recordSiteVisitFeeMention,
+  resolveDeterministicPreContactReply,
   resolvePostContactConversationReply,
   updateSalesStateFromTurn,
   validateSalesReply,
@@ -1873,6 +1875,53 @@ function testGenericPreferredTimeLeadCapture() {
   );
 
   console.log("PASS — generic preferred-time capture, sticky Yes handoff, missing-time ask");
+}
+
+function testSolarQuestionBeforeLeadCapture() {
+  const opening = "I want to install solar panels at my home.";
+  const questions = [
+    "How much will it cost and tell me the benefits.",
+    "How much electricity cost will it save.",
+  ];
+
+  for (const question of questions) {
+    const openingState = updateSalesStateFromTurn(
+      createInitialSalesState({
+        conversationId: "conv_solar_answer_first",
+        businessKey: business.website,
+      }),
+      [{ role: "user", content: opening }],
+      business
+    );
+    const namePrompt = buildEmpatheticNameAsk(opening);
+    const followUpMessages = [
+      { role: "user" as const, content: opening },
+      { role: "assistant" as const, content: namePrompt },
+      { role: "user" as const, content: question },
+    ];
+    const followUpState = updateSalesStateFromTurn(
+      openingState,
+      followUpMessages,
+      business
+    );
+
+    assert(
+      followUpState.currentObjective === "ANSWER",
+      `solar question must be answered before lead capture, got ${followUpState.currentObjective} for: ${question}`
+    );
+    assert(
+      resolveDeterministicPreContactReply(followUpState, business, question) === null,
+      `solar question must not receive the deterministic name prompt: ${question}`
+    );
+    assert(
+      buildTurnControlBlock(followUpState, business).includes(
+        "On a direct question, answer it without repeating an unanswered lead-field request from an earlier turn."
+      ),
+      "a substantive follow-up must not repeat a lead-field ask already made earlier"
+    );
+  }
+
+  console.log("PASS — solar cost, benefits, and savings questions are answered before lead capture");
 }
 
 function testHighIntentLeadCaptureOrder() {
@@ -3771,6 +3820,7 @@ async function main() {
   testStickyPrimaryNeedInAlerts();
   testGenericPreferredTimeLeadCapture();
   testHighIntentLeadCaptureOrder();
+  testSolarQuestionBeforeLeadCapture();
   await testDeterministicPreContactChatReplies();
   await testPostContactSalesConversation();
   await testProfileAwareSalesConversationQuality();

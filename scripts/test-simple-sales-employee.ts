@@ -107,7 +107,7 @@ async function main() {
   afterPhoneState.customerNeed = "solar panel installation";
   const ballparkAfterPhone = await generateSimpleSalesReply(business, [
     { role: "assistant", content: "Thanks, UT. What’s the service address?" },
-    { role: "user", content: "Can you give me a ballpark figure and tell me how much electricity cost it will save?" },
+    { role: "user", content: "Can you give me a ballpark figure? How much will electricity costs be reduced?" },
   ], afterPhoneState);
   assert(/exact pricing depends|exact price requires/i.test(ballparkAfterPhone.reply), `a ballpark request after phone capture gets price guidance: ${ballparkAfterPhone.reply}`);
   assert(/actual savings depend/i.test(ballparkAfterPhone.reply), "an electricity savings question after phone capture is answered");

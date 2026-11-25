@@ -172,7 +172,7 @@ function isDirectPriceQuestion(text: string): boolean {
 function isSolarSavingsOrBenefitsQuestion(text: string, state: SalesState, business: BusinessProfile): boolean {
   const businessContext = `${business.businessName} ${business.tagline || ""} ${business.services.join(" ")} ${state.primaryNeed || ""} ${state.customerNeed || ""}`;
   const isSolarContext = /\bsolar\b/i.test(businessContext);
-  const asksSavingsOrBenefits = /\b(sav(?:e|ings|ed)|electricity bill|power bill|benefits?|advantages|reduce.{0,20}(?:bill|electricity|grid)|lower.{0,20}(?:bill|electricity|cost))\b/i.test(text);
+  const asksSavingsOrBenefits = /\b(sav(?:e|ings|ed)|electricity bill|power bill|benefits?|advantages|electricity.{0,25}(?:cost|bill|sav\w*|reduc\w*)|(?:save|reduc\w*).{0,25}(?:electricity|bill|cost)|reduce.{0,20}(?:bill|electricity|grid)|lower.{0,20}(?:bill|electricity|cost))\b/i.test(text);
   return isSolarContext && asksSavingsOrBenefits;
 }
 

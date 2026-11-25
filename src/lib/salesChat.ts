@@ -488,6 +488,14 @@ ${formatBusinessKnowledge(business)}
 `.trim();
 }
 
+export function assistantAskedForName(
+  assistantText: string | null | undefined
+): boolean {
+  return /\\b(?:what(?:['’]s| is) your (?:first )?name|may i (?:have|ask) your name|what should i call you)\\b/i.test(
+    assistantText || ""
+  );
+}
+
 export async function generateSalesReply(
   business: BusinessProfile,
   messages: SalesChatMessage[],
@@ -659,10 +667,9 @@ export async function generateSalesReply(
     };
   }
 
-  const previousAssistantAskedForName =
-    /\b(?:what(?:'s| is) your (?:first )?name|may i (?:have|ask) your name|what should i call you)\b/i.test(
-      previousAssistant?.content || ""
-    );
+  const previousAssistantAskedForName = assistantAskedForName(
+    previousAssistant?.content
+  );
   const answerAfterNameRequest =
     previousAssistantAskedForName &&
     salesState.currentObjective === "ANSWER" &&

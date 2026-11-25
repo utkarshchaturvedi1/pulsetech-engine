@@ -992,19 +992,6 @@ function looksLikeLeadFieldOnlyReply(text: string): boolean {
   return false;
 }
 
-
-function looksLikeLeadFieldOnlyReply(text: string): boolean {
-  const t = text.trim();
-  if (!t) return true;
-  if (extractPhone(t) && t.replace(PHONE_RE, "").trim().length < 8) return true;
-  if (extractEmail(t) && t.replace(EMAIL_RE, "").trim().length < 8) return true;
-  if (ADDRESS_HINT_RE.test(t) && t.split(/\s+/).length <= 12) return true;
-  if (/^[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(t)) {
-    return true;
-  }
-  return false;
-}
-
 function asksSubstantiveQuestionBeforeLeadCapture(text: string): boolean {
   return (
     !looksLikeLeadFieldOnlyReply(text) &&

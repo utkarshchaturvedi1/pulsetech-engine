@@ -1933,6 +1933,12 @@ function testSolarQuestionBeforeLeadCapture() {
       resolveDeterministicPreContactReply(followUpState, business, question) === null,
       `solar question must not receive the deterministic name prompt: ${question}`
     );
+    assert(
+      buildTurnControlBlock(followUpState, business).includes(
+        "On a direct question, answer it without repeating an unanswered lead-field request from an earlier turn."
+      ),
+      "a substantive follow-up must not repeat a lead-field ask already made earlier"
+    );
   }
 
   console.log("PASS — solar cost, benefits, and savings questions are answered before lead capture");

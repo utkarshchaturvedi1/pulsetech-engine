@@ -1084,10 +1084,12 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   const salesObjective = detectSalesObjective(latestUserText);
 
   if (
-    (!salesObjective || salesObjective === "PRESENT_SOLUTION") &&
+    !isLeadContactComplete(state) &&
     asksSubstantiveQuestionBeforeLeadCapture(latestUserText) &&
     !looksLikeLeadFieldOnlyReply(latestUserText)
   ) {
+    // A direct customer question takes priority over a missing lead field,
+    // including price questions that were otherwise classified as objections.
     return "ANSWER";
   }
 

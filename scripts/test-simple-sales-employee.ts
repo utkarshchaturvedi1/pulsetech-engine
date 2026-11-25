@@ -336,6 +336,22 @@ async function main() {
     leadQuestions: [],
     systemPrompt: "",
   };
+  const unpricedPestBusiness = { ...pestBusiness, pricingRules: "" };
+  const pestPriceState = createInitialSalesState({
+    conversationId: "simple-sales-pest-price-without-listing",
+    businessKey: businessIdentityKey(unpricedPestBusiness),
+  });
+  pestPriceState.primaryNeed = "lizard pest removal throughout the house";
+  pestPriceState.customerNeed = pestPriceState.primaryNeed;
+  pestPriceState.lead = { name: "UT", phone: "9898989898", address: "1500 Marilla St, Dallas TX 75201", email: null };
+  pestPriceState.leadDeliveryStatus = "QUEUED";
+  const pestPriceAnswer = await generateSimpleSalesReply(unpricedPestBusiness, [
+    { role: "assistant", content: "Thanks, UT. Your request is with the team, and they’ll contact you as soon as possible." },
+    { role: "user", content: "How much does pest control cost in general?" },
+  ], pestPriceState);
+  assert(/exact pricing depends on what is found on site/i.test(pestPriceAnswer.reply), `an unlisted pest price uses service-job language: ${pestPriceAnswer.reply}`);
+  assert(!/depth of advice|goals|scope of work that follows/i.test(pestPriceAnswer.reply), "a service price question does not receive generic consultation language");
+
   const postHandoffProfiles = [
     { profile: business, need: "solar panel installation", expected: /exact price requires a site-specific design/i },
     { profile: plumbingBusiness, need: "kitchen sink clog", expected: /issue and parts needed/i },
@@ -480,6 +496,14 @@ async function main() {
   assert(/you’re welcome, UT/i.test(thanksAfterHandoff.reply), "a customer's thanks after handoff gets a natural acknowledgement");
   assert(!/your request is with the team/i.test(thanksAfterHandoff.reply), "the completed handoff is not repeated after a simple thanks");
   assert(deliveryCalls.length === beforeConfirmationTurn, "a simple thanks does not trigger a duplicate notification");
+
+  const acknowledgementAfterHandoff = await generateSimpleSalesReply(business, [
+    { role: "assistant", content: "Thanks, UT. Your request is with the team, and they’ll contact you as soon as possible." },
+    { role: "user", content: "ok" },
+  ], state);
+  assert(/understood, UT/i.test(acknowledgementAfterHandoff.reply), "a bare ok after handoff gets a natural acknowledgement");
+  assert(!/your request is with the team/i.test(acknowledgementAfterHandoff.reply), "a bare ok does not repeat the completed handoff");
+  assert(deliveryCalls.length === beforeConfirmationTurn, "a bare ok does not trigger a duplicate notification");
 
   setSimpleSalesTestModel(null);
   setLeadHandoffTestDelivery(null);

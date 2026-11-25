@@ -181,6 +181,10 @@ function isSimpleThanks(text: string): boolean {
   return /^(?:(?:ok|okay|all right|alright)[,\s]+)?(?:thanks|thank you|got it)(?:[,\s]+(?:thanks|thank you))?[.!\s]*$/i.test(text.trim());
 }
 
+function isSimpleAcknowledgement(text: string): boolean {
+  return /^(?:ok|okay|got it|understood|all right|alright|sounds good|no problem)[.!\s]*$/i.test(text.trim());
+}
+
 function isAssistantIdentityQuestion(text: string): boolean {
   return /\b(?:what(?:'s| is) your name|your name\s*\?|who are you|what are you called|which company are you with)/i.test(text);
 }
@@ -395,6 +399,9 @@ export async function generateSimpleSalesReply(
   if (handoffIsReady && isSimpleThanks(latestUser)) {
     const name = customerNameForReply(state.lead.name);
     reply = `You’re welcome${name ? `, ${name}` : ""}. Feel free to ask if anything else comes up.`;
+  } else if (handoffIsReady && isSimpleAcknowledgement(latestUser)) {
+    const name = customerNameForReply(state.lead.name);
+    reply = `Understood${name ? `, ${name}` : ""}. Let me know if anything else comes up.`;
   } else if (handoffIsReady && (!hasQuestion(latestUser) || isSimpleAffirmation(latestUser))) {
     reply = `${thanksOpening(state)} Your request is with the team, and they’ll contact you as soon as possible.`;
   } else if (isAssistantIdentityQuestion(latestUser)) {

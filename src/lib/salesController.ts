@@ -776,6 +776,9 @@ export function resolveDeterministicPreContactReply(
     state.leadStatus === "SECURING";
   if (!highIntent || isLeadContactComplete(state)) return null;
 
+  // Let direct customer questions reach the answer objective before form capture.
+  if (asksSubstantiveQuestionBeforeLeadCapture(latestUserMessage || "")) return null;
+
   const missing = missingLeadFields(state);
   const field = missing[0];
   if (field !== "name" && field !== "phone" && field !== "address") {
@@ -990,6 +993,27 @@ function looksLikeLeadFieldOnlyReply(text: string): boolean {
 }
 
 
+function looksLikeLeadFieldOnlyReply(text: string): boolean {
+  const t = text.trim();
+  if (!t) return true;
+  if (extractPhone(t) && t.replace(PHONE_RE, "").trim().length < 8) return true;
+  if (extractEmail(t) && t.replace(EMAIL_RE, "").trim().length < 8) return true;
+  if (ADDRESS_HINT_RE.test(t) && t.split(/\s+/).length <= 12) return true;
+  if (/^[A-Za-z][A-Za-z.'-]{1,40}(?:\s+[A-Za-z][A-Za-z.'-]{1,40})?$/.test(t)) {
+    return true;
+  }
+  return false;
+}
+
+function asksSubstantiveQuestionBeforeLeadCapture(text: string): boolean {
+  return (
+    !looksLikeLeadFieldOnlyReply(text) &&
+    isSubstantiveSalesFollowUp(text) &&
+    (/\?/.test(text) ||
+      /\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can (?:you|they|it)|tell me|is there|are there)\b/i.test(text))
+  );
+}
+
 function selectObjective(state: SalesState, latestUserText: string): SalesObjective {
   // After lead capture / handoff attempt, answer new questions — do not reopen lead capture.
   if (
@@ -1046,6 +1070,14 @@ function selectObjective(state: SalesState, latestUserText: string): SalesObject
   }
 
   const salesObjective = detectSalesObjective(latestUserText);
+
+  if (
+    !isLeadContactComplete(state) &&
+    asksSubstantiveQuestionBeforeLeadCapture(latestUserText)
+  ) {
+    // Direct questions, including pricing questions, take priority over missing lead fields.
+    return "ANSWER";
+  }
 
   // Lead refusal / price-gated: preserve opportunity over form capture.
   if (state.leadCapturePaused && state.leadStatus !== "SECURED") {
@@ -1662,6 +1694,7 @@ Match emotion to the situation: empathy for problems, enthusiasm for projects, e
 Do not diagnose dangerous or technical conditions as established fact.
 Do not invent prices, availability, bookings, or unsupported business claims.
 Answer FIRST. After a useful answer, you may naturally advance the sale (including asking whether to arrange the next step) — but do not replace the answer with a generic consultation template.
+On a direct question, answer it without repeating an unanswered lead-field request from an earlier turn. Resume lead capture on a later turn.
 Do not force lead capture. Keep it concise — no huge brochure.`;
     case "PRESENT_SOLUTION":
       return `YOUR ONLY OBJECTIVE: connect THIS customer's established need to the single most relevant BusinessProfile-supported solution.

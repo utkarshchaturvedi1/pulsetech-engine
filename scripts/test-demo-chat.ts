@@ -47,7 +47,7 @@ import {
   shouldCollectLeadAlertSetup,
 } from "../src/lib/leadAlertRecipients";
 import { maybeSendLeadHandoff } from "../src/lib/leadHandoff";
-import { generateSalesReply } from "../src/lib/salesChat";
+import { assistantAskedForName, generateSalesReply } from "../src/lib/salesChat";
 import {
   commitSharedProfile,
   loadSharedProfile,
@@ -1898,6 +1898,14 @@ function testGenericPreferredTimeLeadCapture() {
 }
 
 function testSolarQuestionBeforeLeadCapture() {
+  assert(
+    assistantAskedForName("What’s your name so I can get you started?"),
+    "curly-apostrophe name prompts must be detected across turns"
+  );
+  assert(
+    assistantAskedForName("What's your name?"),
+    "straight-apostrophe name prompts must be detected across turns"
+  );
   const opening = "I want to install solar panels at my home.";
   const questions = [
     "How much will it cost and tell me the benefits.",
@@ -1938,6 +1946,12 @@ function testSolarQuestionBeforeLeadCapture() {
         "On a direct question, answer it without repeating an unanswered lead-field request from an earlier turn."
       ),
       "a substantive follow-up must not repeat a lead-field ask already made earlier"
+    );
+    assert(
+      buildTurnControlBlock(followUpState, business).includes(
+        "If one message asks multiple things, answer each part briefly instead of answering only the first."
+      ),
+      "a compound customer question must be answered in full"
     );
   }
 

@@ -69,7 +69,7 @@ export function isFieldServiceProfile(business: BusinessProfile): boolean {
       capabilityBlob
     );
   if (consultOnly) return false;
-  return /\b(technician|on[- ]site|service visit|house call|service call|field service|come out|dispatch|repair|fix|install|replacement|inspect(?:ion)?|clearing)\b/.test(
+  return /\b(technician|on[- ]site|service visit|house call|service call|field service|come out|dispatch|repair|fix|install|replacement|inspect(?:ion)?|clearing|control|treat(?:ment)?|clean(?:ing)?|maintenance)\b/.test(
     capabilityBlob
   );
 }

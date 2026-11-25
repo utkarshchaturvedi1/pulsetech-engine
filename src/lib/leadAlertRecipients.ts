@@ -49,6 +49,20 @@ export function normalizeLeadAlertSms(
   return e164;
 }
 
+/** Parse a bare contact value as an owner's direct alert-recipient correction. */
+export function parseStandaloneLeadAlertUpdate(
+  value: string
+): { email: string } | { sms: string } | null {
+  const candidate = value.trim();
+  if (!candidate) return null;
+  if (isValidLeadAlertEmail(candidate) && !/\s/.test(candidate)) {
+    return { email: candidate.toLowerCase() };
+  }
+  if (!/^\+?[0-9][0-9\s().-]{6,}[0-9]$/.test(candidate)) return null;
+  const sms = normalizeLeadAlertSms(candidate);
+  return sms ? { sms } : null;
+}
+
 export function isPlaceholderLeadAlertSms(value: string | null | undefined): boolean {
   const normalized = normalizeLeadAlertSms(value);
   if (!normalized) return false;

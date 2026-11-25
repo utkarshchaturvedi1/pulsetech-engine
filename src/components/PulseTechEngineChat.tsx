@@ -14,6 +14,7 @@ import {
   LEAD_ALERT_EMAIL_PROMPT,
   LEAD_ALERT_SMS_PROMPT,
   normalizeLeadAlertSms,
+  parseStandaloneLeadAlertUpdate,
   shouldCollectLeadAlertSetup,
 } from "../lib/leadAlertRecipients";
 import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
@@ -403,42 +404,15 @@ You can reply "retry" to try analyzing again.`
 
     // A bare email address or phone number in setup mode is a correction to
     // the lead-alert destination, not a new business instruction for the AI.
+    const directRecipientUpdate = parseStandaloneLeadAlertUpdate(text);
     const directEmail =
-      isValidLeadAlertEmail(text) && !/\s/.test(text)
-        ? text.trim().toLowerCase()
+      directRecipientUpdate && "email" in directRecipientUpdate
+        ? directRecipientUpdate.email
         : "";
-    const isBarePhone = /^\+?[0-9][0-9\s().-]{6,}[0-9]$/.test(text);
-    const directSms = isBarePhone ? normalizeLeadAlertSms(text) : null;
-
-    if (phase === "ready" && (directEmail || directSms)) {
-      const current = businessRef.current;
-      if (!current) {
-        return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";
-      }
-      const email = directEmail || current.leadNotificationEmail?.trim() || "";
-      const sms = directSms || normalizeLeadAlertSms(current.leadNotificationPhone);
-      if (!isValidLeadAlertEmail(email)) {
-        setPhase("collecting_email");
-        return LEAD_ALERT_EMAIL_PROMPT;
-      }
-      if (!sms) {
-        setPhase("collecting_sms");
-        return LEAD_ALERT_SMS_PROMPT;
-      }
-      try {
-        const saved = await persistProfile({
-          ...current,
-          leadNotificationEmail: email,
-          leadNotificationPhone: sms,
-        });
-        return formatLeadAlertsConfigured(
-          saved.leadNotificationEmail || email,
-          saved.leadNotificationPhone || sms
-        );
-      } catch {
-        return "I couldn't save those lead-alert details. Please try the email and mobile number again.";
-      }
-    }
+    const directSms =
+      directRecipientUpdate && "sms" in directRecipientUpdate
+        ? directRecipientUpdate.sms
+        : null;
 
     if (!businessRef.current) {
       return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";

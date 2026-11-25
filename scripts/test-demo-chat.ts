@@ -43,6 +43,7 @@ import {
   LEAD_ALERT_SMS_PROMPT,
   LEAD_ALERT_SETUP_NEEDED_ERROR,
   normalizeLeadAlertSms,
+  parseStandaloneLeadAlertUpdate,
   resolveWebsiteChatLeadAlert,
   shouldCollectLeadAlertSetup,
 } from "../src/lib/leadAlertRecipients";
@@ -1124,6 +1125,19 @@ async function withMockSupabase(
 }
 
 async function testPerBusinessLeadAlerts() {
+  assert(
+    JSON.stringify(parseStandaloneLeadAlertUpdate("+919873599994")) === JSON.stringify({ sms: "+919873599994" }),
+    "a bare international phone number must be parsed as a lead-alert destination correction"
+  );
+  assert(
+    JSON.stringify(parseStandaloneLeadAlertUpdate("pulsetechlabs1@gmail.com")) === JSON.stringify({ email: "pulsetechlabs1@gmail.com" }),
+    "a bare business email must be parsed as a lead-alert destination correction"
+  );
+  assert(
+    parseStandaloneLeadAlertUpdate("Please use +919873599994 for new lead alerts") === null,
+    "a normal owner instruction must continue through the business-instruction updater"
+  );
+
   assert(isValidLeadAlertEmail("owner@smilepest.test"), "valid email accepted");
   assert(isPlaceholderLeadAlertEmail("alerts-test@example.com"), "reserved example email is identified as a placeholder");
   assert(isPlaceholderLeadAlertSms("+12145550189"), "fictional 555-01xx phone is identified as a placeholder");
@@ -1954,6 +1968,44 @@ function testSolarQuestionBeforeLeadCapture() {
       "a compound customer question must be answered in full"
     );
   }
+
+  const priceAfterPhone = "How much will it cost?";
+  const phoneFollowUpMessages = [
+    { role: "user" as const, content: opening },
+    { role: "assistant" as const, content: buildEmpatheticNameAsk(opening) },
+    { role: "user" as const, content: "UT" },
+    { role: "assistant" as const, content: "Thanks, UT. What's the best phone number for the team to reach you?" },
+    { role: "user" as const, content: "9898989898" },
+    { role: "assistant" as const, content: "Thanks, UT. What's the service address?" },
+    { role: "user" as const, content: priceAfterPhone },
+  ];
+  let priceAfterPhoneState = createInitialSalesState({
+    conversationId: "conv_solar_price_after_phone",
+    businessKey: business.website,
+  });
+  const phoneFollowUpHistory: typeof phoneFollowUpMessages = [];
+  for (const turn of phoneFollowUpMessages) {
+    phoneFollowUpHistory.push(turn);
+    if (turn.role === "user") {
+      priceAfterPhoneState = updateSalesStateFromTurn(
+        priceAfterPhoneState,
+        phoneFollowUpHistory,
+        business
+      );
+    }
+  }
+  assert(
+    priceAfterPhoneState.lead.phone === "9898989898",
+    "a phone number provided before a price question must remain captured"
+  );
+  assert(
+    priceAfterPhoneState.currentObjective === "ANSWER",
+    "a price question after phone capture must be answered before asking for the address again"
+  );
+  assert(
+    resolveDeterministicPreContactReply(priceAfterPhoneState, business, priceAfterPhone) === null,
+    "a price follow-up after phone capture must not repeat the phone request"
+  );
 
   console.log("PASS — solar cost, benefits, and savings questions are answered before lead capture");
 }

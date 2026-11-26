@@ -3902,6 +3902,7 @@ function testCrossBusinessBallparkFollowUp() {
   const verticals = [
     {
       key: "plumbing",
+      tone: "PROBLEM",
       profile: {
         ...business,
         website: "https://cross-test-plumbing.test",
@@ -3914,6 +3915,7 @@ function testCrossBusinessBallparkFollowUp() {
     },
     {
       key: "hvac",
+      tone: "PROBLEM",
       profile: {
         ...business,
         website: "https://cross-test-hvac.test",
@@ -3926,6 +3928,7 @@ function testCrossBusinessBallparkFollowUp() {
     },
     {
       key: "roofing",
+      tone: "PROBLEM",
       profile: {
         ...business,
         website: "https://cross-test-roofing.test",
@@ -3938,6 +3941,7 @@ function testCrossBusinessBallparkFollowUp() {
     },
     {
       key: "pest-control",
+      tone: "PROBLEM",
       profile: {
         ...business,
         website: "https://cross-test-pest.test",
@@ -3950,6 +3954,7 @@ function testCrossBusinessBallparkFollowUp() {
     },
     {
       key: "electrical",
+      tone: "ASPIRATIONAL",
       profile: {
         ...business,
         website: "https://cross-test-electrical.test",
@@ -3962,6 +3967,7 @@ function testCrossBusinessBallparkFollowUp() {
     },
     {
       key: "landscaping",
+      tone: "ASPIRATIONAL",
       profile: {
         ...business,
         website: "https://cross-test-landscaping.test",
@@ -3974,6 +3980,7 @@ function testCrossBusinessBallparkFollowUp() {
     },
     {
       key: "solar",
+      tone: "ASPIRATIONAL",
       profile: solarBusiness,
       opening: "I want solar panels installed on my home.",
       driver: /design choices, materials, site conditions, and project scope/i,
@@ -3987,6 +3994,11 @@ function testCrossBusinessBallparkFollowUp() {
   ];
 
   for (const vertical of verticals) {
+    assert(
+      classifyConversationNeedTone(vertical.opening, vertical.profile) ===
+        vertical.tone,
+      vertical.key + ": opening need must use the shared " + vertical.tone + " classifier"
+    );
     for (let index = 0; index < ballparkFollowUps.length; index++) {
       const question = ballparkFollowUps[index];
       const conversationId =

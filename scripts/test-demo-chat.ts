@@ -4049,9 +4049,12 @@ function testCrossBusinessBallparkFollowUp() {
           ": answer must use relevant profile/tone price drivers, got: " +
           answer
       );
+      const quotedAmounts = answer.match(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g) || [];
+      const verifiedAmounts =
+        String(vertical.profile.pricingRules || "").match(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g) || [];
       assert(
-        !/\$\s?\d/.test(answer),
-        vertical.key + ": no unverified amount may be invented, got: " + answer
+        quotedAmounts.every((amount) => verifiedAmounts.includes(amount)),
+        vertical.key + ": answer may use only amounts present in the profile's verified pricing rules, got: " + answer
       );
       assert(
         !/your goals, the depth of advice/i.test(answer),

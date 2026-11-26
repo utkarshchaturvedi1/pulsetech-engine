@@ -103,7 +103,7 @@ export function isQueuedLeadHandoffCustomerMessage(reply: string): boolean {
 export function messageAsksPricingOrBilling(text: string): boolean {
   const t = text.toLowerCase();
   return (
-    /\b(how (do|does|are) (you|y'?all|the (company|team|business)) charge|how (is|are) (pricing|billing|charges?)|hourly or|fixed (price|rate|fee)|project (price|rate|pricing)|full work|for the (full )?job|billing|how much|what(?:'s| is) the (price|cost|charge|fee)|pricing|diagnostic fee|is there a fee|too expensive|cost too much)\b/i.test(
+    /\b(how (do|does|are) (you|y'?all|the (company|team|business)) charge|how (is|are) (pricing|billing|charges?)|hourly or|fixed (price|rate|fee)|project (price|rate|pricing)|full work|for the (full )?job|billing|how much|what(?:'s| is) the (price|cost|charge|fee)|pricing|diagnostic fee|is there a fee|too expensive|cost too much|ballpark|rough (price|cost|estimate)|approximate (price|cost|estimate)|price estimate|cost estimate)\b/i.test(
       t
     ) || /\b(hourly|per hour|flat (rate|fee)|lump sum)\b/i.test(t)
   );

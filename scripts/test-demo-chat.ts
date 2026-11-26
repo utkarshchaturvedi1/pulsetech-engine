@@ -1921,6 +1921,42 @@ function testSolarQuestionBeforeLeadCapture() {
     /design choices, materials, site conditions, and project scope/i.test(installationPrice),
     "solar installation pricing follow-up uses project-specific price drivers"
   );
+  const ballparkQuestion = "Can you give me a ballpark figure?";
+  assert(
+    messageAsksPricingOrBilling(ballparkQuestion),
+    "a ballpark figure request is classified as a price question"
+  );
+  const solarOpeningState = updateSalesStateFromTurn(
+    createInitialSalesState({
+      conversationId: "conv_solar_ballpark_followup",
+      businessKey: solarBusiness.website,
+    }),
+    [{ role: "user", content: "I want to install solar panels at my home." }],
+    solarBusiness
+  );
+  const ballparkState = updateSalesStateFromTurn(
+    solarOpeningState,
+    [
+      { role: "user", content: "I want to install solar panels at my home." },
+      { role: "assistant", content: "Exact pricing depends on the roof and system size. Would you like to arrange a consultation?" },
+      { role: "user", content: ballparkQuestion },
+    ],
+    solarBusiness
+  );
+  assert(
+    ballparkState.currentObjective === "ANSWER",
+    `direct ballpark question must be answered before lead capture resumes, got ${ballparkState.currentObjective}`
+  );
+  const ballparkPrice = buildIntentAwarePriceAnswer(
+    ballparkState,
+    solarBusiness,
+    ballparkQuestion
+  );
+  assert(
+    /design choices, materials, site conditions, and project scope/i.test(ballparkPrice) &&
+      !/your goals, the depth of advice/i.test(ballparkPrice),
+    "ballpark follow-up uses solar project price drivers instead of generic consultation copy"
+  );
   const opening = "I want to install solar panels at my home.";
   const questions = [
     "How much will it cost and tell me the benefits.",

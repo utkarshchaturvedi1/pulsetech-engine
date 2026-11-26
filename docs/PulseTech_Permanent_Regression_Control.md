@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 9080)
+Total output lines: 319
+
 # PulseTech Permanent Regression Control
 
 ## 1 October 2026 — explicit business phone requests
@@ -198,11 +201,7 @@ Controller already **selects** `COLLECT_NAME` → phone → address on HIGH / RE
 - Phone and address turns repeated “Thanks, {name}” mechanically.
 - After name + customer phone + service address, the AI jumped to preferred day/time instead of a helpful, profile-aware next-step explanation.
 - Price answers used “I don’t have a verified price to quote from here” and treated price as a reason to force a time question.
-- A preferred time without prior agreement could still be treated as a completed-handoff claim.
-
-**Map:** primarily **B** (lead capture must stay human after the three contact fields) and **C** (no recorded/shared/team-contact wording before a queued handoff). Preserve A, D, E, F, G, H. Do not hardcode plumbing or any one vertical as product behavior.
-
-**Coverage:** `scripts/test-demo-chat.ts` `testProfileAwareSalesConversationQuality` plus existing high-intent / post-contact / pre-queue tests. Representative plumbing, HVAC, electrical, roofing, and consultation-style profiles. Do not weaken earlier HVAC discovery, phone, or capture-order assertions.
+- A preferred time without prior agree…80 tokens truncated…Coverage:** `scripts/test-demo-chat.ts` `testProfileAwareSalesConversationQuality` plus existing high-intent / post-contact / pre-queue tests. Representative plumbing, HVAC, electrical, roofing, and consultation-style profiles. Do not weaken earlier HVAC discovery, phone, or capture-order assertions.
 
 ---
 
@@ -286,6 +285,7 @@ This is the current incident record and prevention checklist. Add each newly con
 |---|---|---|
 | Customer gave solar cost/benefit/savings questions after the bot had asked for a name; some turns repeated the name prompt or answered only part of a compound question. | The answer-first controller must treat a substantive question as the current objective and answer each part before resuming lead capture. The tested staging flow now does this. | `testSolarQuestionBeforeLeadCapture` asserts both cost/benefit and savings phrasing remain `ANSWER` and do not fall back to the deterministic name prompt. Keep the compound-answer prompt constraint. |
 | “Solar installation” received generic consultation price drivers. | The broad aspirational-intent matcher recognized “install” but not “installation.” Add the general word-form variant; do not special-case solar. | Regression asserts `classifyConversationNeedTone("solar installation")` is ASPIRATIONAL and price scope names design, materials, site conditions, and project scope. |
+| “Can you give me a ballpark figure?” after the first solar answer received a generic consultation invitation. | `messageAsksPricingOrBilling` did not recognize “ballpark,” so the deterministic price scope guard did not run on that follow-up. Add the general price-intent terms “ballpark,” “rough/approximate price, cost, estimate,” and “price/cost estimate”; preserve the sticky project need. | Solar regression asserts the exact ballpark wording maps to `HANDLE_PRICE_OBJECTION` and returns project-specific cost drivers, not generic consultation copy. |
 | An owner’s number entered to correct lead-alert SMS could be treated as a free-form Peter instruction, resulting in “I couldn't update the Sales Employee just now.” | Parse a standalone valid email or phone as a destination update before submitting free-form instructions. Keep natural-language instructions on the owner-instruction path. | Unit regression covers bare international phone, bare email, and a sentence containing a number; only standalone values are parsed as recipient corrections. Profile persistence and per-business routing tests remain required. |
 | Lead-alert setup displayed an internal SMS destination the owner did not provide, or both alerts could fail when destinations were placeholders/unconfigured. | Never treat example/fallback destinations as a business’s saved recipients. Require valid business email and internal phone; persist and reload the owner’s values before confirming setup. | `testPerBusinessLeadAlerts` checks recipient validation, persistence, reload, tenant isolation, and routing. Live alert success may only be claimed after provider logs confirm each channel. |
 | Customer was told the request had been sent although alert delivery failed (or delivery could not be verified). | Distinguish queued, sent, and failed delivery; preserve the lead and report truthfully. Provider outages cannot be fixed by pretending success. | Handoff tests assert customer copy matches delivery state, idempotency, and no duplicate alerts. Operational verification checks SMTP/Twilio logs and never logs lead PII. |

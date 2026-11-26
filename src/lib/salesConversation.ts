@@ -26,7 +26,7 @@ const CELEBRATION_NEED_RE =
   /\b(celebrat(?:e|ion|ing)?|event|party|ceremony|occasion|reception|venue)\b/i;
 
 const ASPIRATIONAL_NEED_RE =
-  /\b(project|improv(?:e|ement)|install|build|design|upgrade|renovat(?:e|ion)|remodel|create|add (?:a|an|the)|looking to (?:install|build|add|upgrade)|want to (?:install|build|add|upgrade))\b/i;
+  /\b(project|improv(?:e|ement)|install(?:ation)?|build|design|upgrade|renovat(?:e|ion)|remodel|create|add (?:a|an|the)|looking to (?:install|build|add|upgrade)|want to (?:install|build|add|upgrade))\b/i;
 
 const CONSULTATION_NEED_RE =
   /\b(consult(?:ation|ing)?|advice|advisor|advisory|strategy|quote|information|guidance|coaching|planning|how (?:do|can) (?:we|i) improve)\b/i;

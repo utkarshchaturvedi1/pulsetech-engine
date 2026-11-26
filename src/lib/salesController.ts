@@ -993,11 +993,21 @@ function looksLikeLeadFieldOnlyReply(text: string): boolean {
 }
 
 function asksSubstantiveQuestionBeforeLeadCapture(text: string): boolean {
+  const trimmed = text.trim();
+  // A request for help after stating a clear service need is not an informational
+  // question; keep the lead-first capture path instead of restarting the form later.
+  if (/\b(?:can|could|would) you help(?: me)?(?: with that)?[?.!]*$/i.test(trimmed)) {
+    return false;
+  }
+  // If a service problem and an explicit request for the business number share
+  // one turn, answer the number request while still collecting the customer lead.
+  if (visitorRequestsBusinessPhone(trimmed) && CONCRETE_PROBLEM_RE.test(trimmed)) {
+    return false;
+  }
   return (
     !looksLikeLeadFieldOnlyReply(text) &&
     isSubstantiveSalesFollowUp(text) &&
-    (/\?/.test(text) ||
-      /\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can (?:you|they|it)|tell me|is there|are there)\b/i.test(text))
+    /\b(what|how|why|which|who|where|when|do you|does (?:it|the)|can (?:you|they|it)|tell me|is there|are there)\b/i.test(text)
   );
 }
 

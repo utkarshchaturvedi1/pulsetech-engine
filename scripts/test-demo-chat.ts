@@ -41,6 +41,7 @@ import {
   LEAD_ALERT_SMS_PROMPT,
   LEAD_ALERT_SETUP_NEEDED_ERROR,
   normalizeLeadAlertSms,
+  parseStandaloneLeadAlertUpdate,
   resolveWebsiteChatLeadAlert,
   shouldCollectLeadAlertSetup,
 } from "../src/lib/leadAlertRecipients";
@@ -1127,6 +1128,20 @@ async function testPerBusinessLeadAlerts() {
   assert(normalizeLeadAlertSms("2145550189") === "+12145550189", "US 10-digit normalizes");
   assert(normalizeLeadAlertSms("+12145550189") === "+12145550189", "E.164 accepted");
   assert(normalizeLeadAlertSms("555") === null, "short number rejected");
+  assert(
+    JSON.stringify(parseStandaloneLeadAlertUpdate("+919873599994")) ===
+      JSON.stringify({ sms: "+919873599994" }),
+    "a standalone international phone number is parsed as an SMS destination correction"
+  );
+  assert(
+    JSON.stringify(parseStandaloneLeadAlertUpdate("pulsetechlabs1@gmail.com")) ===
+      JSON.stringify({ email: "pulsetechlabs1@gmail.com" }),
+    "a standalone email is parsed as an alert destination correction"
+  );
+  assert(
+    parseStandaloneLeadAlertUpdate("Please use +919873599994 for new lead alerts") === null,
+    "natural-language instructions are not mistaken for a standalone destination"
+  );
 
   const engine = readSrc("src/components/PulseTechEngineChat.tsx");
   const copy = readSrc("src/lib/leadAlertRecipients.ts");
@@ -1885,6 +1900,26 @@ function testSolarQuestionBeforeLeadCapture() {
   assert(
     assistantAskedForName("What's your name?"),
     "straight-apostrophe name prompts must be detected across turns"
+  );
+  assert(
+    classifyConversationNeedTone("solar installation", solarBusiness) === "ASPIRATIONAL",
+    "the generic project-intent classifier recognizes the noun form installation"
+  );
+  const solarInstallationState = {
+    ...createInitialSalesState({
+      conversationId: "conv_solar_installation_price",
+      businessKey: solarBusiness.website,
+    }),
+    primaryNeed: "solar installation",
+  };
+  const installationPrice = buildIntentAwarePriceAnswer(
+    solarInstallationState,
+    solarBusiness,
+    "Can you give me a ballpark figure?"
+  );
+  assert(
+    /design choices, materials, site conditions, and project scope/i.test(installationPrice),
+    "solar installation pricing follow-up uses project-specific price drivers"
   );
   const opening = "I want to install solar panels at my home.";
   const questions = [

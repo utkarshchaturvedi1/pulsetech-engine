@@ -12,6 +12,7 @@ import {
   LEAD_ALERT_EMAIL_PROMPT,
   LEAD_ALERT_SMS_PROMPT,
   normalizeLeadAlertSms,
+  parseStandaloneLeadAlertUpdate,
   shouldCollectLeadAlertSetup,
 } from "../lib/leadAlertRecipients";
 import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
@@ -339,14 +340,15 @@ You can reply "retry" to try analyzing again.`
 
     // A bare email address or phone number in setup mode is a correction to
     // the lead-alert destination, not a new business instruction for the AI.
-    const directEmail =
-      isValidLeadAlertEmail(text) && !/\s/.test(text)
-        ? text.trim().toLowerCase()
-        : "";
-    const isBarePhone = /^\+?[0-9][0-9\s().-]{6,}[0-9]$/.test(text);
-    const directSms = isBarePhone ? normalizeLeadAlertSms(text) : null;
+    const destinationUpdate = parseStandaloneLeadAlertUpdate(text);
+    const directEmail = destinationUpdate && "email" in destinationUpdate
+      ? destinationUpdate.email
+      : "";
+    const directSms = destinationUpdate && "sms" in destinationUpdate
+      ? destinationUpdate.sms
+      : null;
 
-    if (phase === "ready" && (directEmail || directSms)) {
+    if (phase === "ready" && destinationUpdate) {
       const current = businessRef.current;
       if (!current) {
         return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";

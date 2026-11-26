@@ -277,3 +277,42 @@ When fixing one failure, preserve every other category:
 - Semantic checking must recognize the pending part of a required instruction. Deterministic explicit answers survive checker rejection or outage.
 - Owner-requested classification selects exact existing question strings and preserves discovery questions and other website facts. Unknown questions are rejected.
 - Independent check: all six required suites and production build passed. Exact saved Dallas Plumbing profile replayed locally after reviewed configuration migration, with contact order and fee waiver preserved. Live verification is still required before calling production repaired.
+
+## 26 November 2026 — recurring lead-capture and release failures
+
+This is the current incident record and prevention checklist. Add each newly confirmed failure here with its observed behavior, root cause, code or operational correction, and a regression that fails before the fix. Do not label an incident resolved based only on a code review: record the test command or live evidence that verifies it.
+
+| Observed failure | Root cause / correction | Prevention guard |
+|---|---|---|
+| Customer gave solar cost/benefit/savings questions after the bot had asked for a name; some turns repeated the name prompt or answered only part of a compound question. | The answer-first controller must treat a substantive question as the current objective and answer each part before resuming lead capture. The tested staging flow now does this. | `testSolarQuestionBeforeLeadCapture` asserts both cost/benefit and savings phrasing remain `ANSWER` and do not fall back to the deterministic name prompt. Keep the compound-answer prompt constraint. |
+| “Solar installation” received generic consultation price drivers. | The broad aspirational-intent matcher recognized “install” but not “installation.” Add the general word-form variant; do not special-case solar. | Regression asserts `classifyConversationNeedTone("solar installation")` is ASPIRATIONAL and price scope names design, materials, site conditions, and project scope. |
+| An owner’s number entered to correct lead-alert SMS could be treated as a free-form Peter instruction, resulting in “I couldn't update the Sales Employee just now.” | Parse a standalone valid email or phone as a destination update before submitting free-form instructions. Keep natural-language instructions on the owner-instruction path. | Unit regression covers bare international phone, bare email, and a sentence containing a number; only standalone values are parsed as recipient corrections. Profile persistence and per-business routing tests remain required. |
+| Lead-alert setup displayed an internal SMS destination the owner did not provide, or both alerts could fail when destinations were placeholders/unconfigured. | Never treat example/fallback destinations as a business’s saved recipients. Require valid business email and internal phone; persist and reload the owner’s values before confirming setup. | `testPerBusinessLeadAlerts` checks recipient validation, persistence, reload, tenant isolation, and routing. Live alert success may only be claimed after provider logs confirm each channel. |
+| Customer was told the request had been sent although alert delivery failed (or delivery could not be verified). | Distinguish queued, sent, and failed delivery; preserve the lead and report truthfully. Provider outages cannot be fixed by pretending success. | Handoff tests assert customer copy matches delivery state, idempotency, and no duplicate alerts. Operational verification checks SMTP/Twilio logs and never logs lead PII. |
+| Staging, preview, and production were assumed to be the same despite different branch aliases and environment variables. | Verify the deployment’s source commit, branch, alias, and required variable names/scopes before testing or release. Keep Production-only secrets scoped to Production unless the owner explicitly authorizes expansion. | Release checklist records commit and deployment IDs for each environment; smoke tests are run against the actual assigned alias. A preview result is not presented as production evidence. |
+| Vercel project inspection returned 403 while using a team slug where an internal team ID was required. | Resolve the account/team identifier from Vercel’s team/project listing and use the expected identifier for that endpoint. | Retry after reading project/team metadata; do not interpret a 403 as an application failure or guess at the team. |
+| A blank page or “couldn’t load” preview was mistaken for an application regression. | Confirm deployment status and runtime/build logs before attributing a browser load failure to chat code. | Record the deployment’s READY/ERROR state and check build/runtime logs before changing product code. |
+
+### Self-healing and safe failure policy
+
+- Known input-shape failures should resolve deterministically: validate an email or E.164/normalizable number, keep invalid values in the correct setup step, and recognize standalone recipient corrections before routing owner feedback.
+- Known response-generation failures should use the existing validated fallback once; never repeat a lead question when the user asked a substantive question, and never drop already captured lead fields.
+- Provider delivery failures must preserve the lead, avoid duplicate sends, and show a truthful failure message. Retry only when the delivery path is idempotent and the retry is bounded. Do not invent recipients or claim delivery.
+- A saved-profile write failure must not report success. Keep the current conversation state and offer a clear retry path; refresh/reload verification is required for persistence claims.
+- Unknown failures cannot be guaranteed to self-correct. Capture a privacy-safe diagnostic, identify the failing layer, and prevent promotion until the regression is understood. Never log names, phone numbers, addresses, alert-recipient values, or secrets.
+
+### Release gate for this incident family
+
+Before promoting a chat/lead change, run all of the following from the candidate commit and retain the result with the deployment record:
+
+```text
+npm run test:demo-chat
+npm run test:handoff-timing
+npm run test:owner-pricing-regression
+npm run test:owner-profile-update
+npm run test:inbound-voice
+npm run test:voice-demo
+npm run build
+```
+
+Also run repository account/billing suites when the change touches those areas. Verify the exact chat scenarios recorded above, owner-provided alert email and SMS (including correction), per-business routing, failed delivery copy, phone/address collection order, and that answer-first follow-ups do not ask for name/phone/address twice. Do not send test calls/SMS to customer contacts. Confirm public UI changes are intentional and preserve the currently deployed production presentation. The checklist is a regression control, not a promise that software can fix every novel defect without investigation.

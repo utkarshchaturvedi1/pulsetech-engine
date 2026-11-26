@@ -1,0 +1,42 @@
+name: PulseTech regression gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - codex/fix-answer-first-lead-capture
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pulsetech-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:demo-chat
+      - run: npm run test:handoff-timing
+      - run: npm run test:owner-pricing-regression
+      - run: npm run test:owner-profile-update
+      - run: npm run test:inbound-voice
+      - run: npm run test:voice-demo
+      - run: npm run test:client-account-regression
+      - run: npm run test:auth-callback
+      - run: npm run test:profile-access
+      - run: npm run test:paddle-sandbox-webhook
+      - run: npm run test:dodo-billing
+      - run: npm run test:client-billing
+      - run: npm run test:client-billing-sql
+      - run: npm run build

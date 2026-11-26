@@ -27,7 +27,7 @@ import {
 import { SalesState } from "./salesState";
 import { assistantPromptedOwnerQuestion, explicitOwnerAnswer, ownerQuestionClarification, ownerQuestionReply, ownerRequiredQuestions, ownerQuestionParts, replyNeedsOwnerClarification } from "./ownerQuestions";
 import { asksVisitPrice, scopedPricing, feeOnlyPriceReply } from "./pricingScope";
-import { buildIntentAwarePriceAnswer, buildPostContactPriceReply, buildPostContactNextStepReply } from "./salesConversation";
+import { buildIntentAwarePriceAnswer, buildPostContactPriceReply, buildPostContactNextStepReply, normalizePreContactPriceReply } from "./salesConversation";
 import { messageAsksPricingOrBilling } from "./schedulingPolicy";
 
 export function assistantAskedForName(
@@ -737,6 +737,22 @@ ${extra}`
   if (priceTurn && feeOnlyPriceReply(reply, business, latestUser?.content)) reply = safePriceFallback;
   if (ownerAsk && !reply.includes(ownerAsk)) reply = safePriceFallback;
   const openaiMs = Date.now() - openaiStarted;
+
+  const leadContactComplete = Boolean(
+    salesState.lead.name?.trim() &&
+    salesState.lead.phone?.trim() &&
+    salesState.lead.address?.trim()
+  );
+  if (
+    priceTurn &&
+    !leadContactComplete &&
+    !salesState.leadCapturePaused &&
+    !ownerAsk &&
+    !handoff.attempted &&
+    !alreadyScheduled
+  ) {
+    reply = normalizePreContactPriceReply(reply, messages, salesState, business);
+  }
 
   salesState = recordSiteVisitFeeMention(salesState, reply);
 

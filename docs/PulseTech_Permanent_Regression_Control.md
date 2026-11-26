@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 9080)
-Total output lines: 319
-
 # PulseTech Permanent Regression Control
 
 ## 1 October 2026 — explicit business phone requests
@@ -201,7 +198,11 @@ Controller already **selects** `COLLECT_NAME` → phone → address on HIGH / RE
 - Phone and address turns repeated “Thanks, {name}” mechanically.
 - After name + customer phone + service address, the AI jumped to preferred day/time instead of a helpful, profile-aware next-step explanation.
 - Price answers used “I don’t have a verified price to quote from here” and treated price as a reason to force a time question.
-- A preferred time without prior agree…80 tokens truncated…Coverage:** `scripts/test-demo-chat.ts` `testProfileAwareSalesConversationQuality` plus existing high-intent / post-contact / pre-queue tests. Representative plumbing, HVAC, electrical, roofing, and consultation-style profiles. Do not weaken earlier HVAC discovery, phone, or capture-order assertions.
+- A preferred time without prior agreement could still be treated as a completed-handoff claim.
+
+**Map:** primarily **B** (lead capture must stay human after the three contact fields) and **C** (no recorded/shared/team-contact wording before a queued handoff). Preserve A, D, E, F, G, H. Do not hardcode plumbing or any one vertical as product behavior.
+
+**Coverage:** `scripts/test-demo-chat.ts` `testProfileAwareSalesConversationQuality` plus existing high-intent / post-contact / pre-queue tests. Representative plumbing, HVAC, electrical, roofing, and consultation-style profiles. Do not weaken earlier HVAC discovery, phone, or capture-order assertions.
 
 ---
 

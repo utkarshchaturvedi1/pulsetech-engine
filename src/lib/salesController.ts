@@ -1399,8 +1399,16 @@ export function updateSalesStateFromTurn(
     state.customerContext = addFact(state.customerContext, note);
   }
 
+  const assistantAskedForMissingName = !state.lead.name && messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      leadFieldAskPatterns("name").some((pattern) => pattern.test(message.content))
+  );
   if (!confirmationReply) {
-    const name = extractName(text, state.currentObjective, priorAssistant);
+    const nameObjective = assistantAskedForMissingName
+      ? "COLLECT_NAME"
+      : state.currentObjective;
+    const name = extractName(text, nameObjective, priorAssistant);
     if (name) {
       if (!state.lead.name || shouldReplaceCapturedName(state.lead.name, name, text)) {
         assignLeadName(state, name);
@@ -1422,7 +1430,15 @@ export function updateSalesStateFromTurn(
     state.refusedLeadFields = state.refusedLeadFields.filter((f) => f !== "email");
   }
 
-  const address = extractAddress(text, state.currentObjective);
+  const assistantAskedForMissingAddress = !state.lead.address && messages.some(
+    (message) =>
+      message.role === "assistant" &&
+      leadFieldAskPatterns("address").some((pattern) => pattern.test(message.content))
+  );
+  const addressObjective = assistantAskedForMissingAddress
+    ? "COLLECT_ADDRESS"
+    : state.currentObjective;
+  const address = extractAddress(text, addressObjective);
   if (address && !state.lead.address) {
     state.lead.address = address;
     state.establishedFacts = addFact(

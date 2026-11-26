@@ -437,6 +437,60 @@ export function resolveWarmPreContactReply(
   return PRE_CONTACT_ASK_ADDRESS;
 }
 
+/**
+ * Keep a pre-contact pricing answer useful while preventing the model from
+ * asking another discovery/booking question instead of the next lead field.
+ * The transcript check keeps an unanswered field prompt sticky across price
+ * interruptions without repeating it.
+ */
+export function normalizePreContactPriceReply(
+  reply: string,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+  state: SalesState,
+  business: BusinessProfile
+): string {
+  if (state.leadCapturePaused) return reply.trim();
+
+  const field = state.requiredLeadFields.find(
+    (candidate): candidate is "name" | "phone" | "address" =>
+    (candidate === "name" || candidate === "phone" || candidate === "address") &&
+    !state.lead[candidate] &&
+    !state.refusedLeadFields.includes(candidate)
+  );
+  if (!field) return reply.trim();
+
+  const fieldAskPatterns: Record<"name" | "phone" | "address", RegExp> = {
+    name: /\b(?:what(?:['’]s| is) your (?:first )?name|may i (?:have|get|ask) your (?:first )?name|what should i call you)\b/i,
+    phone: /\b(?:best (?:phone )?number|phone number|reach you|call you)\b/i,
+    address: /\b(?:service address|what(?:['’]s| is) (?:the |your )?address|property address)\b/i,
+  };
+  const wasAsked = messages.some(
+    (message) =>
+      message.role === "assistant" && fieldAskPatterns[field].test(message.content)
+  );
+
+  // Remove the model's trailing discovery/booking questions. The customer has
+  // already asked for pricing; the only follow-up we need is the next missing
+  // contact field, and only if it has not already been requested.
+  const fragments = reply.match(/[^.!?]+(?:[.!?]+|$)/g) || [reply];
+  const answer = fragments
+    .filter((fragment) =>
+      !/\?\s*$/.test(fragment.trim()) &&
+      !/\b(?:would you like to|are you looking for|what type of|which option|shall i|ready to (?:book|schedule)|want me to)\b/i.test(fragment)
+    )
+    .join(" ")
+    .trim();
+  const safeAnswer = answer || buildIntentAwarePriceAnswer(state, business);
+
+  if (wasAsked) return safeAnswer;
+  const ask = field === "name"
+    ? PRE_CONTACT_ASK_FIRST_NAME
+    : field === "phone"
+      ? PRE_CONTACT_ASK_PHONE
+      : PRE_CONTACT_ASK_ADDRESS;
+  return [safeAnswer, ask].filter(Boolean).join(" ");
+}
+
 export function replyAsksToArrangeNextStep(reply: string): boolean {
   return /\b(would you like to (arrange|book|schedule|set up)|shall i arrange|want (me )?to arrange|would you like (a |an )?(visit|consultation|assessment|appointment|estimate|follow-up))\b/i.test(
     reply

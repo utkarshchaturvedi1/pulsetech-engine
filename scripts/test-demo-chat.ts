@@ -3897,6 +3897,167 @@ function testChatAvatarIdentityVisibility() {
   console.log("PASS — chat avatar identity visibility helpers");
 }
 
+
+function testCrossBusinessBallparkFollowUp() {
+  const verticals = [
+    {
+      key: "plumbing",
+      profile: {
+        ...business,
+        website: "https://cross-test-plumbing.test",
+        businessName: "Cross Test Plumbing",
+        services: ["Leak repair", "Water heater repair", "Drain cleaning"],
+        systemPrompt: "We provide plumbing repair and replacement services.",
+      },
+      opening: "A pipe is leaking under my kitchen sink and needs repair.",
+      driver: /exact pricing depends on what is found on site/i,
+    },
+    {
+      key: "hvac",
+      profile: {
+        ...business,
+        website: "https://cross-test-hvac.test",
+        businessName: "Cross Test HVAC",
+        services: ["AC repair", "Heating and cooling installation"],
+        systemPrompt: "We repair and install residential heating and cooling systems.",
+      },
+      opening: "My AC stopped cooling and needs repair.",
+      driver: /exact pricing depends on what is found on site/i,
+    },
+    {
+      key: "roofing",
+      profile: {
+        ...business,
+        website: "https://cross-test-roofing.test",
+        businessName: "Cross Test Roofing",
+        services: ["Roof repair", "Roof replacement", "Storm damage inspection"],
+        systemPrompt: "We repair and replace residential roofs.",
+      },
+      opening: "I have missing shingles and need roof repair.",
+      driver: /exact pricing depends on what is found on site/i,
+    },
+    {
+      key: "pest-control",
+      profile: {
+        ...business,
+        website: "https://cross-test-pest.test",
+        businessName: "Cross Test Pest Control",
+        services: ["Termite treatment", "Pest inspection", "Rodent control"],
+        systemPrompt: "We provide pest inspection and treatment for homes.",
+      },
+      opening: "I found termites in my home and need treatment.",
+      driver: /exact pricing depends on what is found on site/i,
+    },
+    {
+      key: "electrical",
+      profile: {
+        ...business,
+        website: "https://cross-test-electrical.test",
+        businessName: "Cross Test Electrical",
+        services: ["Electrical panel installation", "Residential rewiring"],
+        systemPrompt: "We install and upgrade residential electrical panels.",
+      },
+      opening: "I want to install a new electrical panel at my home.",
+      driver: /design choices, materials, site conditions, and project scope/i,
+    },
+    {
+      key: "landscaping",
+      profile: {
+        ...business,
+        website: "https://cross-test-landscaping.test",
+        businessName: "Cross Test Landscaping",
+        services: ["Landscape design", "Patio installation", "Irrigation repair"],
+        systemPrompt: "We design and install landscaping and patios.",
+      },
+      opening: "I want a new patio and landscape design for my backyard.",
+      driver: /design choices, materials, site conditions, and project scope/i,
+    },
+    {
+      key: "solar",
+      profile: solarBusiness,
+      opening: "I want solar panels installed on my home.",
+      driver: /design choices, materials, site conditions, and project scope/i,
+    },
+  ];
+
+  const ballparkFollowUps = [
+    "Can you give me a ballpark figure?",
+    "What would a rough cost be?",
+    "What's the approximate price?",
+  ];
+
+  for (const vertical of verticals) {
+    for (let index = 0; index < ballparkFollowUps.length; index++) {
+      const question = ballparkFollowUps[index];
+      const conversationId =
+        "conv_cross_vertical_" + vertical.key + "_" + index;
+      const openingState = updateSalesStateFromTurn(
+        createInitialSalesState({
+          conversationId,
+          businessKey: vertical.profile.website,
+        }),
+        [{ role: "user", content: vertical.opening }],
+        vertical.profile
+      );
+      const followUpState = updateSalesStateFromTurn(
+        openingState,
+        [
+          { role: "user", content: vertical.opening },
+          {
+            role: "assistant",
+            content:
+              "Exact pricing depends on the project scope and site conditions. Would you like to arrange a consultation?",
+          },
+          { role: "user", content: question },
+        ],
+        vertical.profile
+      );
+
+      assert(
+        messageAsksPricingOrBilling(question),
+        vertical.key + ": pricing wording must be recognized: " + question
+      );
+      assert(
+        followUpState.currentObjective === "ANSWER",
+        vertical.key +
+          ": pricing follow-up must stay on the answer path before lead capture resumes; got " +
+          followUpState.currentObjective +
+          " for: " +
+          question
+      );
+
+      const answer = buildIntentAwarePriceAnswer(
+        followUpState,
+        vertical.profile,
+        question
+      );
+      assert(
+        vertical.driver.test(answer),
+        vertical.key +
+          ": answer must use relevant profile/tone price drivers, got: " +
+          answer
+      );
+      assert(
+        !/\$\s?\d/.test(answer),
+        vertical.key + ": no unverified amount may be invented, got: " + answer
+      );
+      assert(
+        !/your goals, the depth of advice/i.test(answer),
+        vertical.key + ": answer must not fall back to generic consultation copy, got: " + answer
+      );
+      if (vertical.key !== "solar") {
+        assert(
+          !/\bsolar\b/i.test(answer),
+          vertical.key + ": another business must not receive solar-specific wording"
+        );
+      }
+    }
+  }
+
+  console.log(
+    "PASS — ballpark, rough-cost, and approximate-price follow-ups across 7 business verticals"
+  );
+}
 async function main() {
   testLayoutConstraints();
   testTexasSolarLogo();
@@ -3906,6 +4067,7 @@ async function main() {
   testGenericPreferredTimeLeadCapture();
   testHighIntentLeadCaptureOrder();
   testSolarQuestionBeforeLeadCapture();
+  testCrossBusinessBallparkFollowUp();
   await testDeterministicPreContactChatReplies();
   await testPostContactSalesConversation();
   await testProfileAwareSalesConversationQuality();

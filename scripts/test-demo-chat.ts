@@ -4132,8 +4132,159 @@ function testCrossBusinessBallparkFollowUp() {
     );
   }
 
+  // Exact interruption pattern reported in production: unanswered lead fields
+  // survive price questions and are captured when the customer answers later.
+  const solarOpening = "I want solar panels installed on my home.";
+  const solarInitial = updateSalesStateFromTurn(
+    createInitialSalesState({
+      conversationId: "conv_solar_contact_interruptions",
+      businessKey: solarBusiness.website,
+    }),
+    [{ role: "user", content: solarOpening }],
+    solarBusiness
+  );
+  const solarNameAsk = buildEmpatheticNameAsk(solarOpening, solarBusiness);
+  const solarPriceQuestion = "How much will it cost and how much can I save?";
+  const afterSolarPriceQuestion = updateSalesStateFromTurn(
+    solarInitial,
+    [
+      { role: "user", content: solarOpening },
+      { role: "assistant", content: solarNameAsk },
+      { role: "user", content: solarPriceQuestion },
+    ],
+    solarBusiness
+  );
+  const solarPriceReply = normalizePreContactPriceReply(
+    "Exact cost depends on system size and roof conditions. Savings depend on usage and utility rates. Are you looking for a battery too?",
+    [
+      { role: "user", content: solarOpening },
+      { role: "assistant", content: solarNameAsk },
+      { role: "user", content: solarPriceQuestion },
+    ],
+    afterSolarPriceQuestion,
+    solarBusiness
+  );
+  assert(
+    !/\\?/.test(solarPriceReply) && !solarPriceReply.includes(PRE_CONTACT_ASK_FIRST_NAME),
+    "answer-first price turn must not repeat a previously asked name or add a new discovery question"
+  );
+
+  const afterSolarName = updateSalesStateFromTurn(
+    afterSolarPriceQuestion,
+    [
+      { role: "user", content: solarOpening },
+      { role: "assistant", content: solarNameAsk },
+      { role: "user", content: solarPriceQuestion },
+      { role: "assistant", content: solarPriceReply },
+      { role: "user", content: "UT" },
+    ],
+    solarBusiness
+  );
+  assert(
+    afterSolarName.lead.name === "UT" &&
+      afterSolarName.currentObjective === "COLLECT_PHONE",
+    "an unanswered name prompt must stay pending through the price interruption"
+  );
+
+  const solarPhoneQuestion = "Can you give me a ballpark figure?";
+  const afterSolarPhonePrice = updateSalesStateFromTurn(
+    afterSolarName,
+    [
+      { role: "user", content: solarOpening },
+      { role: "assistant", content: solarNameAsk },
+      { role: "user", content: solarPriceQuestion },
+      { role: "assistant", content: solarPriceReply },
+      { role: "user", content: "UT" },
+      { role: "assistant", content: PRE_CONTACT_ASK_PHONE },
+      { role: "user", content: solarPhoneQuestion },
+    ],
+    solarBusiness
+  );
+  const solarPhoneAnswer = normalizePreContactPriceReply(
+    "A reliable ballpark depends on system size and site conditions. Would you like to compare battery options?",
+    [
+      { role: "user", content: solarOpening },
+      { role: "assistant", content: solarNameAsk },
+      { role: "user", content: solarPriceQuestion },
+      { role: "assistant", content: solarPriceReply },
+      { role: "user", content: "UT" },
+      { role: "assistant", content: PRE_CONTACT_ASK_PHONE },
+      { role: "user", content: solarPhoneQuestion },
+    ],
+    afterSolarPhonePrice,
+    solarBusiness
+  );
+  assert(
+    !/\\?/.test(solarPhoneAnswer) && !solarPhoneAnswer.includes(PRE_CONTACT_ASK_PHONE),
+    "an unanswered phone prompt must not be repeated after a price interruption"
+  );
+  const afterSolarPhone = updateSalesStateFromTurn(
+    afterSolarPhonePrice,
+    [
+      { role: "user", content: solarOpening },
+      { role: "assistant", content: solarNameAsk },
+      { role: "user", content: solarPriceQuestion },
+      { role: "assistant", content: solarPriceReply },
+      { role: "user", content: "UT" },
+      { role: "assistant", content: PRE_CONTACT_ASK_PHONE },
+      { role: "user", content: solarPhoneQuestion },
+      { role: "assistant", content: solarPhoneAnswer },
+      { role: "user", content: "9898989898" },
+    ],
+    solarBusiness
+  );
+  assert(
+    !!afterSolarPhone.lead.phone &&
+      afterSolarPhone.currentObjective === "COLLECT_ADDRESS",
+    "phone must be captured after a pricing interruption"
+  );
+
+  const addressInterruption = "Can you explain the expected savings?";
+  const addressConversation = [
+    { role: "user" as const, content: solarOpening },
+    { role: "assistant" as const, content: solarNameAsk },
+    { role: "user" as const, content: solarPriceQuestion },
+    { role: "assistant" as const, content: solarPriceReply },
+    { role: "user" as const, content: "UT" },
+    { role: "assistant" as const, content: PRE_CONTACT_ASK_PHONE },
+    { role: "user" as const, content: solarPhoneQuestion },
+    { role: "assistant" as const, content: solarPhoneAnswer },
+    { role: "user" as const, content: "9898989898" },
+    { role: "assistant" as const, content: PRE_CONTACT_ASK_ADDRESS },
+    { role: "user" as const, content: addressInterruption },
+  ];
+  const addressPriceState = updateSalesStateFromTurn(
+    afterSolarPhone,
+    addressConversation,
+    solarBusiness
+  );
+  const addressPriceReply = normalizePreContactPriceReply(
+    "Savings depend on system production, usage, and your utility rate. Would you like to schedule a consultation?",
+    addressConversation,
+    addressPriceState,
+    solarBusiness
+  );
+  assert(
+    !/\\?/.test(addressPriceReply) &&
+      !addressPriceReply.includes(PRE_CONTACT_ASK_ADDRESS),
+    "an unanswered address prompt must not be repeated after a pricing interruption"
+  );
+  const afterSolarAddress = updateSalesStateFromTurn(
+    addressPriceState,
+    [
+      ...addressConversation,
+      { role: "assistant" as const, content: addressPriceReply },
+      { role: "user" as const, content: "1500 Marilla St, Dallas TX 75201" },
+    ],
+    solarBusiness
+  );
+  assert(
+    afterSolarAddress.lead.address === "1500 Marilla St, Dallas TX 75201",
+    "address must be captured after a price interruption even when it is not the immediately previous ask"
+  );
+
   console.log(
-    "PASS — ballpark, rough-cost, and approximate-price follow-ups across 7 business verticals"
+    "PASS — ballpark, rough-cost, and approximate-price follow-ups across 7 business verticals; pending contact fields survive solar price interruptions"
   );
 }
 async function main() {

@@ -4111,7 +4111,7 @@ function testCrossBusinessBallparkFollowUp() {
       vertical.profile
     );
     assert(
-      !/\\?/.test(repeatedPriceReply) &&
+      !/\?/.test(repeatedPriceReply) &&
         !repeatedPriceReply.includes(PRE_CONTACT_ASK_FIRST_NAME),
       vertical.key + ": an already requested name must not be asked again after a price follow-up"
     );

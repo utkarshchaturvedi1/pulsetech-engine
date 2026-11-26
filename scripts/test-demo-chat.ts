@@ -75,6 +75,7 @@ import {
   isCostOptionsHesitation,
   isFieldServiceProfile,
   isSubstantiveSalesFollowUp,
+  normalizePreContactPriceReply,
   replyHasUnsupportedBusinessCapabilityClaim,
   replyIsGenericConsultationBoilerplate,
   replyUsesFieldServiceJargon,
@@ -4067,6 +4068,68 @@ function testCrossBusinessBallparkFollowUp() {
         );
       }
     }
+
+    // A price question interrupts lead capture but must not erase the pending
+    // field. Remove the model's repeated discovery CTA and resume only the next
+    // unanswered contact field across every shared vertical profile.
+    const combinedQuestion = vertical.opening + " How much would the project cost?";
+    const initialState = updateSalesStateFromTurn(
+      createInitialSalesState({
+        conversationId: "conv_precontact_price_" + vertical.key,
+        businessKey: vertical.profile.website,
+      }),
+      [{ role: "user", content: combinedQuestion }],
+      vertical.profile
+    );
+    const firstMessages = [{ role: "user" as const, content: combinedQuestion }];
+    const firstReply = normalizePreContactPriceReply(
+      "Pricing depends on site conditions and project scope. Savings depend on the customer's usage and local rates. Are you looking for another option?",
+      firstMessages,
+      initialState,
+      vertical.profile
+    );
+    assert(
+      firstReply.endsWith(PRE_CONTACT_ASK_FIRST_NAME) &&
+        !/are you looking for/i.test(firstReply),
+      vertical.key + ": first price answer must ask the first missing lead field only"
+    );
+
+    const followUpMessages = [
+      ...firstMessages,
+      { role: "assistant" as const, content: firstReply },
+      { role: "user" as const, content: "Can you give me a ballpark figure?" },
+    ];
+    const followUpState = updateSalesStateFromTurn(
+      initialState,
+      followUpMessages,
+      vertical.profile
+    );
+    const repeatedPriceReply = normalizePreContactPriceReply(
+      "The total still depends on project scope and the same site conditions. Are you looking for a different system?",
+      followUpMessages,
+      followUpState,
+      vertical.profile
+    );
+    assert(
+      !/\\?/.test(repeatedPriceReply) &&
+        !repeatedPriceReply.includes(PRE_CONTACT_ASK_FIRST_NAME),
+      vertical.key + ": an already requested name must not be asked again after a price follow-up"
+    );
+
+    const nameAnswerMessages = [
+      ...followUpMessages,
+      { role: "assistant" as const, content: repeatedPriceReply },
+      { role: "user" as const, content: "UT" },
+    ];
+    const afterName = updateSalesStateFromTurn(
+      followUpState,
+      nameAnswerMessages,
+      vertical.profile
+    );
+    assert(
+      afterName.lead.name === "UT",
+      vertical.key + ": the name prompt must remain pending through price interruptions"
+    );
   }
 
   console.log(

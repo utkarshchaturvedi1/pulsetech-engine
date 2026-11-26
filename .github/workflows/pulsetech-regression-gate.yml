@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  regression:
+  chatbot-regressions:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

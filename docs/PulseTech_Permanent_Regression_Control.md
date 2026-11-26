@@ -20,43 +20,42 @@ Do not redesign the UI, change landing-page content, change business logic delib
 
 Preserve all existing chat functionality, business logic, recipient routing, after() background delivery, Twilio, and ElevenLabs behavior unless the approved change explicitly requires it.
 
-Lead capture must not turn the AI Sales Employee into a robotic form. After name + customer phone + service address are secured, the conversation must return to helpful, warm, sales-oriented service guidance. Direct customer questions—especially price—must be answered first, truthfully and without invented facts. Do not promise an alert/team contact before a ready handoff has actually queued.
+Lead capture must not turn the AI Sales Employee into a robotic form. For website chat, once name + customer phone + service address (when relevant) + a concrete service need are captured, send one business-specific lead alert immediately. Do not wait for appointment time, calendar agreement, or extra owner qualification answers. Continue helpful, warm, sales-oriented service guidance and useful owner questions afterward. Direct customer questions—especially price—must be answered first, truthfully and without invented facts. Confirmation wording must match SENT, QUEUED, or FAILED delivery truthfully. The inbound voice handoff path remains unchanged.
 
-**Permanent conversation-quality rule:** Lead protection must never turn the AI Sales Employee into a cold form. Before contact capture, acknowledge the customer’s stated situation with intent-appropriate emotion (empathy for problems, enthusiasm for projects, excitement for celebrations, confident help for consultations)—never a universal “I’m sorry” template. After required contact details are secured, provide a helpful, profile-aware explanation and ask for agreement before asking preferred time. Do not repeat the customer’s name mechanically.
+**Permanent conversation-quality rule:** Lead protection must never turn the AI Sales Employee into a cold form. Before contact capture, acknowledge the customer’s stated situation with intent-appropriate emotion (empathy for problems, enthusiasm for projects, excitement for celebrations, confident help for consultations)—never a universal “I’m sorry” template. After the first website lead alert, provide expert, profile-aware help: answer the question first and ask at most one relevant diagnostic follow-up when it can improve the next step. Do not provide a full DIY solution, repeat captured details, or repeat the customer’s name mechanically.
 
 ---
 
-## Canonical lead sequence (website chat and inbound voice)
+## Canonical lead sequence (website chat)
 
 Protect the opportunity first. A genuine high-intent need must not be lost to HVAC-style discovery, troubleshooting, or a premature business-phone handoff.
 
-**Capture order (only this order):**
+**Capture and alert order:**
 
 1. Need already known (customer stated the service need)
 2. Name
 3. Customer phone (the visitor/caller’s number — never the scraped business number in place of this field)
 4. Service address (where relevant)
-5. Details / price (only after the three lead fields above, and only as needed; answer a direct customer question when asked)
-6. Helpful, profile-aware next-step explanation
-7. Explicit agreement to arrange that next step
-8. Preferred day/time
-9. Exactly one truthful handoff (email + SMS to that business’s recipients)
+5. As soon as the core details are captured, send exactly one lead alert to that business’s configured email/SMS recipients
+6. Continue answering direct questions, offering brief expert guidance, and collecting useful owner-configured details
+7. Discuss scheduling only if the customer asks; do not claim anything is booked or require timing to alert the business
 
-**Combined request exception:** After name, customer phone, and service address are secured, an explicit combined request such as “Can you come tomorrow morning?” counts as agreement plus preferred time and may queue exactly one handoff.
+The lead alert must not wait for preferred time, an explicit agreement to schedule, or owner-configured qualification questions. If those questions are useful, continue asking them after the first alert. A later answer must not trigger a duplicate email/SMS. Do not invent an email address or phone number; resolve recipients from the business profile and report delivery failure honestly.
 
 **Hard bans on this path:**
 
 - No “recorded”, “shared”, “I’ll alert,” “team will contact,” or equivalent unless a handoff is actually queued or scheduled. SENT vs QUEUED wording must stay truthful. Never imply the request was already delivered when status is only queued.
 - No business phone unless the visitor explicitly asks for the number, explicitly states emergency / danger / immediate help, or delivery **failed**. Normal success close must never expose a scraped business phone or say “if you prefer to call”.
-- No preferred-time question before name, customer phone, and service address are captured.
-- Missing preferred time → queue **no** handoff; ask **once** for day/time.
+- Do not ask preferred time as a prerequisite for the website lead alert. The chatbot has no calendar booking integration.
 - Preferred time is never described as booked or confirmed.
 - Failed delivery: tell them to contact the business phone or email; never claim the team was alerted. Never expose internal delivery status to the customer.
 - On failed delivery, direct the visitor to contact the business by phone/email if appropriate; never expose internal delivery status.
 
 Before name, customer phone, and service address are secured, do not diagnose, interrogate, or sell the service first.
 
-High-intent is a sales safety net, not a technician interrogation. Do not diagnose, ask residential vs commercial, or troubleshoot **before** name, customer phone, and service address. Ask one field at a time. After the lead is secured, continue helping.
+High-intent is a sales safety net, not a technician interrogation. Do not diagnose, ask residential vs commercial, or troubleshoot **before** name, customer phone, and service address. Ask one field at a time. After the lead is alerted, continue helping with concise, temporary guidance that supports a sale and leaves full diagnosis/repair to the business.
+
+Inbound voice retains its previously approved handoff timing and provider behavior. Do not change voice handoff timing as part of this website-chat fix without separate regression evidence.
 
 Low-intent browsing is different: answer helpfully; do not immediately demand contact information.
 
@@ -84,23 +83,21 @@ ANSWER FIRST: if the customer asks a direct question, answer it; do not refuse s
   - “Tomorrow morning works, but what do you charge?”
 - Confirm preferred time stays saved after a pricing response and “Yes”.
 - High-intent / ready-to-act: need already known → name → customer phone → service address, one field at a time. Do not discuss the service, diagnose, or ask residential/commercial or troubleshooting questions before those three fields are stored.
-- Preferred time is asked only after name, customer phone, and service address, and only after the customer has explicitly agreed to arrange the next step (unless they give an explicit combined arrange+time request such as “Can you come tomorrow morning?”).
-- After those three fields, resume a human sales conversation: acknowledge the need with intent-appropriate emotion, answer questions (price first), explain the sensible next step, get agreement to arrange it, then ask preferred day/time. Do not stay in form-field mode.
+- After the core lead fields are captured, the website alert is sent once immediately. The bot can then resume a human sales conversation: acknowledge the need with intent-appropriate emotion, answer questions (price first), and offer concise, useful guidance. Do not stay in form-field mode.
 - Before the name question, acknowledge the stated situation with intent-appropriate emotion. Do not use a cold “We can help with that. What’s your first name?” form. Do not use “I’m sorry” for aspirational projects, celebrations, or neutral consultations.
-- After the three contact fields, give a helpful profile-aware next-step explanation and get explicit agreement to arrange it before asking preferred time. Do not repeat the customer’s name mechanically.
+- Owner-configured qualification questions never block the initial website alert; preserve them and continue afterward when useful. Do not repeat the customer’s name mechanically.
 
 ### C. Handoff and customer wording
 
-- Required details plus agreement must queue exactly one handoff.
-- Required details include name, customer phone, service address, preferred time, and explicit agreement to arrange (or an explicit combined arrange+time request after contacts are secured), following the canonical sequence above.
-- Missing preferred time must queue none and ask only once for day/time.
+- For website chat, required initial alert data is name, customer phone, address when relevant, and a concrete service need. Send exactly one email/SMS alert without waiting for appointment timing, agreement, or additional owner questions.
+- Missing preferred time does not block the website lead alert. Never claim an appointment is booked.
 - No response may say “recorded”, “shared”, “I’ll alert,” “team will contact,” or imply alert delivery unless handoff is actually queued/scheduled.
 - Use “shared with the team” only when delivery status is SENT. QUEUED wording must never imply completed delivery.
 - On failed delivery, direct the visitor to contact the business by phone/email if appropriate; never expose internal delivery status.
 - Normal success close must never expose scraped business phone or say “if you prefer to call”.
 - Business phone is allowed only if the visitor explicitly asks, states emergency/danger/immediate help, or delivery failed.
 - Preferred time must never be described as booked.
-- Email and SMS must include primary need and preferred time.
+- Email and SMS must include the primary need and all captured contact details; include timing only when the customer volunteered it.
 
 ### D. Alert delivery
 
@@ -295,7 +292,7 @@ This is the current incident record and prevention checklist. Add each newly con
 | Customer was told the request had been sent although alert delivery failed (or delivery could not be verified). | Distinguish queued, sent, and failed delivery; preserve the lead and report truthfully. Provider outages cannot be fixed by pretending success. | Handoff tests assert customer copy matches delivery state, idempotency, and no duplicate alerts. Operational verification checks SMTP/Twilio logs and never logs lead PII. |
 | Staging, preview, and production were assumed to be the same despite different branch aliases and environment variables. | Verify the deployment’s source commit, branch, alias, and required variable names/scopes before testing or release. Keep Production-only secrets scoped to Production unless the owner explicitly authorizes expansion. | Release checklist records commit and deployment IDs for each environment; smoke tests are run against the actual assigned alias. A preview result is not presented as production evidence. |
 | Candidate preview chat returned “I’m having trouble responding right now” because its branch did not have the required `OPENAI_API_KEY` environment entry. | The preview was built from the correct source, but its branch environment was incomplete; missing runtime configuration must not be mistaken for a code fix or silently supplied from Production. | Before live smoke tests, verify required variable names and targets for the exact preview branch. Use the approved isolated staging configuration; never copy Production secrets into another environment without explicit authorization. |
-| Production captured a website lead's name, phone, and address, then continued discovery and asked for a preferred appointment time; no alert was sent until time/agreement conditions were met. | The website handoff was coupled to scheduling despite the product only having lead-alert delivery. Add a dedicated capture handoff after contact fields and concrete need are saved, while honoring configured owner-required questions. Never require a time or claim calendar/booking capability. Once captured, answer follow-ups and ask only one relevant diagnostic question when it helps. | `test:demo-chat` covers immediate capture without scheduling across seven profiles, capture gating for missing/paused lead fields and owner questions, idempotency, and expert diagnostic guidance. Verify a production synthetic lead reaches the configured alert destination before release. |
+| Production captured a website lead's name, phone, and address, then continued discovery and asked for a preferred appointment time; no alert was sent until time/agreement conditions were met. | The website handoff was coupled to scheduling despite the product only having lead-alert delivery. Send the first alert as soon as core contact fields and a concrete need are saved. Do not wait for scheduling or extra owner questions; continue helpful, brief qualification after the alert and never send duplicates. Do not claim calendar/booking capability or provide a full DIY repair. Answer direct questions first, then ask at most one useful profile-aware diagnostic question (for example, fully blocked vs. slow drainage for a clogged sink). Keep inbound voice handoff behavior unchanged. | `test:demo-chat` and `test:owner-pricing-regression` cover capture without scheduling across seven profiles, gating for missing/paused core fields, owner questions continuing after the first alert, idempotency, direct answers, and temporary expert diagnostic guidance. Verify a production synthetic lead reaches the configured alert destination before release. |
 | Vercel project inspection returned 403 while using a team slug where an internal team ID was required. | Resolve the account/team identifier from Vercel’s team/project listing and use the expected identifier for that endpoint. | Retry after reading project/team metadata; do not interpret a 403 as an application failure or guess at the team. |
 | A blank page or “couldn’t load” preview was mistaken for an application regression. | Confirm deployment status and runtime/build logs before attributing a browser load failure to chat code. | Record the deployment’s READY/ERROR state and check build/runtime logs before changing product code. |
 

@@ -173,8 +173,8 @@ export function isLeadQualified(state: SalesState): boolean {
 
 /**
  * Website chat protects the opportunity as soon as contact details and a
- * concrete service need are captured. Scheduling is not a prerequisite for a
- * lead alert; owner-required questions still must be answered first.
+ * concrete service need are captured. Scheduling and optional qualification
+ * questions are not prerequisites for the first lead alert.
  */
 export function isWebsiteLeadCaptureReady(state: SalesState): boolean {
   const need = (state.primaryNeed || state.customerNeed || "").trim();
@@ -184,8 +184,7 @@ export function isWebsiteLeadCaptureReady(state: SalesState): boolean {
     hasText(state.lead.name) &&
     hasText(state.lead.phone) &&
     hasText(state.lead.address) &&
-    need.length >= 8 &&
-    missingOwnerQuestions(state).length === 0
+    need.length >= 8
   );
 }
 

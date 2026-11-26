@@ -618,7 +618,21 @@ export async function generateSalesReply(
     salesState.currentObjective = priceTurn ? "HANDLE_PRICE_OBJECTION" : "ANSWER";
     const pricePrefix = priceTurn ? `${buildIntentAwarePriceAnswer(salesState, business, latestUser?.content)} ` : "";
     const factPrefix = factAnswer ? `${factAnswer} ` : "";
-    deterministicHandoffReply = `${pricePrefix}${factPrefix}${ownerFollowUp}`.trim();
+    const handoffPrefix = handoff.attempted && deterministicHandoffReply
+      ? `${deterministicHandoffReply} `
+      : "";
+    const priceAnswer = handoffPrefix ? "" : pricePrefix;
+    deterministicHandoffReply = `${handoffPrefix}${priceAnswer}${factPrefix}${ownerFollowUp}`.trim();
+  }
+  if (
+    !ownerFollowUp &&
+    ownerQuestionCompletedThisTurn &&
+    alreadyScheduled &&
+    !priceTurn &&
+    !factAnswer &&
+    !deterministicHandoffReply
+  ) {
+    deterministicHandoffReply = "Thanks—that gives the team useful context. What else would you like help with?";
   }
   if (
     !deterministicHandoffReply &&

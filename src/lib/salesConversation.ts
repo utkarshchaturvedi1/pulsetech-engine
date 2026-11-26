@@ -20,13 +20,13 @@ export type ConversationNeedTone =
 
 /** Broad intent cues only — no industry/example noun lists. */
 const PROBLEM_NEED_RE =
-  /\b(break(?:s|ing|down)?|broken|not working|isn'?t working|won'?t work|repair|fix|urgent|emergency|help needed|need help|leaking|leak|damaged|outage|flood(?:ing)?|clog(?:ged)?|block(?:age|ed)?|backup|backing up|overflow|faulty|failed|stopped|no (?:heat(?:ing)?|cooling|power|(?:hot )?water)|cracked|won'?t|infestation|pest|termite|rodent|nest|spread)\b/i;
+  /\b(break(?:s|ing|down)?|broken|not working|isn'?t working|won'?t work|repair|fix|urgent|emergency|help needed|need help|leaking|leak|damaged|outage|flood(?:ing)?|clog(?:ged)?|block(?:age|ed)?|backup|backing up|overflow|faulty|failed|stopped|no (?:heat(?:ing)?|cooling|power|(?:hot )?water)|cracked|won'?t|infestations?|pests?|termites?|rodents?|nests?|spread|treat(?:ment|ing))\b/i;
 
 const CELEBRATION_NEED_RE =
   /\b(celebrat(?:e|ion|ing)?|event|party|ceremony|occasion|reception|venue)\b/i;
 
 const ASPIRATIONAL_NEED_RE =
-  /\b(project|improv(?:e|ement)|install(?:ation)?|build|design|upgrade|renovat(?:e|ion)|remodel|create|add (?:a|an|the)|looking to (?:install|build|add|upgrade)|want to (?:install|build|add|upgrade))\b/i;
+  /\b(project|improv(?:e|ement)|install(?:ation|ed|ing)?|build|design|upgrade|renovat(?:e|ion)|remodel|create|add (?:a|an|the)|looking to (?:install|build|add|upgrade)|want to (?:install|build|add|upgrade))\b/i;
 
 const CONSULTATION_NEED_RE =
   /\b(consult(?:ation|ing)?|advice|advisor|advisory|strategy|quote|information|guidance|coaching|planning|how (?:do|can) (?:we|i) improve)\b/i;

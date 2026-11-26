@@ -909,7 +909,7 @@ async function main() {
       "TEST13: estimate agreement is not lead completion"
     );
     const prematureRecorded = validateSalesReply(
-      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will contact you at the number you provided to confirm availability.",
+      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will reach out using the number you provided.",
       flow,
       business
     );
@@ -981,7 +981,7 @@ async function main() {
     assert(deliveries13 === 0, "TEST13: visitor is not blocked on provider delivery");
 
     const expectedFinal =
-      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will contact you at the number you provided to confirm availability.";
+      "Thanks, Victor — I've recorded your request and noted tomorrow morning as your preferred time. The team will reach out using the number you provided.";
     const finalReply = resolveWebsiteChatCustomerHandoffReply({
       attempted: send13.attempted,
       status: send13.status,
@@ -1058,7 +1058,7 @@ async function main() {
       `TEST14: normalized preferred time, got ${flow.preferredTiming}`
     );
     const expected14 =
-      "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will contact you at the number you provided to confirm availability.";
+      "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will reach out using the number you provided.";
     const final14 = resolveWebsiteChatCustomerHandoffReply({
       attempted: true,
       status: "QUEUED",

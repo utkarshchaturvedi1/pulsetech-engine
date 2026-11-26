@@ -8,7 +8,7 @@ import {
 
 export const LEAD_INACTIVITY_MS = 5 * 60 * 1000;
 
-export type LeadHandoffReason = "closure" | "inactivity";
+export type LeadHandoffReason = "closure" | "inactivity" | "capture";
 
 export const HANDOFF_REQUIRED_FIELD_NAMES = [
   "name",
@@ -172,6 +172,24 @@ export function isLeadQualified(state: SalesState): boolean {
 }
 
 /**
+ * Website chat protects the opportunity as soon as contact details and a
+ * concrete service need are captured. Scheduling is not a prerequisite for a
+ * lead alert; owner-required questions still must be answered first.
+ */
+export function isWebsiteLeadCaptureReady(state: SalesState): boolean {
+  const need = (state.primaryNeed || state.customerNeed || "").trim();
+  return (
+    !isHandoffAlreadyScheduled(state) &&
+    !state.leadCapturePaused &&
+    hasText(state.lead.name) &&
+    hasText(state.lead.phone) &&
+    hasText(state.lead.address) &&
+    need.length >= 8 &&
+    missingOwnerQuestions(state).length === 0
+  );
+}
+
+/**
  * Allowed to attempt owner notification once the central readiness decision is true.
  */
 export function isLeadReadyForHandoff(
@@ -217,6 +235,7 @@ export function shouldAttemptLeadHandoff(
   latestUserMessage?: string
 ): boolean {
   if (isHandoffAlreadyScheduled(state)) return false;
+  if (reason === "capture") return isWebsiteLeadCaptureReady(state);
   if (reason === "inactivity") {
     return state.handoffReady === true;
   }

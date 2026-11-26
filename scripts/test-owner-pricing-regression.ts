@@ -754,7 +754,12 @@ async function run() {
     const dogsRequirement = 'Do you have dogs at the property?';
     const feeConfirmation = 'What is the visiting fee?';
     const dogSecurityReply = 'No. Is there a security system?';
-    const websiteConversation = await walk(correctedWebsiteFact, [
+    process.env.LEAD_HANDOFF_DRY_RUN = 'true';
+    const websiteConversation = await walk({
+      ...correctedWebsiteFact,
+      leadNotificationEmail: 'alerts@owner-test.example',
+      leadNotificationPhone: '+12145550100',
+    }, [
       `${sinkOpening} This is an emergency.`,
       'Alex',
       '5125550198',
@@ -780,7 +785,7 @@ async function run() {
     assert.equal(dogSecurity.state.lead.name, 'Alex');
     assert((dogSecurity.state.lead.phone || '').replace(/\D/g, '').includes('5125550198'));
     assert(/400 Main St/i.test(dogSecurity.state.lead.address || ''));
-    assert.equal(dogSecurity.state.leadDeliveryStatus, 'NOT_SENT');
+    assert.equal(dogSecurity.state.leadDeliveryStatus, 'SENT', 'lead should be alerted once required owner details are complete without waiting for a visit time');
     assert(!evaluateHandoffReadiness(dogSecurity.state).handoffReady);
     for (const key of ['website', 'businessName', 'tagline', 'phone', 'email', 'address', 'logo', 'services', 'serviceAreas', 'businessHours', 'faqs'] as const) {
       assert.deepEqual(correctedWebsiteFact[key], websiteProfile[key], `conversation must preserve website field ${key}`);

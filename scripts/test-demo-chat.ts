@@ -4,7 +4,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import DemoWorkspace from "../src/components/DemoWorkspace";
 import { DEMO_CHAT_LAYOUT, HOME_CHAT_LAYOUT, PULSETECH_CANVAS_GRADIENT } from "../src/lib/demoChatLayout";
-import { buildLeadNotificationEmail, buildWebsiteLeadSms, evaluateHandoffReadiness, formatPrimaryNeedForAlert, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
+import { buildLeadNotificationEmail, buildWebsiteLeadSms, evaluateHandoffReadiness, formatPrimaryNeedForAlert, isWebsiteLeadCaptureReady, shouldAttemptLeadHandoff } from "../src/lib/leadHandoff";
 import {
   ASK_EXPLICIT_AGREEMENT,
   ASK_PREFERRED_DAY_TIME,
@@ -545,12 +545,11 @@ function testVisitPreferenceNoDuplicateAddress() {
   const good = validateSalesReply(TIMING_ACK, afterSent, business);
   assert(good.ok, `preferred-time ack should pass: ${good.reasons.join("; ")}`);
   assert(
-    TIMING_ACK.includes("earliest available appointment") ||
-      /preferred time.*confirm availability/i.test(TIMING_ACK),
-    "preferred-time ack must note preference and team confirmation"
+    /team will reach out using the number you provided/i.test(TIMING_ACK),
+    "preferred-time ack must direct follow-up to the submitted customer number"
   );
   assert(
-    /We'll note tomorrow morning as your preferred time/i.test(TIMING_ACK),
+    /I've noted tomorrow morning as your preferred time/i.test(TIMING_ACK),
     "preferred-time ack must use natural preferred-time wording"
   );
   assert(
@@ -1251,14 +1250,12 @@ function testCustomerFacingHandoffWording() {
   assert(/Thanks, Maya/.test(success), "success uses customer name");
   assert(/shared your request with the team/.test(success), "success says request was shared");
   assert(
-    /We'll note tomorrow morning as your preferred time/i.test(success),
+    /I've noted tomorrow morning as your preferred time/i.test(success),
     "success notes preferred time naturally"
   );
   assert(
-    /team will contact you at the number you provided to confirm availability/i.test(
-      success
-    ),
-    "success says the team will contact the customer at the number they provided"
+    /team will reach out using the number you provided/i.test(success),
+    "success says the team will contact the customer using the captured number"
   );
   assert(
     !success.includes(business.phone) && !/\bif you prefer to call\b/i.test(success),
@@ -1495,7 +1492,7 @@ function testCompoundPriceAndPreferredTime() {
     "compound reply must still acknowledge the handoff"
   );
   assert(
-    /We'll note tomorrow evening as your preferred time/i.test(reply!),
+    /I've noted tomorrow evening as your preferred time/i.test(reply!),
     "compound reply must note preferred time naturally"
   );
   assert(!/\bnot booked yet\b/i.test(reply!), "avoid stiff not-booked-yet by default");
@@ -1607,7 +1604,7 @@ function testRajaNameCaptureAndPreferredTime() {
   );
 
   const expected =
-    "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will contact you at the number you provided to confirm availability.";
+    "Thanks, Raja — I've recorded your request and noted tomorrow afternoon as your preferred time. The team will reach out using the number you provided.";
   const finalReply = resolveWebsiteChatCustomerHandoffReply({
     attempted: true,
     status: "QUEUED",
@@ -1886,7 +1883,7 @@ function testGenericPreferredTimeLeadCapture() {
   assert(
     !success.includes(business.phone) &&
       !/\bif you prefer to call\b/i.test(success) &&
-      /contact you at the number you provided/i.test(success),
+    /reach out using the number you provided/i.test(success),
     "normal success close must not include the business phone number"
   );
 
@@ -2297,11 +2294,12 @@ async function testDeterministicPreContactChatReplies() {
   assertNoPreContactLeak(askedNumber.reply, true);
 
   const completeState = securedLead({
-    preferredTiming: "tomorrow morning",
-    customerAgreed: true,
-    currentObjective: "CLOSE",
+    preferredTiming: null,
+    customerAgreed: false,
     leadDeliveryStatus: "NOT_SENT",
     conversationId: "conv_precontact_complete_handoff",
+    lead: { name: "Maya", phone: "5125550198", email: null, address: null },
+    currentObjective: "COLLECT_ADDRESS",
   });
   const alertBusiness: BusinessProfile = {
     ...business,
@@ -2313,14 +2311,15 @@ async function testDeterministicPreContactChatReplies() {
   try {
     const completeChat = await generateSalesReply(
       alertBusiness,
-      [{ role: "user", content: "Yes" }],
+      [
+        { role: "assistant", content: "What's the service address?" },
+        { role: "user", content: "123 Test Street, Dallas TX 75201" },
+      ],
       completeState
     );
     assert(
-      /shared your request with the team|recorded your request/i.test(
-        completeChat.reply
-      ),
-      `complete lead must use the existing close path, got: ${completeChat.reply}`
+      /shared your request with the team/i.test(completeChat.reply),
+      `captured lead must send without requiring agreement or a time, got: ${completeChat.reply}`
     );
     assert(
       completeChat.salesState.leadDeliveryStatus === "QUEUED" ||
@@ -2328,7 +2327,7 @@ async function testDeterministicPreContactChatReplies() {
       `complete lead must queue/send once, got ${completeChat.salesState.leadDeliveryStatus}`
     );
     assert(
-      !shouldAttemptLeadHandoff(completeChat.salesState, "closure", "Yes"),
+      !shouldAttemptLeadHandoff(completeChat.salesState, "capture", "Yes"),
       "replay after queued/sent must not attempt another handoff"
     );
   } finally {
@@ -2827,6 +2826,14 @@ async function testProfileAwareSalesConversationQuality() {
       assert(
         !shouldAttemptLeadHandoff(afterAddressState, "closure", addressOnly),
         `${sample.label}: completing contacts must not hand off`
+      );
+      assert(
+        isWebsiteLeadCaptureReady(afterAddressState),
+        `${sample.label}: complete contact and need must be capture-ready without scheduling`
+      );
+      assert(
+        shouldAttemptLeadHandoff(afterAddressState, "capture", addressOnly),
+        `${sample.label}: lead capture must not wait for a preferred time or agreement`
       );
       // Synthetic need-resume reply for later deterministic turns (no OpenAI).
       const afterAddressReply =
@@ -3729,7 +3736,29 @@ function testStickyNeedResumesAfterBareAddress() {
 
   assert(
     !shouldAttemptLeadHandoff(afterAddress, "closure", addressOnly),
-    "contact completeness alone must not queue a handoff"
+    "closure handoff remains gated by its existing agreement path"
+  );
+  assert(
+    shouldAttemptLeadHandoff(afterAddress, "capture", addressOnly),
+    "website lead alert must send after contact fields and need are captured"
+  );
+  assert(
+    !isWebsiteLeadCaptureReady({ ...afterAddress, leadCapturePaused: true }),
+    "explicit lead-capture refusal must suppress the automatic alert"
+  );
+  assert(
+    !isWebsiteLeadCaptureReady({
+      ...afterAddress,
+      lead: { ...afterAddress.lead, phone: null },
+    }),
+    "website lead alert must wait for the missing phone field"
+  );
+  assert(
+    !isWebsiteLeadCaptureReady({
+      ...afterAddress,
+      requiredOwnerQuestions: ["Is water fully blocked or draining slowly?"],
+    }),
+    "configured owner-required question must still be completed before alert"
   );
   assert(
     !afterAddress.customerAgreed && !afterAddress.preferredTiming,
@@ -3737,7 +3766,7 @@ function testStickyNeedResumesAfterBareAddress() {
   );
 
   console.log(
-    "PASS — sticky need resumes after bare address (no consultation template, no handoff)"
+    "PASS — sticky need is retained and website handoff does not require scheduling"
   );
 }
 
@@ -4131,6 +4160,13 @@ function testCrossBusinessBallparkFollowUp() {
       vertical.key + ": the name prompt must remain pending through price interruptions"
     );
   }
+
+  const salesPromptSource = readSrc("src/lib/salesChat.ts");
+  assert(
+    salesPromptSource.includes("EXPERT HELP AFTER LEAD CAPTURE") &&
+      /fully blocked or\s+draining slowly/i.test(salesPromptSource),
+    "shared sales guidance must include profile-relevant, one-at-a-time diagnostic questions such as the plumbing example"
+  );
 
   // Exact interruption pattern reported in production: unanswered lead fields
   // survive price questions and are captured when the customer answers later.

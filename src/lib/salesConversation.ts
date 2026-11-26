@@ -460,9 +460,9 @@ export function normalizePreContactPriceReply(
   if (!field) return reply.trim();
 
   const fieldAskPatterns: Record<"name" | "phone" | "address", RegExp> = {
-    name: /\b(?:what(?:['’]s| is) your (?:first )?name|may i (?:have|get|ask) your (?:first )?name|what should i call you)\\b/i,
-    phone: /\b(?:best (?:phone )?number|phone number|reach you|call you)\\b/i,
-    address: /\b(?:service address|what(?:['’]s| is) (?:the |your )?address|property address)\\b/i,
+    name: /\b(?:what(?:['’]s| is) your (?:first )?name|may i (?:have|get|ask) your (?:first )?name|what should i call you)\b/i,
+    phone: /\b(?:best (?:phone )?number|phone number|reach you|call you)\b/i,
+    address: /\b(?:service address|what(?:['’]s| is) (?:the |your )?address|property address)\b/i,
   };
   const wasAsked = messages.some(
     (message) =>
@@ -475,8 +475,8 @@ export function normalizePreContactPriceReply(
   const fragments = reply.match(/[^.!?]+(?:[.!?]+|$)/g) || [reply];
   const answer = fragments
     .filter((fragment) =>
-      !/\?\\s*$/.test(fragment.trim()) &&
-      !/\b(?:would you like to|are you looking for|what type of|which option|shall i|ready to (?:book|schedule)|want me to)\\b/i.test(fragment)
+      !/\?\s*$/.test(fragment.trim()) &&
+      !/\b(?:would you like to|are you looking for|what type of|which option|shall i|ready to (?:book|schedule)|want me to)\b/i.test(fragment)
     )
     .join(" ")
     .trim();

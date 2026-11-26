@@ -4165,7 +4165,7 @@ function testCrossBusinessBallparkFollowUp() {
     solarBusiness
   );
   assert(
-    !/\\?/.test(solarPriceReply) && !solarPriceReply.includes(PRE_CONTACT_ASK_FIRST_NAME),
+    !/\?/.test(solarPriceReply) && !solarPriceReply.includes(PRE_CONTACT_ASK_FIRST_NAME),
     "answer-first price turn must not repeat a previously asked name or add a new discovery question"
   );
 
@@ -4215,7 +4215,7 @@ function testCrossBusinessBallparkFollowUp() {
     solarBusiness
   );
   assert(
-    !/\\?/.test(solarPhoneAnswer) && !solarPhoneAnswer.includes(PRE_CONTACT_ASK_PHONE),
+    !/\?/.test(solarPhoneAnswer) && !solarPhoneAnswer.includes(PRE_CONTACT_ASK_PHONE),
     "an unanswered phone prompt must not be repeated after a price interruption"
   );
   const afterSolarPhone = updateSalesStateFromTurn(
@@ -4265,7 +4265,7 @@ function testCrossBusinessBallparkFollowUp() {
     solarBusiness
   );
   assert(
-    !/\\?/.test(addressPriceReply) &&
+    !/\?/.test(addressPriceReply) &&
       !addressPriceReply.includes(PRE_CONTACT_ASK_ADDRESS),
     "an unanswered address prompt must not be repeated after a pricing interruption"
   );

@@ -41,11 +41,12 @@ import {
   LEAD_ALERT_SMS_PROMPT,
   LEAD_ALERT_SETUP_NEEDED_ERROR,
   normalizeLeadAlertSms,
+  parseStandaloneLeadAlertUpdate,
   resolveWebsiteChatLeadAlert,
   shouldCollectLeadAlertSetup,
 } from "../src/lib/leadAlertRecipients";
 import { maybeSendLeadHandoff } from "../src/lib/leadHandoff";
-import { generateSalesReply } from "../src/lib/salesChat";
+import { assistantAskedForName, generateSalesReply } from "../src/lib/salesChat";
 import {
   commitSharedProfile,
   loadSharedProfile,
@@ -57,7 +58,9 @@ import {
   PRE_CONTACT_ASK_ADDRESS,
   PRE_CONTACT_ASK_FIRST_NAME,
   PRE_CONTACT_ASK_PHONE,
+  buildTurnControlBlock,
   recordSiteVisitFeeMention,
+  resolveDeterministicPreContactReply,
   resolvePostContactConversationReply,
   updateSalesStateFromTurn,
   validateSalesReply,
@@ -1125,6 +1128,20 @@ async function testPerBusinessLeadAlerts() {
   assert(normalizeLeadAlertSms("2145550189") === "+12145550189", "US 10-digit normalizes");
   assert(normalizeLeadAlertSms("+12145550189") === "+12145550189", "E.164 accepted");
   assert(normalizeLeadAlertSms("555") === null, "short number rejected");
+  assert(
+    JSON.stringify(parseStandaloneLeadAlertUpdate("+919873599994")) ===
+      JSON.stringify({ sms: "+919873599994" }),
+    "a standalone international phone number is parsed as an SMS destination correction"
+  );
+  assert(
+    JSON.stringify(parseStandaloneLeadAlertUpdate("pulsetechlabs1@gmail.com")) ===
+      JSON.stringify({ email: "pulsetechlabs1@gmail.com" }),
+    "a standalone email is parsed as an alert destination correction"
+  );
+  assert(
+    parseStandaloneLeadAlertUpdate("Please use +919873599994 for new lead alerts") === null,
+    "natural-language instructions are not mistaken for a standalone destination"
+  );
 
   const engine = readSrc("src/components/PulseTechEngineChat.tsx");
   const copy = readSrc("src/lib/leadAlertRecipients.ts");
@@ -1873,6 +1890,87 @@ function testGenericPreferredTimeLeadCapture() {
   );
 
   console.log("PASS — generic preferred-time capture, sticky Yes handoff, missing-time ask");
+}
+
+function testSolarQuestionBeforeLeadCapture() {
+  assert(
+    assistantAskedForName("What’s your name so I can get you started?"),
+    "curly-apostrophe name prompts must be detected across turns"
+  );
+  assert(
+    assistantAskedForName("What's your name?"),
+    "straight-apostrophe name prompts must be detected across turns"
+  );
+  assert(
+    classifyConversationNeedTone("solar installation", solarBusiness) === "ASPIRATIONAL",
+    "the generic project-intent classifier recognizes the noun form installation"
+  );
+  const solarInstallationState = {
+    ...createInitialSalesState({
+      conversationId: "conv_solar_installation_price",
+      businessKey: solarBusiness.website,
+    }),
+    primaryNeed: "solar installation",
+  };
+  const installationPrice = buildIntentAwarePriceAnswer(
+    solarInstallationState,
+    solarBusiness,
+    "Can you give me a ballpark figure?"
+  );
+  assert(
+    /design choices, materials, site conditions, and project scope/i.test(installationPrice),
+    "solar installation pricing follow-up uses project-specific price drivers"
+  );
+  const opening = "I want to install solar panels at my home.";
+  const questions = [
+    "How much will it cost and tell me the benefits.",
+    "How much electricity cost will it save.",
+  ];
+
+  for (const question of questions) {
+    const openingState = updateSalesStateFromTurn(
+      createInitialSalesState({
+        conversationId: "conv_solar_answer_first",
+        businessKey: business.website,
+      }),
+      [{ role: "user", content: opening }],
+      business
+    );
+    const namePrompt = buildEmpatheticNameAsk(opening);
+    const followUpMessages = [
+      { role: "user" as const, content: opening },
+      { role: "assistant" as const, content: namePrompt },
+      { role: "user" as const, content: question },
+    ];
+    const followUpState = updateSalesStateFromTurn(
+      openingState,
+      followUpMessages,
+      business
+    );
+
+    assert(
+      followUpState.currentObjective === "ANSWER",
+      `solar question must be answered before lead capture, got ${followUpState.currentObjective} for: ${question}`
+    );
+    assert(
+      resolveDeterministicPreContactReply(followUpState, business, question) === null,
+      `solar question must not receive the deterministic name prompt: ${question}`
+    );
+    assert(
+      buildTurnControlBlock(followUpState, business).includes(
+        "On a direct question, answer it without repeating an unanswered lead-field request from an earlier turn."
+      ),
+      "a substantive follow-up must not repeat a lead-field ask already made earlier"
+    );
+    assert(
+      buildTurnControlBlock(followUpState, business).includes(
+        "If one message asks multiple things, answer each part briefly instead of answering only the first."
+      ),
+      "a compound customer question must be answered in full"
+    );
+  }
+
+  console.log("PASS — solar cost, benefits, and savings questions are answered before lead capture");
 }
 
 function testHighIntentLeadCaptureOrder() {
@@ -3771,6 +3869,7 @@ async function main() {
   testStickyPrimaryNeedInAlerts();
   testGenericPreferredTimeLeadCapture();
   testHighIntentLeadCaptureOrder();
+  testSolarQuestionBeforeLeadCapture();
   await testDeterministicPreContactChatReplies();
   await testPostContactSalesConversation();
   await testProfileAwareSalesConversationQuality();

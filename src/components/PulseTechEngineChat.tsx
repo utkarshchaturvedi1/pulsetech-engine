@@ -12,6 +12,7 @@ import {
   LEAD_ALERT_EMAIL_PROMPT,
   LEAD_ALERT_SMS_PROMPT,
   normalizeLeadAlertSms,
+  parseStandaloneLeadAlertUpdate,
   shouldCollectLeadAlertSetup,
 } from "../lib/leadAlertRecipients";
 import { PULSETECH_CHAT_ICON } from "../lib/chatAvatar";
@@ -332,6 +333,46 @@ You can reply "retry" to try analyzing again.`
         setPhase("ready");
         setAssistantMessages((prev) => [...prev, INVITE_READY_MESSAGE]);
         return formatLeadAlertsConfigured(email, phone);
+      } catch {
+        return "I couldn't save those lead-alert details. Please try the email and mobile number again.";
+      }
+    }
+
+    // A bare email address or phone number in setup mode is a correction to
+    // the lead-alert destination, not a new business instruction for the AI.
+    const destinationUpdate = parseStandaloneLeadAlertUpdate(text);
+    const directEmail = destinationUpdate && "email" in destinationUpdate
+      ? destinationUpdate.email
+      : "";
+    const directSms = destinationUpdate && "sms" in destinationUpdate
+      ? destinationUpdate.sms
+      : null;
+
+    if (phase === "ready" && destinationUpdate) {
+      const current = businessRef.current;
+      if (!current) {
+        return "Your AI Sales Employee isn't ready yet. Please wait for analysis to finish.";
+      }
+      const email = directEmail || current.leadNotificationEmail?.trim() || "";
+      const sms = directSms || normalizeLeadAlertSms(current.leadNotificationPhone);
+      if (!isValidLeadAlertEmail(email)) {
+        setPhase("collecting_email");
+        return LEAD_ALERT_EMAIL_PROMPT;
+      }
+      if (!sms) {
+        setPhase("collecting_sms");
+        return LEAD_ALERT_SMS_PROMPT;
+      }
+      try {
+        const saved = await persistProfile({
+          ...current,
+          leadNotificationEmail: email,
+          leadNotificationPhone: sms,
+        });
+        return formatLeadAlertsConfigured(
+          saved.leadNotificationEmail || email,
+          saved.leadNotificationPhone || sms
+        );
       } catch {
         return "I couldn't save those lead-alert details. Please try the email and mobile number again.";
       }

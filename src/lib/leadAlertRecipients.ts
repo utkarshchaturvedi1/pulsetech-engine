@@ -22,6 +22,22 @@ export function isValidLeadAlertEmail(value: string | null | undefined): boolean
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/** Recognize only a standalone destination, so contact corrections never become AI instructions. */
+export function parseStandaloneLeadAlertUpdate(
+  value: string | null | undefined
+): { email: string } | { sms: string } | null {
+  const text = value?.trim() || "";
+  if (!text) return null;
+  if (!/\s/.test(text) && isValidLeadAlertEmail(text)) {
+    return { email: text.toLowerCase() };
+  }
+  if (/^\+?[0-9][0-9\s().-]{6,}[0-9]$/.test(text)) {
+    const sms = normalizeLeadAlertSms(text);
+    if (sms) return { sms };
+  }
+  return null;
+}
+
 /** E.164, or a US number that can be safely normalized to +1XXXXXXXXXX. */
 export function normalizeLeadAlertSms(
   value: string | null | undefined

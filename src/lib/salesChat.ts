@@ -123,6 +123,21 @@ After the lead is secured, continue helping the customer understand:
 - what concerns they may have
 - what the logical next step is
 
+EXPERT HELP AFTER LEAD CAPTURE
+When the customer describes a concrete problem, help them assess it with
+profile-relevant expertise. Answer their direct question first, then ask at most
+one useful diagnostic follow-up when it would change the advice or next step.
+Use the customer's own details and verified BusinessProfile facts. Do not ask
+them to repeat details already provided. For example, if a customer says a sink
+is clogged and asks what it means, clarify whether water is fully blocked or
+draining slowly, or whether other drains are affected. Do not present examples
+as a fixed script; choose the question that fits the customer's situation.
+Keep the lead protected: once name, phone, service address, and a concrete need
+are captured, the team is notified. Do not require a preferred appointment time,
+calendar booking, or a second agreement before sending the lead. Do not claim a
+visit is booked. After the alert, continue answering or diagnosing only when
+the customer wants more help.
+
 Desired outcome:
 When the human salesperson eventually contacts the lead, the customer should already understand the problem they want solved, the relevant options available from the business, and why those options may be worth considering.
 The human salesperson should not be starting from zero.
@@ -531,12 +546,32 @@ export async function generateSalesReply(
   );
   const leadDetectionMs = Date.now() - detectStarted;
 
+  const hadCompleteContact = Boolean(
+    previousState?.lead.name?.trim() &&
+      previousState?.lead.phone?.trim() &&
+      previousState?.lead.address?.trim()
+  );
+  const hasCompleteContact = Boolean(
+    salesState.lead.name?.trim() &&
+      salesState.lead.phone?.trim() &&
+      salesState.lead.address?.trim()
+  );
+  const contactCompletedThisTurn = !hadCompleteContact && hasCompleteContact;
+  const ownerQuestionCompletedThisTurn = Boolean(
+    previousState?.pendingOwnerQuestion && !salesState.pendingOwnerQuestion
+  );
+  const retryFailedCapture = previousState?.leadDeliveryStatus === "FAILED";
+  const handoffReason =
+    contactCompletedThisTurn || ownerQuestionCompletedThisTurn || retryFailedCapture
+      ? "capture"
+      : "closure";
+
   const handoffStarted = Date.now();
   const decision = evaluateHandoffReadiness(salesState, latestUser?.content);
   const handoff = await maybeSendLeadHandoff(
     business,
     salesState,
-    "closure",
+    handoffReason,
     latestUser?.content
   );
   const handoffMs = Date.now() - handoffStarted;
@@ -583,7 +618,21 @@ export async function generateSalesReply(
     salesState.currentObjective = priceTurn ? "HANDLE_PRICE_OBJECTION" : "ANSWER";
     const pricePrefix = priceTurn ? `${buildIntentAwarePriceAnswer(salesState, business, latestUser?.content)} ` : "";
     const factPrefix = factAnswer ? `${factAnswer} ` : "";
-    deterministicHandoffReply = `${pricePrefix}${factPrefix}${ownerFollowUp}`.trim();
+    const handoffPrefix = handoff.attempted && deterministicHandoffReply
+      ? `${deterministicHandoffReply} `
+      : "";
+    const priceAnswer = handoffPrefix ? "" : pricePrefix;
+    deterministicHandoffReply = `${handoffPrefix}${priceAnswer}${factPrefix}${ownerFollowUp}`.trim();
+  }
+  if (
+    !ownerFollowUp &&
+    ownerQuestionCompletedThisTurn &&
+    alreadyScheduled &&
+    !priceTurn &&
+    !factAnswer &&
+    !deterministicHandoffReply
+  ) {
+    deterministicHandoffReply = "Thanks—that gives the team useful context. What else would you like help with?";
   }
   if (
     !deterministicHandoffReply &&

@@ -45,10 +45,8 @@ export function buildSuccessfulLeadHandoffCustomerMessage(
   const first = name?.trim().split(/\s+/)[0];
   const thanks = first ? `Thanks, ${first}` : "Thanks";
   const timing = preferredTiming?.trim();
-  const timingLine = timing
-    ? `We'll note ${timing} as your preferred time.`
-    : `They'll contact you to confirm the earliest available appointment.`;
-  return `${thanks} — I've shared your request with the team so they can help with your visit. ${timingLine} The team will contact you at the number you provided to confirm availability.`;
+  const timingLine = timing ? `I've noted ${timing} as your preferred time. ` : "";
+  return `${thanks} — I've shared your request with the team. ${timingLine}The team will reach out using the number you provided.`;
 }
 
 /** Used while delivery is queued / in progress — never claims the team already received it. */
@@ -62,7 +60,7 @@ export function buildQueuedLeadHandoffCustomerMessage(
   const recorded = timing
     ? `I've recorded your request and noted ${timing} as your preferred time.`
     : `I've recorded your request.`;
-  return `${thanks} — ${recorded} The team will contact you at the number you provided to confirm availability.`;
+  return `${thanks} — ${recorded} The team will reach out using the number you provided.`;
 }
 
 export function buildFailedLeadHandoffCustomerMessage(
@@ -74,10 +72,7 @@ export function buildFailedLeadHandoffCustomerMessage(
 export function isSuccessfulLeadHandoffCustomerMessage(reply: string): boolean {
   return (
     /\bshared your request with the team\b/i.test(reply) &&
-    (/\bpreferred time\b/i.test(reply) ||
-      /\bearliest available appointment\b/i.test(reply)) &&
-    (/\bteam will confirm\b/i.test(reply) ||
-      /\bteam will contact you at the number you provided\b/i.test(reply))
+    /\bteam will (?:reach out|contact you) using the number you provided\b/i.test(reply)
   );
 }
 
@@ -92,9 +87,7 @@ export function isFailedLeadHandoffCustomerMessage(reply: string): boolean {
 export function isQueuedLeadHandoffCustomerMessage(reply: string): boolean {
   return (
     /\bi('ve| have) recorded your request\b/i.test(reply) &&
-    /\bpreferred time\b/i.test(reply) &&
-    (/\bteam will confirm availability\b/i.test(reply) ||
-      /\bteam will contact you at the number you provided\b/i.test(reply)) &&
+    /\bteam will reach out using the number you provided\b/i.test(reply) &&
     !/\bshared your request with the team\b/i.test(reply)
   );
 }

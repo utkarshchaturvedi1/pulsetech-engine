@@ -589,7 +589,6 @@ export function captureExplicitOwnerAnswers(state: SalesState, latest: string): 
 
 export function ownerQuestionReply(state: SalesState): string | null {
   if (!state.lead.name || !state.lead.phone || !state.lead.address) return null;
-  if (state.leadDeliveryStatus === "QUEUED" || state.leadDeliveryStatus === "SENT") return null;
   const question = missingOwnerQuestions(state)[0];
   if (!question) return null;
   const parts = ownerQuestionParts(question);

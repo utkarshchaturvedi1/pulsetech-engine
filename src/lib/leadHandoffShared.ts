@@ -146,7 +146,7 @@ export function hasConcreteNeed(need: string | null): boolean {
     /^(hi[,!.]?\s*)?(i\s+)?(need|want|looking for)\s+(a|an|some|someone|help)?\s*[\w\s-]{1,40}\.?$/i.test(
       t
     ) ||
-    /\bi need (a|an)\s+[\w-]+(\s+(company|service|person|tech|technician|contractor))?\b/i.test(
+    /\bi need (a|an)\s+[\w-]+(\s+(company|service|person|tech|technician|contractor))?[.!?]?$/i.test(
       t
     );
   if (genericProvider) return false;
@@ -184,7 +184,7 @@ export function isWebsiteLeadCaptureReady(state: SalesState): boolean {
     hasText(state.lead.name) &&
     hasText(state.lead.phone) &&
     hasText(state.lead.address) &&
-    need.length >= 8
+    hasConcreteNeed(need)
   );
 }
 

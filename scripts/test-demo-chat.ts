@@ -4050,7 +4050,7 @@ function testCrossBusinessBallparkFollowUp() {
           answer
       );
       const quotedAmounts = answer.match(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g) || [];
-      const verifiedAmounts =
+      const verifiedAmounts: string[] =
         String(vertical.profile.pricingRules || "").match(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g) || [];
       assert(
         quotedAmounts.every((amount) => verifiedAmounts.includes(amount)),

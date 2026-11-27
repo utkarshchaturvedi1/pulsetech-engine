@@ -529,7 +529,7 @@ export async function maybeSendLeadHandoff(
     if (leadHandoffTestDelivery) {
       const result = await leadHandoffTestDelivery({
         emailTo: recipients.email,
-        smsTo: recipients.sms,
+        smsTo: recipients.sms || "",
         subject,
         text,
         smsBody,
@@ -554,7 +554,7 @@ export async function maybeSendLeadHandoff(
     const emailMs = Date.now() - emailStarted;
 
     const smsStarted = Date.now();
-    const smsResult = smsConfigured
+    const smsResult = smsConfigured && recipients.sms
       ? await sendWebsiteLeadSms({ to: recipients.sms, body: smsBody })
       : { ok: true, skipped: true as const };
     const smsMs = Date.now() - smsStarted;
@@ -583,7 +583,7 @@ export async function maybeSendLeadHandoff(
       emailOk,
       smsOk,
       emailSkipped: !smtpConfigured,
-      smsSkipped: !smsConfigured,
+      smsSkipped: !smsConfigured || !recipients.sms,
     });
 
     if (!emailOk || !smsOk) {

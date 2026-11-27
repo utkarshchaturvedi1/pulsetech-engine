@@ -184,13 +184,13 @@ function PlanPricingSection() {
     <div className="grid gap-5 md:grid-cols-2">
       <article className="rounded-[22px] border border-[#d9e7f6] bg-[#f7faff] p-6">
         <p className="text-sm font-bold uppercase tracking-wide text-blue-700">One-time business-specific setup</p>
-        <p className="mt-3 text-4xl font-extrabold tracking-tight text-slate-950">$2,000</p>
+        <p className="mt-3 text-4xl font-extrabold tracking-tight text-slate-950">$497</p>
         <p className="mt-1 text-sm text-slate-600">Charged once.</p>
         <p className="mt-4 text-sm leading-6 text-slate-700">Configuration of an AI Sales Employee around your business, services, policies, operating details, and instructions.</p>
       </article>
       <article className="rounded-[22px] border-2 border-blue-600 bg-white p-6">
         <p className="text-sm font-bold uppercase tracking-wide text-blue-700">Monthly service</p>
-        <p className="mt-3 text-4xl font-extrabold tracking-tight text-slate-950">$500 <span className="text-lg font-semibold text-slate-600">/ month</span></p>
+        <p className="mt-3 text-4xl font-extrabold tracking-tight text-slate-950">$497 <span className="text-lg font-semibold text-slate-600">/ month</span></p>
         <p className="mt-1 text-sm text-slate-600">Continues month to month until canceled.</p>
         <ul className="mt-4 space-y-2 text-sm leading-6 text-slate-700">
           <li>Website chat and inbound voice AI Sales Employees</li>

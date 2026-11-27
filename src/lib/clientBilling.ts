@@ -45,7 +45,7 @@ export function billingCommand(record: PaddleSandboxNotification, setupPriceId: 
     const items = d.items.map(object);
     const initial = items.length === 2;
     if (items.length !== 1 && !initial) return null;
-    const expected = initial ? new Map([[setupPriceId, "200000"], [monthlyPriceId, "50000"]]) : new Map([[monthlyPriceId, "50000"]]);
+    const expected = initial ? new Map([[setupPriceId, "49700"], [monthlyPriceId, "49700"]]) : new Map([[monthlyPriceId, "49700"]]);
     for (const item of items) {
       const price = object(item.price);
       const unit = object(price.unit_price);
@@ -56,7 +56,7 @@ export function billingCommand(record: PaddleSandboxNotification, setupPriceId: 
       expected.delete(price.id);
     }
     const totals = object(object(d.details).totals);
-    if (expected.size || d.discount_id != null || String(totals.discount ?? "0") !== "0" || String(totals.subtotal) !== (initial ? "250000" : "50000")) return null;
+    if (expected.size || d.discount_id != null || String(totals.discount ?? "0") !== "0" || String(totals.subtotal) !== (initial ? "99400" : "49700")) return null;
     return { ...base, kind: "payment", entityId, transactionId: entityId, subscriptionId, initial, status: "paid" };
   }
   if (record.eventType.startsWith("subscription.")) {

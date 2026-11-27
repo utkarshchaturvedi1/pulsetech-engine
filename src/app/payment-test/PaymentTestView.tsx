@@ -214,7 +214,7 @@ function PricingPage({
             <p className="w-fit rounded-full bg-[#eff6ff] px-3 py-1 text-xs font-bold tracking-wide text-[#2563eb] uppercase">
               One-time setup
             </p>
-            <p className="mt-6 text-5xl font-bold tracking-tight text-[#0b1f44] sm:text-6xl">$2,000</p>
+            <p className="mt-6 text-5xl font-bold tracking-tight text-[#0b1f44] sm:text-6xl">$497</p>
             <p className="mt-2 text-sm text-[#5c6b80]">Charged once.</p>
             <p className="mt-6 border-t border-[#e6edf5] pt-6 text-sm leading-7 text-[#334155] sm:text-base">
               We configure your AI Sales Employee specifically for your business using your
@@ -234,7 +234,7 @@ function PricingPage({
               Monthly service
             </p>
             <p className="mt-6 text-5xl font-bold tracking-tight text-[#0b1f44] sm:text-6xl">
-              $500
+              $497
               <span className="ml-1 text-xl font-medium text-[#5c6b80] sm:text-2xl">/ month</span>
             </p>
             <p className="mt-2 text-sm text-[#5c6b80]">Ongoing service. Billed every month.</p>
@@ -290,7 +290,7 @@ function PricingPage({
             <CheckoutButton ready={readyToLoad} loading={!scriptReady} onClick={onCheckout} />
           </div>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-[#5c6b80]">
-            Checkout opens with both the $2,000 one-time setup price and the $500/month price. A
+            Checkout opens with both the $497 one-time setup price and the $497/month price. A
             buyer can still change a quantity or remove a line before paying.
           </p>
           {scriptError ? (

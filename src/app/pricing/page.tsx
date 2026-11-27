@@ -62,7 +62,7 @@ export default function PricingPage() {
         <section className="pt-pricing-grid" aria-label="PulseTech pricing">
           <article className="pt-price-card pt-setup-card">
             <p className="pt-price-label">One-time business setup</p>
-            <p className="pt-price-amount"><span>$</span>2,000</p>
+            <p className="pt-price-amount"><span>$</span>497</p>
             <p className="pt-price-caption">Paid once to configure your business-specific AI Sales Employee.</p>
             <ul>
               <li>Configured around your business, services, service areas, hours, verified prices, and policies</li>
@@ -73,7 +73,7 @@ export default function PricingPage() {
 
           <article className="pt-price-card pt-monthly-card">
             <p className="pt-price-label">Ongoing service</p>
-            <p className="pt-price-amount"><span>$</span>500<small>/month</small></p>
+            <p className="pt-price-amount"><span>$</span>497<small>/month</small></p>
             <p className="pt-price-caption">Continues month to month until canceled.</p>
             <ul>
               {features.map((feature) => <li key={feature}>{feature}</li>)}

@@ -4,14 +4,14 @@ The checkout flow supports a secure hosted checkout from Dodo Payments and Paddl
 
 ## Production database
 
-Apply `supabase/multi_provider_billing.sql` after the existing `supabase/client_billing.sql` migration. This adds provider identifiers, checkout provider/session fields, the production Paddle notification table, and the Dodo payment application procedure. Existing Paddle billing history remains in place.
+The provider setup was created by applying `supabase/multi_provider_billing.sql` after `supabase/client_billing.sql`. For the `$497` pricing release, apply `supabase/dodo_billing_price_update_20261127.sql` in the Production Supabase SQL Editor before enabling checkout. It safely replaces only the Dodo billing procedure with the new accepted amount thresholds. Existing Paddle billing history remains in place.
 
 ## Dodo Payments
 
 The live products already in the Dodo catalogue are:
 
-- Setup and training: `$2,000` one time (`pdt_0NqqS9Oa274LBB5NcBL1J`)
-- Monthly service: `$500` monthly (`pdt_0NqqSKk27jMr6B740Vvrw`)
+- Setup and training: `$497` one time (`pdt_0NqqS9Oa274LBB5NcBL1J`)
+- Monthly service: `$497` monthly (`pdt_0NqqSKk27jMr6B740Vvrw`)
 
 Add these Production environment variables in Vercel:
 

@@ -80,7 +80,7 @@ function fixtureSms(profile: BusinessProfile): string {
 }
 
 export type WebsiteChatLeadAlertRecipients =
-  | { ok: true; email: string; sms: string }
+  | { ok: true; email: string; sms?: string }
   | { ok: false; error: string };
 
 export function resolveWebsiteChatLeadAlert(
@@ -97,11 +97,15 @@ export function resolveWebsiteChatLeadAlert(
     ? fixtureSms(profile)
     : normalizeLeadAlertSms(profile.leadNotificationPhone) || "";
 
-  if (!isValidLeadAlertEmail(email) || !sms) {
+  // The shared showcase profile is PulseTech's demo, not a real customer
+  // account. It may route to the configured demo inbox without an SMS target;
+  // never invent or reuse a customer's phone number. Real customer accounts
+  // still require both owner-provided destinations.
+  if (!isValidLeadAlertEmail(email) || (!showcase && !sms)) {
     return { ok: false, error: LEAD_ALERT_SETUP_NEEDED_ERROR };
   }
 
-  return { ok: true, email: email.toLowerCase(), sms };
+  return { ok: true, email: email.toLowerCase(), ...(sms ? { sms } : {}) };
 }
 
 export function shouldCollectLeadAlertSetup(profile: BusinessProfile): boolean {

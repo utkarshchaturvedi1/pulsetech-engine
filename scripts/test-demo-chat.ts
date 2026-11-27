@@ -45,7 +45,10 @@ import {
   resolveWebsiteChatLeadAlert,
   shouldCollectLeadAlertSetup,
 } from "../src/lib/leadAlertRecipients";
-import { maybeSendLeadHandoff } from "../src/lib/leadHandoff";
+import {
+  maybeSendLeadHandoff,
+  setLeadHandoffTestDelivery,
+} from "../src/lib/leadHandoff";
 import { assistantAskedForName, generateSalesReply } from "../src/lib/salesChat";
 import {
   commitSharedProfile,
@@ -1228,10 +1231,53 @@ async function testPerBusinessLeadAlerts() {
     assert(!invalid.ok, "invalid recipients send no alert");
 
     assert(shouldCollectLeadAlertSetup(smilePestProfile()) === true, "generated demo collects alerts");
+    const previousFixtureEmail = process.env.LEAD_NOTIFICATION_EMAIL;
+    const previousFixturePhone = process.env.PHONE_AGENT_ALERT_PHONE;
+    process.env.LEAD_NOTIFICATION_EMAIL = "demo-inbox@pulsetech.test";
+    delete process.env.PHONE_AGENT_ALERT_PHONE;
+    const showcaseRoute = resolveWebsiteChatLeadAlert(texasSolarProfessionalTestProfile);
+    assert(
+      showcaseRoute.ok && showcaseRoute.email === "demo-inbox@pulsetech.test" && !showcaseRoute.sms,
+      "showcase can safely route to the configured demo inbox without inventing an SMS destination"
+    );
     assert(
       shouldCollectLeadAlertSetup(texasSolarProfessionalTestProfile) === false,
-      "Texas Solar showcase skips the collection chat"
+      "configured showcase inbox keeps the customer demo ready"
     );
+    const showcaseSend = await maybeSendLeadHandoff(
+      texasSolarProfessionalTestProfile,
+      qualifiedWebsiteLead("https://texassolar.pro"),
+      "capture"
+    );
+    assert(
+      showcaseSend.status === "SENT" && showcaseSend.emailTo === "demo-inbox@pulsetech.test" && !showcaseSend.smsTo,
+      "showcase handoff uses the configured email and no SMS fallback"
+    );
+    const previousDryRun = process.env.LEAD_HANDOFF_DRY_RUN;
+    delete process.env.LEAD_HANDOFF_DRY_RUN;
+    let interceptedSmsTo = "not-called";
+    setLeadHandoffTestDelivery(async (input) => {
+      interceptedSmsTo = input.smsTo;
+      return { emailOk: true, smsOk: true };
+    });
+    try {
+      const queuedShowcaseSend = await maybeSendLeadHandoff(
+        texasSolarProfessionalTestProfile,
+        qualifiedWebsiteLead("https://texassolar.pro"),
+        "capture"
+      );
+      assert(queuedShowcaseSend.status === "QUEUED", "showcase email alert can queue without SMS");
+      await queuedShowcaseSend.delivery?.();
+      assert(interceptedSmsTo === "", "showcase delivery does not attempt SMS without a verified destination");
+    } finally {
+      setLeadHandoffTestDelivery(null);
+      if (previousDryRun === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;
+      else process.env.LEAD_HANDOFF_DRY_RUN = previousDryRun;
+    }
+    if (previousFixtureEmail === undefined) delete process.env.LEAD_NOTIFICATION_EMAIL;
+    else process.env.LEAD_NOTIFICATION_EMAIL = previousFixtureEmail;
+    if (previousFixturePhone === undefined) delete process.env.PHONE_AGENT_ALERT_PHONE;
+    else process.env.PHONE_AGENT_ALERT_PHONE = previousFixturePhone;
     assert(
       formatLeadAlertsConfigured("a@x.test", "+12145550189").includes("Lead alerts configured"),
       "confirmation copy"

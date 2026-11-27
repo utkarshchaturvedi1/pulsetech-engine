@@ -4,7 +4,7 @@ The checkout flow supports a secure hosted checkout from Dodo Payments and Paddl
 
 ## Production database
 
-Apply `supabase/multi_provider_billing.sql` after the existing `supabase/client_billing.sql` migration. This adds provider identifiers, checkout provider/session fields, the production Paddle notification table, and the Dodo payment application procedure. Existing Paddle billing history remains in place.
+The provider setup was created by applying `supabase/multi_provider_billing.sql` after `supabase/client_billing.sql`. For the `$497` pricing release, apply `supabase/dodo_billing_price_update_20261127.sql` in the Production Supabase SQL Editor before enabling checkout. It safely replaces only the Dodo billing procedure with the new accepted amount thresholds. Existing Paddle billing history remains in place.
 
 ## Dodo Payments
 

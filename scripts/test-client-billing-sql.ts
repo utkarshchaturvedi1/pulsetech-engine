@@ -15,6 +15,7 @@ await sql("supabase/customer_leads.sql");
 await sql("supabase/paddle_sandbox_notifications.sql");
 await sql("supabase/client_billing.sql");
 await sql("supabase/multi_provider_billing.sql");
+await sql("supabase/dodo_billing_price_update_20261127.sql");
 
 const accounts = await db.query<{ id: string }>(`insert into public.customer_accounts(business_name,owner_email,demo_id) values
 ('Alpha','a@example.test','alpha-test'),('Beta','b@example.test','beta-test') returning id`);

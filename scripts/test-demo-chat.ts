@@ -1234,18 +1234,22 @@ async function testPerBusinessLeadAlerts() {
     const previousFixtureEmail = process.env.LEAD_NOTIFICATION_EMAIL;
     const previousFixturePhone = process.env.PHONE_AGENT_ALERT_PHONE;
     process.env.LEAD_NOTIFICATION_EMAIL = "demo-inbox@pulsetech.test";
-    delete process.env.PHONE_AGENT_ALERT_PHONE;
-    const showcaseRoute = resolveWebsiteChatLeadAlert(texasSolarProfessionalTestProfile);
+    process.env.PHONE_AGENT_ALERT_PHONE = "+15550000001";
+    const showcaseProfile = {
+      ...texasSolarProfessionalTestProfile,
+      leadNotificationPhone: "+15550000000",
+    };
+    const showcaseRoute = resolveWebsiteChatLeadAlert(showcaseProfile);
     assert(
       showcaseRoute.ok && showcaseRoute.email === "demo-inbox@pulsetech.test" && !showcaseRoute.sms,
       "showcase can safely route to the configured demo inbox without inventing an SMS destination"
     );
     assert(
-      shouldCollectLeadAlertSetup(texasSolarProfessionalTestProfile) === false,
+      shouldCollectLeadAlertSetup(showcaseProfile) === false,
       "configured showcase inbox keeps the customer demo ready"
     );
     const showcaseSend = await maybeSendLeadHandoff(
-      texasSolarProfessionalTestProfile,
+      showcaseProfile,
       qualifiedWebsiteLead("https://texassolar.pro"),
       "capture"
     );
@@ -1268,7 +1272,7 @@ async function testPerBusinessLeadAlerts() {
       );
       assert(queuedShowcaseSend.status === "QUEUED", "showcase email alert can queue without SMS");
       await queuedShowcaseSend.delivery?.();
-      assert(interceptedSmsTo === "", "showcase delivery does not attempt SMS without a verified destination");
+      assert(interceptedSmsTo === "", "showcase ignores both profile and global SMS destinations");
     } finally {
       setLeadHandoffTestDelivery(null);
       if (previousDryRun === undefined) delete process.env.LEAD_HANDOFF_DRY_RUN;

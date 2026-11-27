@@ -71,14 +71,6 @@ function fixtureEmail(profile: BusinessProfile): string {
   );
 }
 
-function fixtureSms(profile: BusinessProfile): string {
-  return (
-    normalizeLeadAlertSms(profile.leadNotificationPhone) ||
-    normalizeLeadAlertSms(process.env.PHONE_AGENT_ALERT_PHONE) ||
-    ""
-  );
-}
-
 export type WebsiteChatLeadAlertRecipients =
   | { ok: true; email: string; sms?: string }
   | { ok: false; error: string };
@@ -93,8 +85,10 @@ export function resolveWebsiteChatLeadAlert(
   const email = showcase
     ? fixtureEmail(profile)
     : profile.leadNotificationEmail?.trim() || "";
+  // The public shared showcase is email-only. Ignore both a profile phone and
+  // PHONE_AGENT_ALERT_PHONE so it can never send test leads to a global SMS number.
   const sms = showcase
-    ? fixtureSms(profile)
+    ? ""
     : normalizeLeadAlertSms(profile.leadNotificationPhone) || "";
 
   // The shared showcase profile is PulseTech's demo, not a real customer

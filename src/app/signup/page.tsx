@@ -29,7 +29,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
           <p className="text-center text-xs font-extrabold uppercase tracking-[.18em] text-[#246bfe]">Step 2 of 2 · {demo.profile.businessName}</p>
           <div className="mt-6"><ClientLoginForm initialMode="signup" nextPath={`/demo?id=${encodeURIComponent(demoId!)}`} /></div>
         </> : <SignupWebsiteForm />}
-        <div className="mt-6 text-center text-sm text-slate-600"><Link href="/login" className="font-semibold text-blue-700 hover:underline">Already have an account? Log in</Link></div>
+        {!demo && <div className="mt-6 text-center text-sm text-slate-600"><Link href="/login" className="font-semibold text-blue-700 hover:underline">Already have an account? Log in</Link></div>}
       </div>
     </section>
   </main>;

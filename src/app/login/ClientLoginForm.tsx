@@ -32,6 +32,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
   const [busy, setBusy] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [signupMode, setSignupMode] = useState(initialMode === "signup");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,7 +65,7 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
         });
         if (error) {
           setMessage(error.message.toLowerCase().includes("already")
-            ? "That email may already have an account. Try logging in or use Forgot password."
+            ? "You may already have an account with this email. Log in or use Forgot password."
             : "We couldn’t create your account. Check the email and password, then try again.");
           return;
         }
@@ -82,13 +83,13 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
           router.replace("/client?onboarding=ready");
           router.refresh();
         } else {
-          setMessage("If this is a new account, check your email to confirm it and return to your demo. If you already have an account, log in or use Forgot password.");
+          setMessage("Check your email to confirm this account and return to your demo. Already have an account? Log in or use Forgot password.");
         }
         return;
       }
       const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
       if (error) {
-        setMessage("That email and password didn’t match. Try again or reset your password.");
+        setMessage("We couldn’t sign you in with those details. Check them or use Forgot password.");
         return;
       }
       const demoId = demoIdFromPath(destination);
@@ -133,14 +134,17 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
       </div>
       {!resetMode && <>
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3"><label className="text-sm font-semibold text-slate-800" htmlFor="client-password">Password</label>{!signupMode && <button type="button" onClick={() => { setResetMode(true); setMessage(""); }} className="text-sm font-semibold text-blue-700 hover:underline">Forgot password?</button>}</div>
-          <input id="client-password" type="password" autoComplete={signupMode ? "new-password" : "current-password"} minLength={signupMode ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder={signupMode ? "Create a password (8+ characters)" : "Password"} />
+          <div className="flex items-center justify-between gap-3"><label className="text-sm font-semibold text-slate-800" htmlFor="client-password">Password</label>{!signupMode && <button type="button" onClick={() => { setResetMode(true); setShowPassword(false); setMessage(""); }} className="text-sm font-semibold text-blue-700 hover:underline">Forgot password?</button>}</div>
+          <div className="relative">
+            <input id="client-password" type={showPassword ? "text" : "password"} autoComplete={signupMode ? "new-password" : "current-password"} minLength={signupMode ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-4 pr-16 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder={signupMode ? "Create a password (8+ characters)" : "Password"} />
+            <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute inset-y-0 right-4 my-auto h-fit text-sm font-semibold text-blue-700 hover:underline">{showPassword ? "Hide" : "Show"}</button>
+          </div>
         </div>
       </>}
       <button disabled={busy} className="pt-login-submit w-full rounded-full bg-blue-700 px-4 py-3 font-bold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60" type="submit">{busy ? "Please wait…" : resetMode ? "Send reset link" : signupMode ? "Create free account" : "Log in"}</button>
-      {resetMode && <button type="button" onClick={() => { setResetMode(false); setMessage(""); }} className="w-full text-sm font-medium text-blue-700 hover:underline">Back to log in</button>}
+      {resetMode && <button type="button" onClick={() => { setResetMode(false); setShowPassword(false); setMessage(""); }} className="w-full text-sm font-medium text-blue-700 hover:underline">Back to log in</button>}
       {!resetMode && (signupMode
-        ? <button type="button" onClick={() => { setSignupMode(false); setPassword(""); setMessage(""); }} className="w-full text-sm font-semibold text-blue-700 hover:underline">Already have an account? Log in</button>
+        ? <button type="button" onClick={() => { setSignupMode(false); setPassword(""); setShowPassword(false); setMessage(""); }} className="w-full text-sm font-semibold text-blue-700 hover:underline">Already have an account? Log in</button>
         : <Link href="/signup" className="block w-full text-center text-sm font-semibold text-blue-700 hover:underline">Create a free account</Link>)}
       {message && <p aria-live="polite" className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">{message}</p>}
     </form>

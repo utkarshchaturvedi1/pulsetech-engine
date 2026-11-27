@@ -1,16 +1,13 @@
 .pt-login {
-  background:
-    radial-gradient(circle at 86% 12%, rgba(119, 86, 255, .10), transparent 22rem),
-    radial-gradient(circle at 9% 74%, rgba(36, 107, 254, .08), transparent 24rem),
-    #f5f5f7;
+  background: #fff;
   color: #111217;
   font-family: var(--font-landing-sans), "Plus Jakarta Sans", sans-serif;
 }
 
 .pt-login-card {
-  background: rgba(255, 255, 255, .95);
+  background: #fff;
   border-color: rgba(17, 18, 23, .09);
-  box-shadow: 0 26px 76px rgba(17, 18, 23, .09);
+  box-shadow: 0 16px 40px rgba(17, 18, 23, .12), 0 3px 10px rgba(17, 18, 23, .06);
 }
 
 .pt-login input { min-height: 48px; }

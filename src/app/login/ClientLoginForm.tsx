@@ -11,13 +11,13 @@ type ClientLoginFormProps = {
 };
 
 function safeNextPath(value?: string) {
-  if (!value?.startsWith("/") || value.startsWith("//") || /[\\\\\u0000-\u0020\u007f]/.test(value)) return "/client";
+  if (!value?.startsWith("/") || value.startsWith("//") || /[\\\\\\u0000-\\u0020\\u007f]/.test(value)) return "/client";
   return value;
 }
 
 function demoIdFromPath(value: string): string | null {
   const destination = new URL(value, "https://pulsetech.invalid");
-  const pathMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(destination.pathname);
+  const pathMatch = /^\\/demo\\/([a-z0-9_-]+)$/i.exec(destination.pathname);
   const id = pathMatch?.[1]
     ? decodeURIComponent(pathMatch[1])
     : destination.pathname === "/demo" ? destination.searchParams.get("id") : null;
@@ -30,14 +30,43 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resendBusy, setResendBusy] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [signupMode, setSignupMode] = useState(initialMode === "signup");
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmationEmailRequired, setConfirmationEmailRequired] = useState(false);
+
+  async function resendConfirmationEmail() {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      setMessage("Enter your email address first.");
+      return;
+    }
+
+    setResendBusy(true);
+    setMessage("");
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: normalizedEmail,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      setMessage(error
+        ? "We couldn’t send a new confirmation email. Please try again shortly."
+        : "A fresh confirmation link has been requested. Check your inbox and Spam folder.");
+    } catch {
+      setMessage("We couldn’t send a new confirmation email. Please try again shortly.");
+    } finally {
+      setResendBusy(false);
+    }
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
+    setConfirmationEmailRequired(false);
     try {
       const supabase = createClient();
       const normalizedEmail = email.trim().toLowerCase();
@@ -83,13 +112,18 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
           router.replace("/client?onboarding=ready");
           router.refresh();
         } else {
-          setMessage("Check your email to confirm this account and return to your demo. Already have an account? Log in or use Forgot password.");
+          setConfirmationEmailRequired(true);
+          setMessage("Check your email to confirm this account and return to your demo.");
         }
         return;
       }
       const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
       if (error) {
-        setMessage("We couldn’t sign you in with those details. Check them or use Forgot password.");
+        const needsConfirmation = error.message.toLowerCase().includes("email not confirmed");
+        setConfirmationEmailRequired(needsConfirmation);
+        setMessage(needsConfirmation
+          ? "Please confirm your email address before signing in. You can request a fresh confirmation email below."
+          : "We couldn’t sign you in with those details. Check them or use Forgot password.");
         return;
       }
       const demoId = demoIdFromPath(destination);
@@ -130,11 +164,11 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
       </div>
       <div className="space-y-2">
         <label className="block text-sm font-semibold text-slate-800" htmlFor="client-email">Email</label>
-        <input id="client-email" type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="you@business.com" />
+        <input id="client-email" type="email" autoComplete="email" required value={email} onChange={(event) => { setEmail(event.target.value); setConfirmationEmailRequired(false); }} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder="you@business.com" />
       </div>
       {!resetMode && <>
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3"><label className="text-sm font-semibold text-slate-800" htmlFor="client-password">Password</label>{!signupMode && <button type="button" onClick={() => { setResetMode(true); setShowPassword(false); setMessage(""); }} className="text-sm font-semibold text-blue-700 hover:underline">Forgot password?</button>}</div>
+          <div className="flex items-center justify-between gap-3"><label className="text-sm font-semibold text-slate-800" htmlFor="client-password">Password</label>{!signupMode && <button type="button" onClick={() => { setResetMode(true); setShowPassword(false); setConfirmationEmailRequired(false); setMessage(""); }} className="text-sm font-semibold text-blue-700 hover:underline">Forgot password?</button>}</div>
           <div className="relative">
             <input id="client-password" type={showPassword ? "text" : "password"} autoComplete={signupMode ? "new-password" : "current-password"} minLength={signupMode ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-xl border border-slate-300 bg-white py-3 pl-4 pr-16 text-slate-950 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100" placeholder={signupMode ? "Create a password (8+ characters)" : "Password"} />
             <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute inset-y-0 right-4 my-auto h-fit text-sm font-semibold text-blue-700 hover:underline">{showPassword ? "Hide" : "Show"}</button>
@@ -142,9 +176,10 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
         </div>
       </>}
       <button disabled={busy} className="pt-login-submit w-full rounded-full bg-blue-700 px-4 py-3 font-bold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60" type="submit">{busy ? "Please wait…" : resetMode ? "Send reset link" : signupMode ? "Create free account" : "Log in"}</button>
+      {confirmationEmailRequired && <button type="button" onClick={resendConfirmationEmail} disabled={resendBusy} className="w-full text-sm font-semibold text-blue-700 hover:underline disabled:cursor-wait disabled:opacity-60">{resendBusy ? "Sending confirmation email…" : "Resend confirmation email"}</button>}
       {resetMode && <button type="button" onClick={() => { setResetMode(false); setShowPassword(false); setMessage(""); }} className="w-full text-sm font-medium text-blue-700 hover:underline">Back to log in</button>}
       {!resetMode && (signupMode
-        ? <button type="button" onClick={() => { setSignupMode(false); setPassword(""); setShowPassword(false); setMessage(""); }} className="w-full text-sm font-semibold text-blue-700 hover:underline">Already have an account? Log in</button>
+        ? <button type="button" onClick={() => { setSignupMode(false); setPassword(""); setShowPassword(false); setConfirmationEmailRequired(false); setMessage(""); }} className="w-full text-sm font-semibold text-blue-700 hover:underline">Already have an account? Log in</button>
         : <Link href="/signup" className="block w-full text-center text-sm font-semibold text-blue-700 hover:underline">Create a free account</Link>)}
       {message && <p aria-live="polite" className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-700">{message}</p>}
     </form>

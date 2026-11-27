@@ -176,7 +176,10 @@ export default function ClientLoginForm({ nextPath, initialMode = "login" }: Cli
         </div>
       </>}
       <button disabled={busy} className="pt-login-submit w-full rounded-full bg-blue-700 px-4 py-3 font-bold text-white transition hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-200 disabled:cursor-wait disabled:opacity-60" type="submit">{busy ? "Please wait…" : resetMode ? "Send reset link" : signupMode ? "Create free account" : "Log in"}</button>
-      {confirmationEmailRequired && <button type="button" onClick={resendConfirmationEmail} disabled={resendBusy} className="w-full text-sm font-semibold text-blue-700 hover:underline disabled:cursor-wait disabled:opacity-60">{resendBusy ? "Sending confirmation email…" : "Resend confirmation email"}</button>}
+      {!resetMode && (!signupMode || confirmationEmailRequired) && <div className="space-y-1 text-center">
+        <p className="text-sm text-slate-600">Didn’t get the confirmation email?</p>
+        <button type="button" onClick={resendConfirmationEmail} disabled={resendBusy} className="text-sm font-semibold text-blue-700 hover:underline disabled:cursor-wait disabled:opacity-60">{resendBusy ? "Sending confirmation email…" : "Resend confirmation email"}</button>
+      </div>}
       {resetMode && <button type="button" onClick={() => { setResetMode(false); setShowPassword(false); setMessage(""); }} className="w-full text-sm font-medium text-blue-700 hover:underline">Back to log in</button>}
       {!resetMode && (signupMode
         ? <button type="button" onClick={() => { setSignupMode(false); setPassword(""); setShowPassword(false); setConfirmationEmailRequired(false); setMessage(""); }} className="w-full text-sm font-semibold text-blue-700 hover:underline">Already have an account? Log in</button>

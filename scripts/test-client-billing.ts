@@ -7,8 +7,8 @@ const setup = pid("pri", "a"), monthly = pid("pri", "b");
 const intent = "10000000-0000-4000-8000-000000000001", token = "a".repeat(64);
 const data = { id: pid("txn", "c"), status: "completed", customer_id: pid("ctm", "d"), subscription_id: pid("sub", "e"), currency_code: "USD", discount_id: null,
   custom_data: { pulsetech_checkout_id: intent, pulsetech_checkout_token: token, customer_account_id: "attacker-selected-account" },
-  details: { totals: { subtotal: "250000", discount: "0" } },
-  items: [{ quantity: 1, price: { id: setup, unit_price: { amount: "200000", currency_code: "USD" }, billing_cycle: null } }, { quantity: 1, price: { id: monthly, unit_price: { amount: "50000", currency_code: "USD" }, billing_cycle: { interval: "month", frequency: 1 } } }],
+  details: { totals: { subtotal: "99400", discount: "0" } },
+  items: [{ quantity: 1, price: { id: setup, unit_price: { amount: "49700", currency_code: "USD" }, billing_cycle: null } }, { quantity: 1, price: { id: monthly, unit_price: { amount: "49700", currency_code: "USD" }, billing_cycle: { interval: "month", frequency: 1 } } }],
 };
 const record = { eventId: pid("evt", "f"), notificationId: pid("ntf", "g"), eventType: "transaction.completed" as const, occurredAt: new Date().toISOString(), payload: data };
 const parsed = billingCommand(record, setup, monthly)!;
@@ -16,14 +16,14 @@ assert.equal(parsed.kind, "payment"); assert.equal(parsed.initial, true); assert
 assert.equal("customer_account_id" in parsed, false, "client-supplied account IDs are not selectors");
 for (const change of [
   { currency_code: "EUR" }, { status: "paid" }, { subscription_id: null }, { customer_id: null },
-  { discount_id: "discount" }, { details: { totals: { subtotal: "249999", discount: "0" } } },
+  { discount_id: "discount" }, { details: { totals: { subtotal: "99399", discount: "0" } } },
   { items: [data.items[0], data.items[0]] }, { items: [{ ...data.items[0], quantity: 2 }, data.items[1]] },
   { items: [data.items[0], { ...data.items[1], price: { ...data.items[1].price, unit_price: { amount: "1", currency_code: "USD" } } }] },
   { items: [data.items[0], { ...data.items[1], price: { ...data.items[1].price, billing_cycle: { interval: "year", frequency: 1 } } }] },
 ]) assert.equal(billingCommand({ ...record, payload: { ...data, ...change } }, setup, monthly), null);
 assert.equal(billingCommand({ ...record, eventId: "ntfsimevt_"+"a".repeat(26) }, setup, monthly), null, "simulator cannot grant paid access");
 assert.equal(billingCommand(record, "", monthly), null);
-const renewal = billingCommand({ ...record, payload: { ...data, items: [data.items[1]], details: { totals: { subtotal: "50000", discount: "0" } } } }, setup, monthly)!;
+const renewal = billingCommand({ ...record, payload: { ...data, items: [data.items[1]], details: { totals: { subtotal: "49700", discount: "0" } } } }, setup, monthly)!;
 assert.equal(renewal.initial, false);
 for (const [status, expected] of [["active", "paid"], ["canceled", "canceled"], ["past_due", "past_due"], ["paused", "paused"]]) {
   const command = billingCommand({ ...record, eventType: "subscription.updated", payload: { ...data, id: pid("sub", "e"), status } }, setup, monthly)!;

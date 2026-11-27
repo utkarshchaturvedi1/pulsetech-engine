@@ -10,8 +10,8 @@ Apply `supabase/multi_provider_billing.sql` after the existing `supabase/client_
 
 The live products already in the Dodo catalogue are:
 
-- Setup and training: `$2,000` one time (`pdt_0NqqS9Oa274LBB5NcBL1J`)
-- Monthly service: `$500` monthly (`pdt_0NqqSKk27jMr6B740Vvrw`)
+- Setup and training: `$497` one time (`pdt_0NqqS9Oa274LBB5NcBL1J`)
+- Monthly service: `$497` monthly (`pdt_0NqqSKk27jMr6B740Vvrw`)
 
 Add these Production environment variables in Vercel:
 

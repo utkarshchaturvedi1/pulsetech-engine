@@ -14,7 +14,7 @@ function signature(raw: string) {
 }
 const raw = JSON.stringify({ type: "payment.succeeded", timestamp: new Date(now).toISOString(), data: {
   payload_type: "Payment", payment_id: "pay_test_123", status: "succeeded", customer_id: "cus_test_123",
-  subscription_id: "sub_test_123", currency: "USD", total_amount: 250000,
+  subscription_id: "sub_test_123", currency: "USD", total_amount: 99400,
   metadata: { pulsetech_checkout_id: "10000000-0000-4000-8000-000000000001", pulsetech_checkout_token: "a".repeat(64) },
   product_cart: [{ product_id: setup, quantity: 1 }, { product_id: monthly, quantity: 1 }],
 } });
@@ -30,7 +30,7 @@ assert.equal(parsed?.intentId, "10000000-0000-4000-8000-000000000001");
 assert.equal(parsed?.tokenHash?.length, 64);
 for (const dataPatch of [
   { currency: "EUR" }, { status: "failed" }, { subscription_id: null },
-  { discount_id: "discount" }, { total_amount: 249999 },
+  { discount_id: "discount" }, { total_amount: 99399 },
   { product_cart: [{ product_id: setup, quantity: 2 }, { product_id: monthly, quantity: 1 }] },
   { product_cart: [{ product_id: setup, quantity: 1 }, { product_id: "pdt_untrusted", quantity: 1 }] },
 ]) {
@@ -38,7 +38,7 @@ for (const dataPatch of [
 }
 
 const renewal = dodoBillingCommand({ webhookId: "msg_renewal", event: { ...event, data: {
-  ...event.data, payment_id: "pay_renewal_123", total_amount: 50000, metadata: {}, product_cart: [{ product_id: monthly, quantity: 1 }],
+  ...event.data, payment_id: "pay_renewal_123", total_amount: 49700, metadata: {}, product_cart: [{ product_id: monthly, quantity: 1 }],
 } }, setupProductId: setup, monthlyProductId: monthly });
 assert.equal(renewal?.initial, false);
 assert.equal(dodoBillingCommand({ webhookId: "msg_unknown", event: { ...event, type: "payment.failed" }, setupProductId: setup, monthlyProductId: monthly }), null);

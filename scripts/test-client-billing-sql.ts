@@ -50,7 +50,7 @@ const dodoCommand = {
   provider:"dodo",environment:"live",kind:"payment",eventId:"msg_payment_001",occurredAt:now,
   entityId:"pay_payment_001",paymentId:"pay_payment_001",customerId:"cus_dodo_001",subscriptionId:"sub_dodo_001",
   intentId:dodoIntent,tokenHash:dodoTokenHash,initial:true,status:"paid",periodStart:now,
-  periodEnd:new Date(Date.now()+30*86400000).toISOString(),amount:250000,currency:"USD",
+  periodEnd:new Date(Date.now()+30*86400000).toISOString(),amount:99400,currency:"USD",
   setupProductId:"pdt_setup",monthlyProductId:"pdt_monthly",
   products:[{productId:"pdt_setup",quantity:1},{productId:"pdt_monthly",quantity:1}],
 };
@@ -59,7 +59,7 @@ assert.equal(await applyDodo(dodoCommand),"applied");
 assert.equal(await applyDodo(dodoCommand),"duplicate");
 assert.deepEqual((await db.query<{billing_status:string;billing_provider:string;dodo_subscription_id:string}>("select billing_status,billing_provider,dodo_subscription_id from public.customer_accounts where id=$1",[b.id])).rows[0],{billing_status:"paid",billing_provider:"dodo",dodo_subscription_id:"sub_dodo_001"});
 assert.equal(await applyDodo({...dodoCommand,eventId:"msg_bad_amount",entityId:"pay_bad_amount",paymentId:"pay_bad_amount",amount:1}),"ignored");
-const dodoRenewal={...dodoCommand,eventId:"msg_renewal_001",entityId:"pay_renewal_001",paymentId:"pay_renewal_001",intentId:null,tokenHash:null,initial:false,amount:50000,products:[{productId:"pdt_monthly",quantity:1}]};
+const dodoRenewal={...dodoCommand,eventId:"msg_renewal_001",entityId:"pay_renewal_001",paymentId:"pay_renewal_001",intentId:null,tokenHash:null,initial:false,amount:49700,products:[{productId:"pdt_monthly",quantity:1}]};
 assert.equal(await applyDodo(dodoRenewal),"applied");
 const dodoRefund={...dodoCommand,kind:"adjustment",eventId:"msg_refund_001",entityId:"ref_001",paymentId:"pay_payment_001",intentId:null,tokenHash:null,initial:false,status:"refunded"};
 assert.equal(await applyDodo(dodoRefund),"applied");

@@ -82,13 +82,13 @@ begin
        or expected_setup is null or expected_monthly is null or jsonb_typeof(product_list) is distinct from 'array'
        or command->>'amount' is null then return 'ignored'; end if;
     if expected_initial then
-      if i.id is null or a.dodo_subscription_id is not null or (command->>'amount')::numeric < 250000
+      if i.id is null or a.dodo_subscription_id is not null or (command->>'amount')::numeric < 99400
          or jsonb_array_length(product_list)<>2
          or not (product_list @> jsonb_build_array(jsonb_build_object('productId',expected_setup,'quantity',1)))
          or not (product_list @> jsonb_build_array(jsonb_build_object('productId',expected_monthly,'quantity',1))) then return 'ignored'; end if;
     else
       if a.dodo_subscription_id is null or a.dodo_subscription_id<>command->>'subscriptionId'
-         or a.dodo_customer_id<>command->>'customerId' or (command->>'amount')::numeric < 50000
+         or a.dodo_customer_id<>command->>'customerId' or (command->>'amount')::numeric < 49700
          or jsonb_array_length(product_list)<>1
          or not (product_list @> jsonb_build_array(jsonb_build_object('productId',expected_monthly,'quantity',1))) then return 'ignored'; end if;
     end if;

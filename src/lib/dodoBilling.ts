@@ -101,7 +101,7 @@ export function dodoBillingCommand(input: {
     const initial = products.length === 2 && products.some((p) => p.productId === setupProductId) && products.some((p) => p.productId === monthlyProductId);
     const renewal = products.length === 1 && products[0].productId === monthlyProductId;
     if (!initial && !renewal || products.some((p) => p.quantity !== 1)) return null;
-    if (data.discount_id != null || data.discount_ids != null || initial && (amount == null || amount < 250000) || renewal && (amount == null || amount < 50000)) return null;
+    if (data.discount_id != null || data.discount_ids != null || initial && (amount == null || amount < 99400) || renewal && (amount == null || amount < 49700)) return null;
     return { ...base, kind: "payment", entityId: base.paymentId, initial, status: "paid" };
   }
   if (type.startsWith("subscription.")) {

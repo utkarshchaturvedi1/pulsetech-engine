@@ -11,13 +11,13 @@ type ClientLoginFormProps = {
 };
 
 function safeNextPath(value?: string) {
-  if (!value?.startsWith("/") || value.startsWith("//") || /[\\\\\\u0000-\\u0020\\u007f]/.test(value)) return "/client";
+  if (!value?.startsWith("/") || value.startsWith("//") || /[\\\x00-\x20\x7f]/.test(value)) return "/client";
   return value;
 }
 
 function demoIdFromPath(value: string): string | null {
   const destination = new URL(value, "https://pulsetech.invalid");
-  const pathMatch = /^\\/demo\\/([a-z0-9_-]+)$/i.exec(destination.pathname);
+  const pathMatch = /^\/demo\/([a-z0-9_-]+)$/i.exec(destination.pathname);
   const id = pathMatch?.[1]
     ? decodeURIComponent(pathMatch[1])
     : destination.pathname === "/demo" ? destination.searchParams.get("id") : null;
